@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Graph Web App</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
+        .nav { margin-bottom: 20px; }
+        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        button { padding: 10px; cursor: pointer; }
+        #explanation { width: 100%; height: 60px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <input id="wf-desc" placeholder="Workflow name/desc...">
+        <button onclick="startWF()" id="btn-start">Start Recording</button>
+        <button onclick="stopWF()" id="btn-stop" disabled>Stop & Save</button>
+        <div id="recording-status"></div>
+        <textarea id="explanation" placeholder="Explain what you are doing..."></textarea>
+        <button onclick="sendStep()">Log Current Step</button>
+    </div>
+
+    <div class="nav">
+        <a href="index.html">Home</a> | 
+        <a href="page1.html">Page 1</a> | 
+        <a href="page2.html">Page 2</a>
+    </div>
+
+    <div id="content">
+        <h1>Welcome to the Graph Web App</h1>
+        <p>This is the home page. Navigate around to record workflows.</p>
+    </div>
+
+    <script>
+        async function startWF() {
+            const desc = document.getElementById('wf-desc').value;
+            await fetch('/api/workflow/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ description: desc })
+            });
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-stop').disabled = false;
+            document.getElementById('recording-status').innerText = "Recording...";
+        }
+
+        async function stopWF() {
+            await fetch('/api/workflow/stop', { method: 'POST' });
+            location.reload();
+        }
+
+        async function sendStep() {
+            const explanation = document.getElementById('explanation').value;
+            await fetch('/api/step', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ url: window.location.href, explanation })
+            });
+            document.getElementById('explanation').value = '';
+            alert("Step logged!");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Page 2</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #fff0e0; }
+        .nav { margin-bottom: 20px; }
+        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        button { padding: 10px; cursor: pointer; }
+        #explanation { width: 100%; height: 60px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <textarea id="explanation" placeholder="Explain what you are doing..."></textarea>
+        <button onclick="sendStep()">Log Current Step</button>
+    </div>
+    <div class="nav">
+        <a href="index.html">Home</a> | 
+        <a href="page1.html">Page 1</a> | 
+        <a href="page2.html">Page 2</a>
+    </div>
+    <h1>This is Page 2</h1>
+    <p>Some content for Page 2.</p>
+    <script>
+        async function sendStep() {
+            const explanation = document.getElementById('explanation').value;
+            await fetch('/api/step', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ url: window.location.href, explanation })
+            });
+            document.getElementById('explanation').value = '';
+            alert("Step logged!");
+        }
+    </script>
+</body>
+</html>
