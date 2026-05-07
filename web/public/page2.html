@@ -1,38 +1,423 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Page 2</title>
+    <title>EMR Diagnosis and Prescription</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #fff0e0; }
-        .nav { margin-bottom: 20px; }
-        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        button { padding: 10px; cursor: pointer; }
-        #explanation { width: 100%; height: 60px; margin-top: 10px; }
+        :root {
+            --surface: #ffffff;
+            --surface-2: #f7fafc;
+            --line: #d7e0e8;
+            --line-2: #c8d3dd;
+            --ink: #1d2a33;
+            --muted: #637381;
+            --primary: #0f5f8c;
+            --primary-soft: #e8f1f7;
+            --danger: #a33b3b;
+            --shadow: 0 20px 48px rgba(16, 31, 44, 0.08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Inter", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: linear-gradient(180deg, #f4f7fa 0%, #ebf1f6 100%);
+        }
+        .shell {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 24px 24px 190px;
+        }
+        .topbar, .card, .console {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+        }
+        .topbar {
+            border-radius: 18px;
+            padding: 16px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .topbar h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .topbar p {
+            margin: 2px 0 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+        .nav a {
+            text-decoration: none;
+            color: var(--primary);
+            font-weight: 600;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 10px 14px;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 18px;
+        }
+        .card {
+            border-radius: 22px;
+            padding: 22px;
+        }
+        .section-label {
+            display: inline-flex;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 14px;
+        }
+        .field-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .field-span { grid-column: 1 / -1; }
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        input, textarea, select {
+            width: 100%;
+            border: 1px solid var(--line-2);
+            border-radius: 12px;
+            padding: 12px 13px;
+            font: inherit;
+            color: var(--ink);
+            background: #fff;
+        }
+        textarea { resize: vertical; min-height: 98px; }
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 11px 16px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-secondary {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+        .feedback {
+            min-height: 24px;
+            margin-top: 12px;
+            color: #1b6b4b;
+            font-weight: 600;
+        }
+        .activity ol {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--muted);
+        }
+        .console {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            width: min(980px, calc(100vw - 24px));
+            border-radius: 22px;
+            padding: 14px;
+            z-index: 50;
+            background: rgba(255,255,255,0.94);
+            backdrop-filter: blur(18px);
+        }
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .console-header h4 {
+            margin: 0;
+            font-size: 15px;
+        }
+        .console-header p {
+            margin: 2px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .console-status {
+            font-weight: 700;
+            color: var(--danger);
+        }
+        .console-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .console-panel {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 12px;
+            background: var(--surface-2);
+        }
+        .console-panel h5 {
+            margin: 0 0 8px;
+            font-size: 13px;
+        }
+        .console-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .console-log {
+            max-height: 160px;
+            overflow: auto;
+            display: grid;
+            gap: 8px;
+        }
+        .console-log-item {
+            padding: 10px 11px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: white;
+            font-size: 13px;
+        }
+        @media (max-width: 1040px) {
+            .layout, .console-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 760px) {
+            .field-grid {
+                grid-template-columns: 1fr;
+            }
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="controls">
-        <textarea id="explanation" placeholder="Explain what you are doing..."></textarea>
-        <button onclick="sendStep()">Log Current Step</button>
+    <div class="shell">
+        <section class="topbar">
+            <div>
+                <h1>Graph EMR Training Workspace</h1>
+                <p>Clinical documentation module: assessment, prescription and follow-up</p>
+            </div>
+            <div style="color:#637381;font-size:13px;">Module status: ready for teaching</div>
+        </section>
+
+        <nav class="nav">
+            <a href="index.html">Patient Intake</a>
+            <a href="page1.html">Anamnesis</a>
+            <a href="page2.html">Diagnosis & Rx</a>
+            <a href="visualize.html">Workflow Graph</a>
+        </nav>
+
+        <section class="layout">
+            <article class="card">
+                <div class="section-label">Module 3</div>
+                <h2 style="margin:0 0 8px;">Assessment, Formula and Follow-up</h2>
+                <p style="margin:0 0 18px;color:#637381;">Finalize the physician workflow with diagnosis, reasoning, medication orders and disposition.</p>
+
+                <div class="field-grid">
+                    <div>
+                        <label for="assessment-primary-diagnosis">Primary diagnosis</label>
+                        <input data-testid="assessment-primary-diagnosis" id="assessment-primary-diagnosis" placeholder="Acute viral pharyngitis">
+                    </div>
+                    <div>
+                        <label for="assessment-icd10">ICD-10 code</label>
+                        <input data-testid="assessment-icd10" id="assessment-icd10" placeholder="J02.9">
+                    </div>
+                    <div class="field-span">
+                        <label for="assessment-clinical-impression">Clinical impression</label>
+                        <textarea data-testid="assessment-clinical-impression" id="assessment-clinical-impression" rows="4" placeholder="Findings are compatible with uncomplicated upper respiratory infection without alarm signs."></textarea>
+                    </div>
+                    <div>
+                        <label for="rx-medication-name">Medication</label>
+                        <input data-testid="rx-medication-name" id="rx-medication-name" placeholder="Acetaminophen">
+                    </div>
+                    <div>
+                        <label for="rx-medication-dose">Dose</label>
+                        <input data-testid="rx-medication-dose" id="rx-medication-dose" placeholder="500 mg tablet">
+                    </div>
+                    <div>
+                        <label for="rx-medication-frequency">Frequency</label>
+                        <input data-testid="rx-medication-frequency" id="rx-medication-frequency" placeholder="Every 8 hours">
+                    </div>
+                    <div>
+                        <label for="rx-medication-duration">Duration</label>
+                        <input data-testid="rx-medication-duration" id="rx-medication-duration" placeholder="3 days">
+                    </div>
+                    <div class="field-span">
+                        <label for="rx-instructions">Patient instructions</label>
+                        <textarea data-testid="rx-instructions" id="rx-instructions" rows="4" placeholder="Take with water. Return if persistent fever or respiratory distress."></textarea>
+                    </div>
+                    <div>
+                        <label for="plan-orders">Additional orders</label>
+                        <textarea data-testid="plan-orders" id="plan-orders" rows="4" placeholder="Rest, oral hydration, no antibiotics for now."></textarea>
+                    </div>
+                    <div>
+                        <label for="plan-follow-up">Follow-up plan</label>
+                        <textarea data-testid="plan-follow-up" id="plan-follow-up" rows="4" placeholder="Reassessment in 48 to 72 hours if symptoms worsen."></textarea>
+                    </div>
+                    <div class="field-span">
+                        <label for="disposition-status">Disposition</label>
+                        <select data-testid="disposition-status" id="disposition-status">
+                            <option value="">Select</option>
+                            <option value="discharge">Discharge home</option>
+                            <option value="observation">Observation</option>
+                            <option value="referral">Specialist referral</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button class="btn-primary" data-testid="assessment-sign-note" id="assessment-sign-note" type="button">Sign Clinical Note</button>
+                    <button class="btn-secondary" data-testid="assessment-generate-rx" id="assessment-generate-rx" type="button">Generate Prescription</button>
+                </div>
+                <div class="feedback" data-testid="assessment-feedback" id="assessment-feedback"></div>
+            </article>
+
+            <aside class="card activity">
+                <div class="section-label">Recent actions</div>
+                <ol id="activity-log"></ol>
+            </aside>
+        </section>
     </div>
-    <div class="nav">
-        <a href="index.html">Home</a> | 
-        <a href="page1.html">Page 1</a> | 
-        <a href="page2.html">Page 2</a>
-    </div>
-    <h1>This is Page 2</h1>
-    <p>Some content for Page 2.</p>
+
+    <section class="console">
+        <div class="console-header">
+            <div>
+                <h4>Teaching Console</h4>
+                <p>Recorder controls, workflow prompt and AI activation live here.</p>
+            </div>
+            <div class="console-status" id="recording-status">Idle</div>
+        </div>
+
+        <div class="console-grid">
+            <div class="console-panel">
+                <h5>Workflow recording</h5>
+                <input id="wf-desc" placeholder="Describe the workflow, for example: URI assessment with prescription and discharge">
+                <textarea id="step-explanation" rows="3" placeholder="Optional note for the next action."></textarea>
+                <div class="console-actions">
+                    <button class="btn-primary" onclick="startWF()" id="btn-start">Start Recording</button>
+                    <button class="btn-secondary" onclick="stopWF()" id="btn-stop" disabled>Stop & Save</button>
+                    <button onclick="resetStatus()">Emergency Reset</button>
+                </div>
+            </div>
+
+            <div class="console-panel">
+                <h5>Chat with AI</h5>
+                <textarea id="agent-message" rows="3" placeholder="Ask the AI to execute a saved flow"></textarea>
+                <div class="console-actions">
+                    <button class="btn-primary" id="agent-send" type="button">Send to AI</button>
+                    <span id="agent-status" style="align-self:center; color:var(--primary); font-weight:700;"></span>
+                </div>
+                <div id="agent-log" class="console-log"></div>
+            </div>
+        </div>
+    </section>
+
+    <script src="recorder.js"></script>
     <script>
-        async function sendStep() {
-            const explanation = document.getElementById('explanation').value;
-            await fetch('/api/step', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ url: window.location.href, explanation })
-            });
-            document.getElementById('explanation').value = '';
-            alert("Step logged!");
+        const agentHistory = [];
+
+        async function startWF() {
+            const desc = document.getElementById('wf-desc').value.trim();
+            await window.WorkflowRecorder.startWorkflow(desc);
         }
+
+        async function stopWF() {
+            await window.WorkflowRecorder.stopWorkflow();
+        }
+
+        async function resetStatus() {
+            await window.WorkflowRecorder.resetWorkflow();
+        }
+
+        document.getElementById('assessment-sign-note').addEventListener('click', () => {
+            const diagnosis = document.getElementById('assessment-primary-diagnosis').value.trim();
+            document.getElementById('assessment-feedback').innerText = diagnosis
+                ? 'Clinical note signed and ready for discharge planning.'
+                : 'Add a primary diagnosis before signing the note.';
+        });
+
+        document.getElementById('assessment-generate-rx').addEventListener('click', () => {
+            const med = document.getElementById('rx-medication-name').value.trim();
+            document.getElementById('assessment-feedback').innerText = med
+                ? `Prescription generated for ${med}.`
+                : 'Add a medication before generating the formula.';
+        });
+
+        function appendAgentMessage(role, text, meta, pushHistory = true) {
+            if (pushHistory) {
+                agentHistory.push({ role, content: text });
+            }
+            const wrapper = document.createElement('div');
+            wrapper.className = 'console-log-item';
+            wrapper.innerHTML = `<strong>${role === 'user' ? 'You' : 'Assistant'}</strong><div>${text}</div>${meta ? `<div style="margin-top:6px;color:#637381;">${meta}</div>` : ''}`;
+            document.getElementById('agent-log').prepend(wrapper);
+        }
+
+        document.getElementById('agent-send').addEventListener('click', async () => {
+            const textarea = document.getElementById('agent-message');
+            const message = textarea.value.trim();
+            if (!message) return;
+
+            const historyForRequest = agentHistory.slice(-8);
+            appendAgentMessage('user', message);
+            textarea.value = '';
+            document.getElementById('agent-status').innerText = 'Thinking...';
+
+            const response = await fetch('/api/agent/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, history: historyForRequest })
+            });
+
+            const payload = await response.json();
+            if (!response.ok) {
+                appendAgentMessage('assistant', payload.error || 'Something went wrong.');
+                document.getElementById('agent-status').innerText = 'Error';
+                return;
+            }
+
+            const meta = payload.workflowId ? `workflow=${payload.workflowId} | executed=${payload.executed ? 'yes' : 'no'}` : null;
+            appendAgentMessage('assistant', payload.reply, meta);
+            document.getElementById('agent-status').innerText = payload.executed ? 'Workflow executed' : 'Awaiting clarification';
+        });
+
+        window.onload = () => window.WorkflowRecorder.syncStatus();
     </script>
 </body>
 </html>

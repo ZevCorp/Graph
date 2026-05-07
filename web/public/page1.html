@@ -1,38 +1,411 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Page 1</title>
+    <title>EMR Anamnesis</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #e0f0ff; }
-        .nav { margin-bottom: 20px; }
-        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        button { padding: 10px; cursor: pointer; }
-        #explanation { width: 100%; height: 60px; margin-top: 10px; }
+        :root {
+            --surface: #ffffff;
+            --surface-2: #f7fafc;
+            --line: #d7e0e8;
+            --line-2: #c8d3dd;
+            --ink: #1d2a33;
+            --muted: #637381;
+            --primary: #0f5f8c;
+            --primary-soft: #e8f1f7;
+            --danger: #a33b3b;
+            --shadow: 0 20px 48px rgba(16, 31, 44, 0.08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Inter", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: linear-gradient(180deg, #f4f7fa 0%, #ebf1f6 100%);
+        }
+        .shell {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 24px 24px 190px;
+        }
+        .topbar, .card, .console {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+        }
+        .topbar {
+            border-radius: 18px;
+            padding: 16px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .topbar h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .topbar p {
+            margin: 2px 0 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+        .nav a {
+            text-decoration: none;
+            color: var(--primary);
+            font-weight: 600;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 10px 14px;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 18px;
+        }
+        .card {
+            border-radius: 22px;
+            padding: 22px;
+        }
+        .section-label {
+            display: inline-flex;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 14px;
+        }
+        .field-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .field-span { grid-column: 1 / -1; }
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        input, textarea, select {
+            width: 100%;
+            border: 1px solid var(--line-2);
+            border-radius: 12px;
+            padding: 12px 13px;
+            font: inherit;
+            color: var(--ink);
+            background: #fff;
+        }
+        textarea { resize: vertical; min-height: 98px; }
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 11px 16px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-secondary {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+        .feedback {
+            min-height: 24px;
+            margin-top: 12px;
+            color: #1b6b4b;
+            font-weight: 600;
+        }
+        .activity ol {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--muted);
+        }
+        .console {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            width: min(980px, calc(100vw - 24px));
+            border-radius: 22px;
+            padding: 14px;
+            z-index: 50;
+            background: rgba(255,255,255,0.94);
+            backdrop-filter: blur(18px);
+        }
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .console-header h4 {
+            margin: 0;
+            font-size: 15px;
+        }
+        .console-header p {
+            margin: 2px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .console-status {
+            font-weight: 700;
+            color: var(--danger);
+        }
+        .console-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .console-panel {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 12px;
+            background: var(--surface-2);
+        }
+        .console-panel h5 {
+            margin: 0 0 8px;
+            font-size: 13px;
+        }
+        .console-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .console-log {
+            max-height: 160px;
+            overflow: auto;
+            display: grid;
+            gap: 8px;
+        }
+        .console-log-item {
+            padding: 10px 11px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: white;
+            font-size: 13px;
+        }
+        @media (max-width: 1040px) {
+            .layout, .console-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 760px) {
+            .field-grid {
+                grid-template-columns: 1fr;
+            }
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="controls">
-        <textarea id="explanation" placeholder="Explain what you are doing..."></textarea>
-        <button onclick="sendStep()">Log Current Step</button>
+    <div class="shell">
+        <section class="topbar">
+            <div>
+                <h1>Graph EMR Training Workspace</h1>
+                <p>Clinical documentation module: anamnesis and physical exam</p>
+            </div>
+            <div style="color:#637381;font-size:13px;">Module status: ready for teaching</div>
+        </section>
+
+        <nav class="nav">
+            <a href="index.html">Patient Intake</a>
+            <a href="page1.html">Anamnesis</a>
+            <a href="page2.html">Diagnosis & Rx</a>
+            <a href="visualize.html">Workflow Graph</a>
+        </nav>
+
+        <section class="layout">
+            <article class="card">
+                <div class="section-label">Module 2</div>
+                <h2 style="margin:0 0 8px;">Anamnesis and Physical Exam</h2>
+                <p style="margin:0 0 18px;color:#637381;">Document the clinical narrative with enough structure to feel like a real physician workflow.</p>
+
+                <div class="field-grid">
+                    <div>
+                        <label for="anamnesis-visit-type">Visit type</label>
+                        <select data-testid="anamnesis-visit-type" id="anamnesis-visit-type">
+                            <option value="">Select</option>
+                            <option value="first-time">First time</option>
+                            <option value="follow-up">Follow-up</option>
+                            <option value="urgent">Urgent care</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="anamnesis-symptom-days">Days with symptoms</label>
+                        <input data-testid="anamnesis-symptom-days" id="anamnesis-symptom-days" placeholder="3">
+                    </div>
+                    <div class="field-span">
+                        <label for="anamnesis-history-illness">History of present illness</label>
+                        <textarea data-testid="anamnesis-history-illness" id="anamnesis-history-illness" rows="4" placeholder="Patient with 3 days of fever, odynophagia and malaise without dyspnea."></textarea>
+                    </div>
+                    <div>
+                        <label for="anamnesis-medical-history">Relevant medical history</label>
+                        <textarea data-testid="anamnesis-medical-history" id="anamnesis-medical-history" rows="4" placeholder="Hypertension controlled with losartan."></textarea>
+                    </div>
+                    <div>
+                        <label for="anamnesis-allergies">Allergies</label>
+                        <textarea data-testid="anamnesis-allergies" id="anamnesis-allergies" rows="4" placeholder="No known drug allergies."></textarea>
+                    </div>
+                    <div class="field-span">
+                        <label for="anamnesis-review-systems">Review of systems</label>
+                        <textarea data-testid="anamnesis-review-systems" id="anamnesis-review-systems" rows="5" placeholder="Positive for fever and sore throat. Negative for chest pain, dyspnea and vomiting."></textarea>
+                    </div>
+                    <div>
+                        <label for="exam-general-appearance">General appearance</label>
+                        <textarea data-testid="exam-general-appearance" id="exam-general-appearance" rows="4" placeholder="Alert, hydrated, no respiratory distress."></textarea>
+                    </div>
+                    <div>
+                        <label for="exam-findings">Physical exam findings</label>
+                        <textarea data-testid="exam-findings" id="exam-findings" rows="4" placeholder="Erythematous pharynx without exudate, lungs clear."></textarea>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button class="btn-primary" data-testid="anamnesis-save-note" id="anamnesis-save-note" type="button">Save Note</button>
+                    <button class="btn-secondary" data-testid="anamnesis-request-labs" id="anamnesis-request-labs" type="button">Request Labs</button>
+                </div>
+                <div class="feedback" data-testid="anamnesis-feedback" id="anamnesis-feedback"></div>
+            </article>
+
+            <aside class="card activity">
+                <div class="section-label">Recent actions</div>
+                <ol id="activity-log"></ol>
+            </aside>
+        </section>
     </div>
-    <div class="nav">
-        <a href="index.html">Home</a> | 
-        <a href="page1.html">Page 1</a> | 
-        <a href="page2.html">Page 2</a>
-    </div>
-    <h1>This is Page 1</h1>
-    <p>Some content for Page 1.</p>
+
+    <section class="console">
+        <div class="console-header">
+            <div>
+                <h4>Teaching Console</h4>
+                <p>Recorder controls, workflow prompt and AI activation live here.</p>
+            </div>
+            <div class="console-status" id="recording-status">Idle</div>
+        </div>
+
+        <div class="console-grid">
+            <div class="console-panel">
+                <h5>Workflow recording</h5>
+                <input id="wf-desc" placeholder="Describe the workflow, for example: URI anamnesis with physical exam and lab request">
+                <textarea id="step-explanation" rows="3" placeholder="Optional note for the next action."></textarea>
+                <div class="console-actions">
+                    <button class="btn-primary" onclick="startWF()" id="btn-start">Start Recording</button>
+                    <button class="btn-secondary" onclick="stopWF()" id="btn-stop" disabled>Stop & Save</button>
+                    <button onclick="resetStatus()">Emergency Reset</button>
+                </div>
+            </div>
+
+            <div class="console-panel">
+                <h5>Chat with AI</h5>
+                <textarea id="agent-message" rows="3" placeholder="Ask the AI to execute a saved flow"></textarea>
+                <div class="console-actions">
+                    <button class="btn-primary" id="agent-send" type="button">Send to AI</button>
+                    <span id="agent-status" style="align-self:center; color:var(--primary); font-weight:700;"></span>
+                </div>
+                <div id="agent-log" class="console-log"></div>
+            </div>
+        </div>
+    </section>
+
+    <script src="recorder.js"></script>
     <script>
-        async function sendStep() {
-            const explanation = document.getElementById('explanation').value;
-            await fetch('/api/step', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ url: window.location.href, explanation })
-            });
-            document.getElementById('explanation').value = '';
-            alert("Step logged!");
+        const agentHistory = [];
+
+        async function startWF() {
+            const desc = document.getElementById('wf-desc').value.trim();
+            await window.WorkflowRecorder.startWorkflow(desc);
         }
+
+        async function stopWF() {
+            await window.WorkflowRecorder.stopWorkflow();
+        }
+
+        async function resetStatus() {
+            await window.WorkflowRecorder.resetWorkflow();
+        }
+
+        document.getElementById('anamnesis-save-note').addEventListener('click', () => {
+            const history = document.getElementById('anamnesis-history-illness').value.trim();
+            document.getElementById('anamnesis-feedback').innerText = history
+                ? 'Anamnesis saved to the chart.'
+                : 'Document the history of present illness before saving.';
+        });
+
+        document.getElementById('anamnesis-request-labs').addEventListener('click', () => {
+            const review = document.getElementById('anamnesis-review-systems').value.trim();
+            document.getElementById('anamnesis-feedback').innerText = review
+                ? 'Labs suggested. Continue to diagnostic assessment.'
+                : 'Complete the review of systems before requesting labs.';
+        });
+
+        function appendAgentMessage(role, text, meta, pushHistory = true) {
+            if (pushHistory) {
+                agentHistory.push({ role, content: text });
+            }
+            const wrapper = document.createElement('div');
+            wrapper.className = 'console-log-item';
+            wrapper.innerHTML = `<strong>${role === 'user' ? 'You' : 'Assistant'}</strong><div>${text}</div>${meta ? `<div style="margin-top:6px;color:#637381;">${meta}</div>` : ''}`;
+            document.getElementById('agent-log').prepend(wrapper);
+        }
+
+        document.getElementById('agent-send').addEventListener('click', async () => {
+            const textarea = document.getElementById('agent-message');
+            const message = textarea.value.trim();
+            if (!message) return;
+
+            const historyForRequest = agentHistory.slice(-8);
+            appendAgentMessage('user', message);
+            textarea.value = '';
+            document.getElementById('agent-status').innerText = 'Thinking...';
+
+            const response = await fetch('/api/agent/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, history: historyForRequest })
+            });
+
+            const payload = await response.json();
+            if (!response.ok) {
+                appendAgentMessage('assistant', payload.error || 'Something went wrong.');
+                document.getElementById('agent-status').innerText = 'Error';
+                return;
+            }
+
+            const meta = payload.workflowId ? `workflow=${payload.workflowId} | executed=${payload.executed ? 'yes' : 'no'}` : null;
+            appendAgentMessage('assistant', payload.reply, meta);
+            document.getElementById('agent-status').innerText = payload.executed ? 'Workflow executed' : 'Awaiting clarification';
+        });
+
+        window.onload = () => window.WorkflowRecorder.syncStatus();
     </script>
 </body>
 </html>

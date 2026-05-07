@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Workflow Admin Visualizer</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root {
+            --bg: #151311;
+            --bg-soft: #1d1916;
+            --card: #231f1b;
+            --card-strong: #2a251f;
+            --ink: #f5efe7;
+            --muted: #b8aa98;
+            --line: rgba(255, 255, 255, 0.08);
+            --accent: #ef9f4f;
+            --accent-soft: rgba(239, 159, 79, 0.15);
+            --good: #6cbf84;
+            --warn: #f2c94c;
+            --bad: #eb6f6f;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: var(--ink);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(239, 159, 79, 0.18), transparent 28%),
+                radial-gradient(circle at top right, rgba(108, 191, 132, 0.12), transparent 24%),
+                linear-gradient(180deg, #171410 0%, #11100e 100%);
+            min-height: 100vh;
+        }
+        .shell {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: end;
+            padding: 22px 24px;
+            margin-bottom: 16px;
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            background: linear-gradient(135deg, rgba(42, 37, 31, 0.92), rgba(25, 22, 18, 0.92));
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
+        }
+        .hero h1 {
+            margin: 4px 0 8px;
+            font-size: clamp(28px, 3vw, 44px);
+            letter-spacing: -0.03em;
+        }
+        .hero p {
+            margin: 0;
+            max-width: 760px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        .hero-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .hero-links a {
+            color: var(--ink);
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 10px 14px;
+        }
+        .workspace {
+            display: grid;
+            grid-template-columns: 1.55fr 0.95fr;
+            gap: 16px;
+            align-items: start;
+        }
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            background: linear-gradient(180deg, rgba(35, 31, 27, 0.95), rgba(24, 21, 18, 0.95));
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.18);
+            overflow: hidden;
+        }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .panel-title {
+            margin: 0;
+            font-size: 18px;
+        }
+        .panel-subtitle {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: #ffd4a7;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .graph-panel {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            min-height: 760px;
+        }
+        #network {
+            width: 100%;
+            min-height: 720px;
+            background:
+                radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 35%),
+                linear-gradient(180deg, #1f1b17 0%, #161411 100%);
+        }
+        .sidebar {
+            display: grid;
+            gap: 16px;
+        }
+        .box {
+            padding: 16px 18px;
+            border-top: 1px solid var(--line);
+        }
+        .toolbar {
+            display: grid;
+            gap: 10px;
+        }
+        .toolbar-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .search,
+        .field,
+        .textarea,
+        .select {
+            width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--ink);
+            padding: 11px 13px;
+            font: inherit;
+            outline: none;
+        }
+        .textarea {
+            resize: vertical;
+            min-height: 84px;
+        }
+        .search::placeholder,
+        .field::placeholder,
+        .textarea::placeholder {
+            color: #8d8174;
+        }
+        .btn {
+            border: 0;
+            border-radius: 999px;
+            padding: 11px 14px;
+            font: inherit;
+            cursor: pointer;
+            background: var(--accent);
+            color: #1b130c;
+            font-weight: 700;
+        }
+        .btn.secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--ink);
+        }
+        .btn.ghost {
+            background: transparent;
+            border: 1px solid var(--line);
+            color: var(--ink);
+        }
+        .btn.danger {
+            background: rgba(235, 111, 111, 0.18);
+            color: #ffc4c4;
+        }
+        .btn[disabled] {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .workflow-list {
+            display: grid;
+            gap: 10px;
+            max-height: 340px;
+            overflow: auto;
+            padding-right: 4px;
+        }
+        .workflow-card {
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            padding: 12px 14px;
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        }
+        .workflow-card:hover {
+            transform: translateY(-1px);
+            border-color: rgba(239, 159, 79, 0.35);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .workflow-card.active {
+            border-color: rgba(239, 159, 79, 0.55);
+            box-shadow: inset 0 0 0 1px rgba(239, 159, 79, 0.15);
+        }
+        .workflow-card-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+        .workflow-card-id {
+            font-weight: 700;
+        }
+        .workflow-card-meta,
+        .workflow-card-desc {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--muted);
+        }
+        .status-pill[data-status="done"] { color: #b8f1c7; background: rgba(108, 191, 132, 0.15); }
+        .status-pill[data-status="recording"] { color: #ffe1a8; background: rgba(242, 201, 76, 0.15); }
+        .status-pill[data-status="archived"] { color: #f1b8b8; background: rgba(235, 111, 111, 0.12); }
+        .editor {
+            display: grid;
+            gap: 14px;
+        }
+        .field-grid {
+            display: grid;
+            gap: 12px;
+        }
+        .field-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .step-list {
+            display: grid;
+            gap: 10px;
+        }
+        .step-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .step-row .wide {
+            grid-column: 1 / -1;
+        }
+        .step-row-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            grid-column: 1 / -1;
+        }
+        .step-row-actions span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .empty-state {
+            color: var(--muted);
+            border: 1px dashed rgba(255, 255, 255, 0.14);
+            border-radius: 16px;
+            padding: 14px;
+            text-align: center;
+        }
+        .log {
+            max-height: 160px;
+            overflow: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 12px;
+            color: #d7c7b3;
+            white-space: pre-wrap;
+        }
+        .stats {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        @media (max-width: 1100px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+            #network {
+                min-height: 520px;
+            }
+            .graph-panel {
+                min-height: 560px;
+            }
+            .meta-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <section class="hero">
+            <div>
+                <div class="badge">Workflow graph + CRUD panel</div>
+                <h1>Manage saved workflows from the visualizer</h1>
+                <p>
+                    Browse the Neo4j graph, select any saved workflow, edit its metadata and steps, create new ones, or delete stale records without leaving this screen.
+                </p>
+            </div>
+            <div class="hero-links">
+                <a href="index.html">Recorder</a>
+                <a href="page1.html">Checkout Demo</a>
+                <a href="page2.html">Support Demo</a>
+            </div>
+        </section>
+
+        <div class="workspace">
+            <section class="panel graph-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2 class="panel-title">Graph</h2>
+                        <p class="panel-subtitle">Click a workflow node to load it into the editor.</p>
+                    </div>
+                    <div class="stats" id="graph-stats">Loading graph...</div>
+                </div>
+                <div id="network"></div>
+            </section>
+
+            <aside class="sidebar">
+                <section class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2 class="panel-title">Workflow CRUD</h2>
+                            <p class="panel-subtitle" id="editor-state">Select a workflow or create a new one.</p>
+                        </div>
+                        <span class="badge" id="selected-badge">none selected</span>
+                    </div>
+                    <div class="box toolbar">
+                        <input id="workflow-search" class="search" placeholder="Filter workflows by id, description, or status">
+                        <div class="toolbar-row">
+                            <button class="btn" id="btn-new">New</button>
+                            <button class="btn secondary" id="btn-save">Save</button>
+                            <button class="btn ghost" id="btn-refresh">Refresh</button>
+                            <button class="btn danger" id="btn-delete">Delete</button>
+                        </div>
+                    </div>
+                    <div class="box">
+                        <div class="workflow-list" id="workflow-list"></div>
+                    </div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2 class="panel-title">Editor</h2>
+                            <p class="panel-subtitle">Metadata and step definitions for the selected workflow.</p>
+                        </div>
+                    </div>
+                    <div class="box editor">
+                        <div class="field-grid">
+                            <label>
+                                <span class="field-label">ID</span>
+                                <input id="wf-id" class="field" placeholder="wf_123456" readonly>
+                            </label>
+                            <label>
+                                <span class="field-label">Description</span>
+                                <textarea id="wf-description" class="textarea" rows="3" placeholder="Short purpose of the workflow"></textarea>
+                            </label>
+                            <label>
+                                <span class="field-label">Summary</span>
+                                <textarea id="wf-summary" class="textarea" rows="3" placeholder="Optional summary that appears in the catalog"></textarea>
+                            </label>
+                            <div class="meta-grid">
+                                <label>
+                                    <span class="field-label">Status</span>
+                                    <select id="wf-status" class="select">
+                                        <option value="draft">draft</option>
+                                        <option value="recording">recording</option>
+                                        <option value="done">done</option>
+                                        <option value="archived">archived</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span class="field-label">Created</span>
+                                    <input id="wf-created" class="field" readonly>
+                                </label>
+                                <label>
+                                    <span class="field-label">Updated</span>
+                                    <input id="wf-updated" class="field" readonly>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="toolbar-row" style="justify-content: space-between; margin-bottom: 8px;">
+                                <div>
+                                    <strong>Steps</strong>
+                                    <div class="stats" id="steps-count">0 steps</div>
+                                </div>
+                                <button class="btn ghost" id="btn-add-step">Add step</button>
+                            </div>
+                            <div class="step-list" id="step-list"></div>
+                        </div>
+
+                        <div class="toolbar-row">
+                            <button class="btn secondary" id="btn-clone">Duplicate as New</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2 class="panel-title">Activity</h2>
+                            <p class="panel-subtitle">Recent requests and graph responses.</p>
+                        </div>
+                    </div>
+                    <div class="box">
+                        <div class="log" id="debug-log"></div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            workflows: [],
+            selectedId: null,
+            mode: 'create',
+            network: null,
+            nodes: null,
+            edges: null
+        };
+
+        const els = {};
+
+        function $(id) {
+            return document.getElementById(id);
+        }
+
+        function log(message, color = '#d7c7b3') {
+            const el = els.debugLog;
+            const line = `[${new Date().toISOString()}] ${message}\n`;
+            el.innerHTML += `<span style="color:${color}">${line.replace(/</g, '&lt;')}</span>`;
+            el.scrollTop = el.scrollHeight;
+            console.log(message);
+        }
+
+        function toInt(v) {
+            return v && typeof v === 'object' && 'low' in v ? v.low : v;
+        }
+
+        function prettyTime(value) {
+            if (!value) return '';
+            const num = value && typeof value.toNumber === 'function' ? value.toNumber() : Number(value);
+            if (!Number.isFinite(num)) return String(value);
+            return new Date(num).toLocaleString();
+        }
+
+        function emptyStep() {
+            return {
+                actionType: '',
+                selector: '',
+                value: '',
+                url: '',
+                explanation: '',
+                label: '',
+                stepOrder: ''
+            };
+        }
+
+        function renderStepRow(step = emptyStep(), index = 0) {
+            const row = document.createElement('div');
+            row.className = 'step-row';
+            row.dataset.index = String(index);
+            row.innerHTML = `
+                <label>
+                    <span class="field-label">Action</span>
+                    <input class="field step-action" placeholder="click, input, navigation" value="${escapeHtml(step.actionType || '')}">
+                </label>
+                <label>
+                    <span class="field-label">Step Order</span>
+                    <input class="field step-order" type="number" min="1" value="${escapeHtml(step.stepOrder || '')}">
+                </label>
+                <label>
+                    <span class="field-label">Selector</span>
+                    <input class="field step-selector" placeholder="#email or [data-testid=&quot;join&quot;]" value="${escapeHtml(step.selector || '')}">
+                </label>
+                <label>
+                    <span class="field-label">URL</span>
+                    <input class="field step-url" placeholder="https://..." value="${escapeHtml(step.url || '')}">
+                </label>
+                <label class="wide">
+                    <span class="field-label">Value</span>
+                    <input class="field step-value" placeholder="Typed value or payload" value="${escapeHtml(step.value || '')}">
+                </label>
+                <label class="wide">
+                    <span class="field-label">Label</span>
+                    <input class="field step-label" placeholder="Human-readable label" value="${escapeHtml(step.label || '')}">
+                </label>
+                <label class="wide">
+                    <span class="field-label">Explanation</span>
+                    <textarea class="textarea step-explanation" rows="2" placeholder="Why this step exists">${escapeHtml(step.explanation || '')}</textarea>
+                </label>
+                <div class="step-row-actions">
+                    <span>Use row ${index + 1} for the saved step definition.</span>
+                    <button class="btn danger step-remove" type="button">Remove</button>
+                </div>
+            `;
+
+            row.querySelector('.step-remove').addEventListener('click', () => {
+                row.remove();
+                renumberStepRows();
+                updateStepsCount();
+            });
+
+            return row;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renumberStepRows() {
+            Array.from(els.stepList.querySelectorAll('.step-row')).forEach((row, index) => {
+                row.dataset.index = String(index);
+                const note = row.querySelector('.step-row-actions span');
+                if (note) note.textContent = `Use row ${index + 1} for the saved step definition.`;
+            });
+        }
+
+        function collectSteps() {
+            return Array.from(els.stepList.querySelectorAll('.step-row')).map((row, index) => ({
+                actionType: row.querySelector('.step-action').value.trim(),
+                selector: row.querySelector('.step-selector').value.trim(),
+                value: row.querySelector('.step-value').value,
+                url: row.querySelector('.step-url').value.trim(),
+                explanation: row.querySelector('.step-explanation').value.trim(),
+                label: row.querySelector('.step-label').value.trim(),
+                stepOrder: Number(row.querySelector('.step-order').value) || index + 1
+            })).filter((step) => step.actionType || step.selector || step.url || step.value || step.explanation || step.label);
+        }
+
+        function renderSteps(steps) {
+            els.stepList.innerHTML = '';
+            const normalized = steps && steps.length ? steps : [emptyStep()];
+            normalized.forEach((step, index) => {
+                els.stepList.appendChild(renderStepRow(step, index));
+            });
+            updateStepsCount();
+        }
+
+        function updateStepsCount() {
+            const count = els.stepList.querySelectorAll('.step-row').length;
+            els.stepsCount.textContent = `${count} step${count === 1 ? '' : 's'}`;
+        }
+
+        function setEditorState(message, badgeText = null) {
+            els.editorState.textContent = message;
+            if (badgeText !== null) {
+                els.selectedBadge.textContent = badgeText;
+            }
+        }
+
+        function getFormWorkflow() {
+            return {
+                id: els.wfId.value.trim(),
+                description: els.wfDescription.value.trim(),
+                summary: els.wfSummary.value.trim(),
+                status: els.wfStatus.value,
+                steps: collectSteps()
+            };
+        }
+
+        function fillForm(workflow, mode = 'edit') {
+            state.mode = mode;
+            state.selectedId = workflow?.id || null;
+            els.wfId.value = workflow?.id || `wf_${Date.now()}`;
+            els.wfDescription.value = workflow?.description || '';
+            els.wfSummary.value = workflow?.summary || '';
+            els.wfStatus.value = workflow?.status || 'draft';
+            els.wfCreated.value = prettyTime(workflow?.createdAt);
+            els.wfUpdated.value = prettyTime(workflow?.updatedAt);
+            renderSteps(workflow?.steps || []);
+            els.btnDelete.disabled = mode !== 'edit' || !workflow?.id;
+            els.btnClone.disabled = mode !== 'edit' || !workflow?.id;
+            setEditorState(
+                mode === 'edit' && workflow?.id ? `Editing ${workflow.id}` : 'Creating a new workflow',
+                mode === 'edit' && workflow?.id ? workflow.id : 'new workflow'
+            );
+        }
+
+        function newWorkflow() {
+            fillForm({
+                id: `wf_${Date.now()}`,
+                description: '',
+                summary: '',
+                status: 'draft',
+                steps: []
+            }, 'create');
+            els.wfId.focus();
+        }
+
+        async function refreshWorkflows(selectedId = state.selectedId) {
+            const response = await fetch('/api/workflows');
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || 'Unable to load workflows');
+            }
+
+            state.workflows = payload.workflows || [];
+            renderWorkflowList(selectedId);
+            renderGraph();
+        }
+
+        function renderWorkflowList(selectedId = state.selectedId) {
+            const query = els.search.value.trim().toLowerCase();
+            const filtered = state.workflows.filter((workflow) => {
+                const haystack = [
+                    workflow.id,
+                    workflow.description,
+                    workflow.summary,
+                    workflow.status
+                ].join(' ').toLowerCase();
+                return !query || haystack.includes(query);
+            });
+
+            els.workflowList.innerHTML = '';
+            if (filtered.length === 0) {
+                els.workflowList.innerHTML = '<div class="empty-state">No workflows match the filter.</div>';
+                return;
+            }
+
+            filtered.forEach((workflow) => {
+                const card = document.createElement('div');
+                card.className = `workflow-card${workflow.id === selectedId ? ' active' : ''}`;
+                card.innerHTML = `
+                    <div class="workflow-card-top">
+                        <div class="workflow-card-id">${escapeHtml(workflow.id)}</div>
+                        <span class="status-pill" data-status="${escapeHtml(workflow.status || 'draft')}">${escapeHtml(workflow.status || 'draft')}</span>
+                    </div>
+                    <div class="workflow-card-desc">${escapeHtml(workflow.summary || workflow.description || 'No description available')}</div>
+                    <div class="workflow-card-meta">${workflow.totalSteps || 0} steps · ${prettyTime(workflow.updatedAt || workflow.completedAt || workflow.createdAt)}</div>
+                `;
+                card.addEventListener('click', () => loadWorkflow(workflow.id));
+                els.workflowList.appendChild(card);
+            });
+        }
+
+        async function loadWorkflow(id, mode = 'edit') {
+            const response = await fetch(`/api/workflows/${encodeURIComponent(id)}`);
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || 'Unable to load workflow');
+            }
+
+            fillForm(payload.workflow, mode);
+            renderWorkflowList(id);
+            log(`Loaded workflow ${id}`, '#ef9f4f');
+        }
+
+        async function saveWorkflow() {
+            const workflow = getFormWorkflow();
+            if (!workflow.id) {
+                throw new Error('Workflow ID is required');
+            }
+
+            const method = state.mode === 'create' ? 'POST' : 'PUT';
+            const url = state.mode === 'create'
+                ? '/api/workflows'
+                : `/api/workflows/${encodeURIComponent(state.selectedId || workflow.id)}`;
+
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(workflow)
+            });
+
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || 'Unable to save workflow');
+            }
+
+            await refreshWorkflows(payload.workflow.id);
+            await loadWorkflow(payload.workflow.id, 'edit');
+            log(`Saved workflow ${payload.workflow.id}`, '#6cbf84');
+        }
+
+        async function deleteWorkflow() {
+            const id = state.selectedId || els.wfId.value.trim();
+            if (!id) return;
+            if (!confirm(`Delete workflow ${id}? This will remove its saved steps too.`)) return;
+
+            const response = await fetch(`/api/workflows/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || 'Unable to delete workflow');
+            }
+
+            log(`Deleted workflow ${id}`, '#eb6f6f');
+            newWorkflow();
+            await refreshWorkflows();
+        }
+
+        function duplicateCurrentWorkflow() {
+            const clone = getFormWorkflow();
+            clone.id = `wf_${Date.now()}`;
+            fillForm(clone, 'create');
+            log(`Duplicating into ${clone.id}`, '#f2c94c');
+        }
+
+        function addStep() {
+            els.stepList.appendChild(renderStepRow(emptyStep(), els.stepList.children.length));
+            renumberStepRows();
+            updateStepsCount();
+        }
+
+        async function renderGraph() {
+            const response = await fetch('/api/visualize');
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || 'Unable to load graph');
+            }
+
+            const visNodes = payload.nodes.map((node) => {
+                const props = node.props || {};
+                const type = node.type || 'Unknown';
+                const workflowId = type === 'Workflow' ? props.id || null : null;
+                return {
+                    id: toInt(node.id),
+                    workflowId,
+                    label: type === 'Workflow'
+                        ? `WF: ${props.id || node.id}`
+                        : `Step: ${(props.actionType || props.url || '').slice(0, 22) || node.id}`,
+                    title: type === 'Workflow'
+                        ? `${props.summary || props.description || 'Workflow'}`
+                        : `${props.actionType || ''} ${props.selector || props.url || ''}`.trim(),
+                    color: type === 'Workflow' ? '#ef9f4f' : '#6cbf84',
+                    shape: type === 'Workflow' ? 'diamond' : 'dot',
+                    font: { color: '#171410', size: 12, face: 'Inter' }
+                };
+            });
+
+            const visEdges = payload.edges.map((edge) => ({
+                from: toInt(edge.from),
+                to: toInt(edge.to),
+                label: edge.label,
+                arrows: 'to',
+                color: { color: 'rgba(255,255,255,0.25)' }
+            }));
+
+            els.graphStats.textContent = `${visNodes.length} nodes · ${visEdges.length} edges`;
+
+            const nodes = new vis.DataSet(visNodes);
+            const edges = new vis.DataSet(visEdges);
+            const container = els.network;
+
+            if (state.network) {
+                state.network.destroy();
+            }
+
+            state.nodes = nodes;
+            state.edges = edges;
+            state.network = new vis.Network(container, { nodes, edges }, {
+                interaction: { hover: true, navigationButtons: true },
+                physics: { stabilization: { iterations: 120 } },
+                layout: { improvedLayout: true },
+                nodes: { borderWidth: 0 },
+                edges: { font: { color: '#d8ccb7', size: 10, face: 'Inter' } }
+            });
+
+            state.network.on('click', async (params) => {
+                const nodeId = params.nodes?.[0];
+                if (!nodeId || !state.nodes) return;
+                const node = state.nodes.get(nodeId);
+                if (node?.workflowId) {
+                    try {
+                        await loadWorkflow(node.workflowId);
+                    } catch (error) {
+                        log(error.message, '#eb6f6f');
+                    }
+                }
+            });
+
+            log(`Rendered graph with ${visNodes.length} nodes`, '#6cbf84');
+        }
+
+        async function boot() {
+            els.workflowList = $('workflow-list');
+            els.search = $('workflow-search');
+            els.wfId = $('wf-id');
+            els.wfDescription = $('wf-description');
+            els.wfSummary = $('wf-summary');
+            els.wfStatus = $('wf-status');
+            els.wfCreated = $('wf-created');
+            els.wfUpdated = $('wf-updated');
+            els.stepList = $('step-list');
+            els.stepsCount = $('steps-count');
+            els.editorState = $('editor-state');
+            els.selectedBadge = $('selected-badge');
+            els.graphStats = $('graph-stats');
+            els.network = $('network');
+            els.debugLog = $('debug-log');
+            els.btnNew = $('btn-new');
+            els.btnSave = $('btn-save');
+            els.btnDelete = $('btn-delete');
+            els.btnRefresh = $('btn-refresh');
+            els.btnClone = $('btn-clone');
+            els.btnAddStep = $('btn-add-step');
+
+            els.btnNew.addEventListener('click', newWorkflow);
+            els.btnSave.addEventListener('click', async () => {
+                try {
+                    await saveWorkflow();
+                } catch (error) {
+                    log(error.message, '#eb6f6f');
+                    alert(error.message);
+                }
+            });
+            els.btnDelete.addEventListener('click', async () => {
+                try {
+                    await deleteWorkflow();
+                } catch (error) {
+                    log(error.message, '#eb6f6f');
+                    alert(error.message);
+                }
+            });
+            els.btnRefresh.addEventListener('click', async () => {
+                try {
+                    await refreshWorkflows(state.selectedId);
+                } catch (error) {
+                    log(error.message, '#eb6f6f');
+                }
+            });
+            els.btnClone.addEventListener('click', duplicateCurrentWorkflow);
+            els.btnAddStep.addEventListener('click', addStep);
+            els.search.addEventListener('input', () => renderWorkflowList(state.selectedId));
+
+            newWorkflow();
+
+            try {
+                await refreshWorkflows();
+            } catch (error) {
+                log(error.message, '#eb6f6f');
+                alert(error.message);
+            }
+        }
+
+        boot();
+    </script>
+</body>
+</html>
