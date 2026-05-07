@@ -20,6 +20,21 @@ window.WorkflowRecorder = (() => {
     return document.getElementById('btn-start');
   }
 
+  function toggleButton() {
+    return document.getElementById('btn-record-toggle');
+  }
+
+  function updateRecordingUI(recording) {
+    const toggle = toggleButton();
+    if (!toggle) return;
+    toggle.dataset.recording = recording ? 'true' : 'false';
+    toggle.setAttribute('aria-pressed', recording ? 'true' : 'false');
+    toggle.title = recording ? 'Stop recording' : 'Start recording';
+    toggle.innerHTML = recording
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5-4-4L4 16v4zm12-13 2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5-4-4L4 16v4zm12-13 2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
   function selectorForElement(element) {
     if (!element) return '';
     if (element.dataset && element.dataset.testid) return `[data-testid="${element.dataset.testid}"]`;
@@ -98,9 +113,13 @@ window.WorkflowRecorder = (() => {
       if (stopButton()) stopButton().disabled = false;
       if (stopButton()) stopButton().style.display = 'inline-block';
       if (statusField()) statusField().innerText = `Recording workflow ${status.id}`;
+      updateRecordingUI(true);
       await recordStep({ actionType: 'navigation', selector: 'document', label: document.title, value: '' });
     } else if (statusField()) {
       statusField().innerText = 'Idle';
+      updateRecordingUI(false);
+    } else {
+      updateRecordingUI(false);
     }
   }
 
@@ -152,6 +171,7 @@ window.WorkflowRecorder = (() => {
       if (startButton()) startButton().disabled = true;
       if (stopButton()) stopButton().disabled = false;
       if (statusField()) statusField().innerText = 'Recording live DOM actions';
+      updateRecordingUI(true);
       const activity = document.getElementById('activity-log');
       if (activity) activity.innerHTML = '';
       await recordStep({ actionType: 'navigation', selector: 'document', label: document.title, value: '' });
@@ -161,6 +181,7 @@ window.WorkflowRecorder = (() => {
       await fetch('/api/workflow/stop', { method: 'POST' });
       isRecording = false;
       if (statusField()) statusField().innerText = 'Saved';
+      updateRecordingUI(false);
       if (redirectTo) {
         window.location.href = redirectTo;
         return;
@@ -175,8 +196,10 @@ window.WorkflowRecorder = (() => {
       if (statusField()) statusField().innerText = 'Idle';
       if (startButton()) startButton().disabled = false;
       if (stopButton()) stopButton().disabled = true;
+      updateRecordingUI(false);
     },
 
-    syncStatus
+    syncStatus,
+    isRecording: () => isRecording
   };
 })();

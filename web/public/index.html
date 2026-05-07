@@ -104,11 +104,24 @@
             margin: 0 0 12px;
             font-size: 15px;
         }
-        .summary-card ul {
-            margin: 0;
-            padding-left: 18px;
+        .summary-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .summary-metric {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 12px;
+            background: white;
+        }
+        .summary-metric strong {
+            display: block;
+            font-size: 12px;
             color: var(--muted);
-            line-height: 1.55;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-bottom: 6px;
         }
         .nav {
             display: flex;
@@ -215,16 +228,6 @@
             color: var(--success);
             font-weight: 600;
         }
-        .rail {
-            display: grid;
-            gap: 18px;
-        }
-        .info-list {
-            margin: 0;
-            padding-left: 18px;
-            color: var(--muted);
-            line-height: 1.6;
-        }
         .activity {
             margin-top: 18px;
         }
@@ -239,74 +242,102 @@
             left: 50%;
             bottom: 18px;
             transform: translateX(-50%);
-            width: min(980px, calc(100vw - 24px));
-            border-radius: 22px;
-            padding: 14px;
+            width: auto;
+            min-width: 124px;
+            padding: 10px 12px;
             z-index: 50;
-            background: rgba(255,255,255,0.94);
+            background: rgba(255,255,255,0.95);
             backdrop-filter: blur(18px);
+            display: grid;
+            gap: 10px;
+            justify-items: center;
+            border-radius: 999px;
+            transition: width 180ms ease, border-radius 180ms ease, padding 180ms ease;
         }
-        .console-header {
+        .console.compact-open {
+            border-radius: 24px;
+            width: min(560px, calc(100vw - 24px));
+        }
+        .console-toolbar {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
+            justify-content: center;
+            gap: 10px;
         }
-        .console-header h4 {
-            margin: 0;
-            font-size: 15px;
+        .console button.icon-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            flex: 0 0 auto;
         }
-        .console-header p {
-            margin: 2px 0 0;
+        .console button.icon-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        #btn-record-toggle[data-recording="true"] {
+            background: var(--success) !important;
+            color: white;
+        }
+        #btn-record-toggle[data-recording="false"] {
+            background: var(--primary);
+            color: white;
+        }
+        #agent-send {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+        #btn-stethoscope {
+            background: #f1f5f8;
             color: var(--muted);
-            font-size: 13px;
         }
-        .console-status {
-            font-weight: 700;
-            color: var(--danger);
-            white-space: nowrap;
+        .console-chat {
+            display: none;
+            width: 100%;
         }
-        .console-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-        .console-panel {
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            padding: 12px;
-            background: var(--surface-2);
-        }
-        .console-panel h5 {
-            margin: 0 0 8px;
-            font-size: 13px;
-        }
-        .console-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-        .console-log {
-            max-height: 160px;
-            overflow: auto;
-            display: grid;
-            gap: 8px;
-        }
-        .console-log-item {
-            padding: 10px 11px;
-            border-radius: 12px;
-            border: 1px solid var(--line);
-            background: white;
-            font-size: 13px;
-        }
-        .console-log-item strong {
+        .console-chat.open {
             display: block;
-            margin-bottom: 4px;
+        }
+        .console-chat textarea {
+            min-height: 52px;
+            height: 52px;
+            resize: none;
+            border-radius: 16px;
+            padding: 12px 14px;
+            width: min(520px, calc(100vw - 52px));
+        }
+        .actions-strip {
+            margin-top: 18px;
+        }
+        .actions-strip .card {
+            padding: 16px 18px;
+        }
+        .actions-strip ol {
+            display: flex;
+            gap: 18px;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 0 0 4px 18px;
+        }
+        .actions-strip li {
+            min-width: max-content;
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
         @media (max-width: 1040px) {
-            .hero, .layout, .console-grid {
+            .hero, .layout {
                 grid-template-columns: 1fr;
             }
         }
@@ -330,33 +361,45 @@
             <div class="brand">
                 <div class="brand-mark"></div>
                 <div>
-                    <h1>Graph EMR Training Workspace</h1>
-                    <p>Structured clinical interface for teaching browser workflows</p>
+                    <h1>Graph EMR Workspace</h1>
+                    <p>Ambulatory intake and charting environment</p>
                 </div>
             </div>
             <div class="meta-strip">
-                <span class="meta-pill">Environment: Training</span>
+                <span class="meta-pill">Environment: Sandbox</span>
                 <span class="meta-pill">Role: Front Desk + Triage</span>
-                <span class="meta-pill">Status: Ready for capture</span>
+                <span class="meta-pill">Clinic: General Practice</span>
             </div>
         </section>
 
         <section class="hero">
             <div>
-                <h2>Patient registration and triage should feel operational, not like a toy demo</h2>
+                <h2>Patient intake and triage dashboard</h2>
                 <p>
-                    This EMR surface is intentionally serious and structured so you can teach a realistic intake flow.
-                    Every interaction still exposes stable selectors for learning, but the visual language now matches a
-                    sober clinical dashboard.
+                    Capture registration details, payer information, presenting complaint and baseline vitals before
+                    the encounter transitions into the physician chart.
                 </p>
             </div>
             <aside class="summary-card">
-                <h3>Visit pathway</h3>
-                <ul>
-                    <li>Patient intake and payer capture</li>
-                    <li>Initial chief complaint and vitals</li>
-                    <li>Transition into clinical charting</li>
-                </ul>
+                <h3>Current encounter snapshot</h3>
+                <div class="summary-metrics">
+                    <div class="summary-metric">
+                        <strong>Service line</strong>
+                        General outpatient
+                    </div>
+                    <div class="summary-metric">
+                        <strong>Visit type</strong>
+                        Adult consultation
+                    </div>
+                    <div class="summary-metric">
+                        <strong>Workflow stage</strong>
+                        Registration and triage
+                    </div>
+                    <div class="summary-metric">
+                        <strong>Chart status</strong>
+                        Intake in progress
+                    </div>
+                </div>
             </aside>
         </section>
 
@@ -449,56 +492,39 @@
                 <div class="feedback" data-testid="intake-feedback" id="intake-feedback"></div>
             </article>
 
-            <aside class="rail">
-                <section class="card">
-                    <div class="section-label">Clinical context</div>
-                    <h3>Why this screen works for teaching</h3>
-                    <ul class="info-list">
-                        <li>There is enough density to resemble a real operational EMR.</li>
-                        <li>The order of fields encourages repeatable front-desk behavior.</li>
-                        <li>Triage metrics become good examples of small structured inputs.</li>
-                    </ul>
-                </section>
-
-                <section class="card activity">
-                    <div class="section-label">Recent actions</div>
-                    <ol id="activity-log"></ol>
-                </section>
+            <aside class="card">
+                <div class="section-label">Operational note</div>
+                <h3>Encounter readiness</h3>
+                <p>Complete demographic identity, coverage data, patient-reported complaint and initial vital signs before opening the clinical chart.</p>
             </aside>
+        </section>
+
+        <section class="actions-strip">
+            <div class="card activity">
+                <div class="section-label">Recent actions</div>
+                <ol id="activity-log"></ol>
+            </div>
         </section>
     </div>
 
-    <section class="console">
-        <div class="console-header">
-            <div>
-                <h4>Teaching Console</h4>
-                <p>Recorder controls, workflow prompt and AI activation live here.</p>
-            </div>
-            <div class="console-status" id="recording-status">Idle</div>
+    <section class="console" id="teaching-console">
+        <div class="console-chat" id="console-chat">
+            <textarea id="agent-message" rows="1" placeholder="Ask AI to execute a saved flow"></textarea>
         </div>
-
-        <div class="console-grid">
-            <div class="console-panel">
-                <h5>Workflow recording</h5>
-                <input id="wf-desc" placeholder="Describe the workflow, for example: adult URI consultation with discharge medication">
-                <textarea id="step-explanation" rows="3" placeholder="Optional note for the next action, for example: now I am documenting the chief complaint."></textarea>
-                <div class="console-actions">
-                    <button class="btn-primary" onclick="startWF()" id="btn-start">Start Recording</button>
-                    <button class="btn-secondary" onclick="stopWF()" id="btn-stop" disabled>Stop & Save</button>
-                    <button class="ghost" onclick="resetStatus()">Emergency Reset</button>
-                </div>
-            </div>
-
-            <div class="console-panel">
-                <h5>Chat with AI</h5>
-                <textarea id="agent-message" rows="3" placeholder="Ask the AI to execute a saved flow, for example: complete the febrile patient intake workflow"></textarea>
-                <div class="console-actions">
-                    <button class="btn-primary" id="agent-send" type="button">Send to AI</button>
-                    <span id="agent-status" style="align-self:center; color:var(--primary); font-weight:700;"></span>
-                </div>
-                <div id="agent-log" class="console-log"></div>
-            </div>
+        <div class="console-toolbar">
+            <button class="icon-btn" id="btn-stethoscope" type="button" title="Clinical tools" aria-label="Clinical tools">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v5a4 4 0 0 0 8 0V4M10 17a4 4 0 1 0 8 0v-3a2 2 0 1 0-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
+            <button class="icon-btn" id="agent-send" type="button" title="Open AI chat" aria-label="Open AI chat">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3V5z" fill="currentColor"/></svg>
+            </button>
         </div>
+        <input id="wf-desc" class="sr-only" value="">
+        <textarea id="step-explanation" class="sr-only"></textarea>
+        <div id="recording-status" class="sr-only">Idle</div>
+        <button onclick="startWF()" id="btn-start" class="sr-only" type="button">Start</button>
+        <button onclick="stopWF()" id="btn-stop" class="sr-only" type="button">Stop</button>
     </section>
 
     <script src="recorder.js"></script>
@@ -537,23 +563,39 @@
             if (pushHistory) {
                 agentHistory.push({ role, content: text });
             }
-
-            const wrapper = document.createElement('div');
-            wrapper.className = 'console-log-item';
-            wrapper.innerHTML = `<strong>${role === 'user' ? 'You' : 'Assistant'}</strong><div>${text}</div>${meta ? `<div style="margin-top:6px;color:#637381;">${meta}</div>` : ''}`;
-            document.getElementById('agent-log').prepend(wrapper);
+            console.log(role === 'user' ? `You: ${text}` : `Assistant: ${text}${meta ? ` | ${meta}` : ''}`);
         }
 
+        document.getElementById('btn-record-toggle').addEventListener('click', async () => {
+            if (window.WorkflowRecorder.isRecording()) {
+                await stopWF();
+                return;
+            }
+            await startWF();
+        });
+
         document.getElementById('agent-send').addEventListener('click', async () => {
+            const consoleEl = document.getElementById('teaching-console');
+            const chat = document.getElementById('console-chat');
             const textarea = document.getElementById('agent-message');
+
+            if (!chat.classList.contains('open')) {
+                chat.classList.add('open');
+                consoleEl.classList.add('compact-open');
+                textarea.focus();
+                return;
+            }
+
             const message = textarea.value.trim();
-            if (!message) return;
+            if (!message) {
+                chat.classList.remove('open');
+                consoleEl.classList.remove('compact-open');
+                return;
+            }
 
             const historyForRequest = agentHistory.slice(-8);
             appendAgentMessage('user', message);
             textarea.value = '';
-            document.getElementById('agent-status').innerText = 'Thinking...';
-
             const response = await fetch('/api/agent/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -563,13 +605,13 @@
             const payload = await response.json();
             if (!response.ok) {
                 appendAgentMessage('assistant', payload.error || 'Something went wrong.');
-                document.getElementById('agent-status').innerText = 'Error';
                 return;
             }
 
             const meta = payload.workflowId ? `workflow=${payload.workflowId} | executed=${payload.executed ? 'yes' : 'no'}` : null;
             appendAgentMessage('assistant', payload.reply, meta);
-            document.getElementById('agent-status').innerText = payload.executed ? 'Workflow executed' : 'Awaiting clarification';
+            chat.classList.remove('open');
+            consoleEl.classList.remove('compact-open');
         });
 
         window.onload = () => window.WorkflowRecorder.syncStatus();

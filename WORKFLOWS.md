@@ -134,3 +134,111 @@
 - 61. CLICK [data-testid="disposition-status"] | url=http://localhost:3000/page2.html
 - 62. INPUT [data-testid="disposition-status"] | value="discharge" | url=http://localhost:3000/page2.html
 - 63. CLICK [data-testid="assessment-sign-note"] | url=http://localhost:3000/page2.html
+
+## wf_1778138076691
+
+- Purpose: **Summary of the navigation workflow**
+
+1. **Landing page** – The user is taken to the *Graph EMR Trainer* on `http://localhost:3000/index.html`.  
+2. **Phone input** – Enters the placeholder phone number `cijdncijdkn` into the field identified by `data-testid="intake-phone"`.  
+3. **Insurance selection** – Clicks the insurance section (`data-testid="intake-insurance"`), then types the test value `icjsdjcndkcj`.  
+4. **Chief‑complaint entry** – Opens the chief‑complaint field twice (`data-testid="intake-chief-complaint"`), first leaving it blank and then entering the text “estoy llenando un formulario”.  
+5. **Temperature triage** – Clicks the temperature field (`data-testid="triage-temperature"`), inputting the value `38.2`.  
+
+The flow proceeds step‑by‑step through form fields and clicks to simulate a complete patient intake entry on the test application.
+- Status: done
+- CLI: `node index.js "run wf_1778138076691" --input_2="..." --input_4="..." --input_7="..."`
+
+### Variables
+- `input_2`: Value for cijdncijdkn (default: `cijdncijdkn`)
+- `input_4`: Value for icjsdjcndkcj (default: `icjsdjcndkcj`)
+- `input_7`: Value for estoy llenando un formulario (default: `estoy llenando un formulario`)
+
+### Steps
+- 1. NAVIGATION document | url=http://localhost:3000/index.html
+- 2. INPUT [data-testid="intake-phone"] | value="cijdncijdkn" | url=http://localhost:3000/index.html
+- 3. CLICK [data-testid="intake-insurance"] | url=http://localhost:3000/index.html
+- 4. INPUT [data-testid="intake-insurance"] | value="icjsdjcndkcj" | url=http://localhost:3000/index.html
+- 5. CLICK [data-testid="intake-chief-complaint"] | url=http://localhost:3000/index.html
+- 6. CLICK [data-testid="intake-chief-complaint"] | url=http://localhost:3000/index.html
+- 7. INPUT [data-testid="intake-chief-complaint"] | value="estoy llenando un formulario" | url=http://localhost:3000/index.html
+- 8. CLICK [data-testid="triage-temperature"] | url=http://localhost:3000/index.html
+- 9. CLICK button[type="button"] | url=http://localhost:3000/index.html
+
+## wf_1778139505789
+
+- Purpose: **Workflow Summary**
+
+- The user navigates to **http://localhost:3000/index.html** (the page titled “Graph EMR Trainer”) as step 1 of the workflow. No additional actions or parameters are defined.
+- Status: done
+- CLI: `node index.js "run wf_1778139505789"`
+
+### Variables
+- None
+
+### Steps
+- 1. NAVIGATION document | url=http://localhost:3000/index.html
+- 2. CLICK button[type="button"] | url=http://localhost:3000/index.html
+
+## wf_1778139529370
+
+- Purpose: **Navigation Workflow Summary**
+
+1. **Start page** – Load `http://localhost:3000/index.html` and display the **Graph EMR Trainer** interface (step 1).  
+2. **First click** – Navigate to the element labeled **“98”** by clicking the selector `[data-testid="triage-oxygen"]` (step 2).  
+3. **Second click** – Open the intake‑chief‑complaint module by clicking `[data-testid="intake-chief-complaint"]` (step 3).  
+4. **Third click** – Re‑interact with the same intake‑chief‑complaint field (step 4), likely to submit or edit the entered complaint.
+
+Overall, the user moves from the main trainer page to a triage oxygen entry and then into the patient complaint intake screen, interacting with it twice in succession.
+- Status: done
+- CLI: `node index.js "run wf_1778139529370"`
+
+### Variables
+- None
+
+### Steps
+- 1. NAVIGATION document | url=http://localhost:3000/index.html
+- 2. CLICK [data-testid="triage-oxygen"] | url=http://localhost:3000/index.html
+- 3. CLICK [data-testid="intake-chief-complaint"] | url=http://localhost:3000/index.html
+- 4. CLICK [data-testid="intake-chief-complaint"] | url=http://localhost:3000/index.html
+- 5. CLICK button[type="button"] | url=http://localhost:3000/index.html
+
+## wf_1778140032854
+
+- Purpose: **Navigation Workflow Summary**
+
+1. **Step Type:** Navigation (`actionType: navigation`)  
+2. **Target:** The document selector (`selector: document`)  
+3. **Destination URL:** `http://localhost:3000/index.html`  
+4. **Label / Purpose:** “Graph EMR Trainer”  
+5. **Sequence:** First (step order = 1) action in the workflow  
+
+The user begins by navigating to the `Graph EMR Trainer` page located at `http://localhost:3000/index.html`, marking this as the starting point of the technical log’s workflow. No additional actions or selections are defined for this initial step.
+- Status: done
+- CLI: `node index.js "run wf_1778140032854"`
+
+### Variables
+- None
+
+### Steps
+- 1. NAVIGATION document | url=http://localhost:3000/index.html
+- 2. CLICK button[type="button"] | url=http://localhost:3000/index.html
+
+## wf_1778140047388
+
+- Purpose: **Navigation workflow (single step)**  
+
+1. **User action:** Navigation  
+2. **Target:** Open the *Graph EMR Trainer* application by moving to the document selector.  
+3. **Result:** The system navigates to the URL `http://localhost:3000/index.html`.  
+
+In this step the user simply selects a document (the entry point of the application), causing the browser to load the *Graph EMR Trainer* interface at `http://localhost:3000/index.html`. This is the only navigation step described.
+- Status: done
+- CLI: `node index.js "run wf_1778140047388"`
+
+### Variables
+- None
+
+### Steps
+- 1. NAVIGATION document | url=http://localhost:3000/index.html
+- 2. CLICK button[type="button"] | url=http://localhost:3000/index.html
