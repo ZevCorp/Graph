@@ -56,7 +56,7 @@
             flex-wrap: wrap;
             margin-bottom: 18px;
         }
-        .nav a {
+        .nav a, .nav button {
             text-decoration: none;
             color: var(--primary);
             font-weight: 600;
@@ -64,6 +64,10 @@
             border: 1px solid var(--line);
             border-radius: 999px;
             padding: 10px 14px;
+        }
+        .nav button {
+            font: inherit;
+            cursor: pointer;
         }
         .layout {
             display: grid;
@@ -206,7 +210,48 @@
             width: 100%;
         }
         .console-chat.open {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 240px;
+        }
+        .console-chat-log {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            padding: 4px 2px 2px;
+            max-height: 172px;
+        }
+        .chat-bubble {
+            max-width: min(100%, 460px);
+            padding: 10px 12px;
+            border-radius: 16px;
+            font-size: 0.94rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: #fff;
+            border-bottom-right-radius: 6px;
+        }
+        .chat-bubble.assistant {
+            align-self: flex-start;
+            background: #f1f5f8;
+            color: var(--text);
+            border-bottom-left-radius: 6px;
+        }
+        .chat-bubble .chat-meta {
             display: block;
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: rgba(0, 0, 0, 0.55);
+        }
+        .chat-bubble.user .chat-meta {
+            color: rgba(255, 255, 255, 0.8);
         }
         .console-chat textarea {
             min-height: 52px;
@@ -274,6 +319,7 @@
             <a href="page1.html">Anamnesis</a>
             <a href="page2.html">Diagnosis & Rx</a>
             <a href="visualize.html">Workflow Graph</a>
+            <button id="clear-emr" type="button">Clear EMR</button>
         </nav>
 
         <section class="layout">
@@ -346,6 +392,7 @@
 
     <section class="console" id="teaching-console">
         <div class="console-chat" id="console-chat">
+            <div class="console-chat-log" id="console-chat-log" aria-live="polite" aria-label="AI chat messages"></div>
             <textarea id="agent-message" rows="1" placeholder="Ask AI to execute a saved flow"></textarea>
         </div>
         <div class="console-toolbar">
@@ -364,9 +411,11 @@
         <button onclick="stopWF()" id="btn-stop" class="sr-only" type="button">Stop</button>
     </section>
 
+    <script src="emr-state.js"></script>
     <script src="recorder.js"></script>
     <script>
         const agentHistory = [];
+        const agentChatLog = document.getElementById('console-chat-log');
 
         async function startWF() {
             const desc = document.getElementById('wf-desc').value.trim();
@@ -380,6 +429,40 @@
         async function resetStatus() {
             await window.WorkflowRecorder.resetWorkflow();
         }
+
+        function hasValue(id) {
+            return document.getElementById(id).value.trim() !== '';
+        }
+
+        function syncAnamnesisActions() {
+            const noteReady = [
+                'anamnesis-visit-type',
+                'anamnesis-symptom-days',
+                'anamnesis-history-illness',
+                'anamnesis-medical-history',
+                'anamnesis-allergies',
+                'anamnesis-review-systems',
+                'exam-general-appearance',
+                'exam-findings'
+            ].every(hasValue);
+
+            document.getElementById('anamnesis-save-note').disabled = !noteReady;
+            document.getElementById('anamnesis-request-labs').disabled = !noteReady;
+        }
+
+        [
+            'anamnesis-visit-type',
+            'anamnesis-symptom-days',
+            'anamnesis-history-illness',
+            'anamnesis-medical-history',
+            'anamnesis-allergies',
+            'anamnesis-review-systems',
+            'exam-general-appearance',
+            'exam-findings'
+        ].forEach((id) => {
+            document.getElementById(id).addEventListener('input', syncAnamnesisActions);
+            document.getElementById(id).addEventListener('change', syncAnamnesisActions);
+        });
 
         document.getElementById('anamnesis-save-note').addEventListener('click', () => {
             const history = document.getElementById('anamnesis-history-illness').value.trim();
@@ -395,11 +478,33 @@
                 : 'Complete the review of systems before requesting labs.';
         });
 
+        document.getElementById('clear-emr').addEventListener('click', () => {
+            window.EMRState.clearAll();
+            document.getElementById('anamnesis-feedback').innerText = '';
+        });
+
         function appendAgentMessage(role, text, meta, pushHistory = true) {
             if (pushHistory) {
                 agentHistory.push({ role, content: text });
             }
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${role === 'user' ? 'user' : 'assistant'}`;
+            bubble.textContent = text;
+
+            if (meta) {
+                const metaEl = document.createElement('span');
+                metaEl.className = 'chat-meta';
+                metaEl.textContent = meta;
+                bubble.appendChild(metaEl);
+            }
+
+            agentChatLog.appendChild(bubble);
+            agentChatLog.scrollTop = agentChatLog.scrollHeight;
             console.log(role === 'user' ? `You: ${text}` : `Assistant: ${text}${meta ? ` | ${meta}` : ''}`);
+        }
+
+        async function submitAgentMessage() {
+            document.getElementById('agent-send').click();
         }
 
         document.getElementById('btn-record-toggle').addEventListener('click', async () => {
@@ -446,11 +551,22 @@
 
             const meta = payload.workflowId ? `workflow=${payload.workflowId} | executed=${payload.executed ? 'yes' : 'no'}` : null;
             appendAgentMessage('assistant', payload.reply, meta);
-            chat.classList.remove('open');
-            consoleEl.classList.remove('compact-open');
+            textarea.focus();
         });
 
-        window.onload = () => window.WorkflowRecorder.syncStatus();
+        document.getElementById('agent-message').addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || event.shiftKey || event.isComposing) {
+                return;
+            }
+
+            event.preventDefault();
+            submitAgentMessage();
+        });
+
+        window.onload = () => {
+            window.WorkflowRecorder.syncStatus();
+            syncAnamnesisActions();
+        };
     </script>
 </body>
 </html>

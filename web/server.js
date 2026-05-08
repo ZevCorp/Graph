@@ -29,6 +29,16 @@ function normalizeStepInput(step = {}, index = 0) {
     url: normalizeText(step.url),
     explanation: normalizeText(step.explanation),
     label: normalizeText(step.label),
+    controlType: normalizeText(step.controlType),
+    selectedValue: typeof step.selectedValue === 'string' ? step.selectedValue : '',
+    selectedLabel: normalizeText(step.selectedLabel),
+    allowedOptions: Array.isArray(step.allowedOptions)
+      ? step.allowedOptions.map((option) => ({
+          value: typeof option?.value === 'string' ? option.value : '',
+          label: normalizeText(option?.label),
+          text: normalizeText(option?.text)
+        }))
+      : [],
     stepOrder: Number.isFinite(step.stepOrder) ? step.stepOrder : Number(step.stepOrder) || index + 1
   };
 }
@@ -64,6 +74,16 @@ function normalizeAction(step = {}) {
   const url = normalizeText(step.url);
   const explanation = normalizeText(step.explanation);
   const label = normalizeText(step.label);
+  const controlType = normalizeText(step.controlType);
+  const selectedValue = typeof step.selectedValue === 'string' ? step.selectedValue : '';
+  const selectedLabel = normalizeText(step.selectedLabel);
+  const allowedOptions = Array.isArray(step.allowedOptions)
+    ? step.allowedOptions.map((option) => ({
+        value: typeof option?.value === 'string' ? option.value : '',
+        label: normalizeText(option?.label),
+        text: normalizeText(option?.text)
+      }))
+    : [];
   return {
     actionType,
     selector,
@@ -71,6 +91,10 @@ function normalizeAction(step = {}) {
     url,
     explanation,
     label,
+    controlType,
+    selectedValue,
+    selectedLabel,
+    allowedOptions,
     stepOrder: Number.isFinite(step.stepOrder) ? step.stepOrder : Number(step.stepOrder)
   };
 }
@@ -104,6 +128,10 @@ async function getWorkflowRows(workflowId = null) {
            s.url as url,
            s.explanation as explanation,
            s.label as label,
+           s.controlType as controlType,
+           s.selectedValue as selectedValue,
+           s.selectedLabel as selectedLabel,
+           s.allowedOptions as allowedOptions,
            s.stepOrder as stepOrder
     ORDER BY w.id ASC, s.stepOrder ASC
   `, params);
@@ -134,6 +162,10 @@ function groupWorkflowRows(rows) {
         url: row.url,
         explanation: row.explanation,
         label: row.label,
+        controlType: row.controlType,
+        selectedValue: row.selectedValue,
+        selectedLabel: row.selectedLabel,
+        allowedOptions: row.allowedOptions,
         stepOrder: row.stepOrder
       }, grouped.get(row.id).steps.length));
     }
@@ -190,7 +222,8 @@ function renderWorkflowCatalog(workflows) {
       lines.push('- None');
     } else {
       for (const variable of workflow.variables) {
-        lines.push(`- \`${variable.name}\`: ${variable.prompt} (default: \`${variable.defaultValue || ''}\`)`);
+        const fieldLabel = variable.fieldLabel ? ` field="${variable.fieldLabel}"` : '';
+        lines.push(`- \`${variable.name}\`:${fieldLabel} ${variable.prompt} (default: \`${variable.defaultValue || ''}\`)`);
       }
     }
 
@@ -202,6 +235,12 @@ function renderWorkflowCatalog(workflows) {
       const extras = [];
 
       if (step.value) extras.push(`value="${step.value}"`);
+      if (step.label) extras.push(`label="${step.label}"`);
+      if (step.controlType) extras.push(`control=${step.controlType}`);
+      if (step.selectedLabel && step.selectedLabel !== step.value) extras.push(`selected="${step.selectedLabel}"`);
+      if (Array.isArray(step.allowedOptions) && step.allowedOptions.length > 0) {
+        extras.push(`options=${step.allowedOptions.filter((option) => option.value).map((option) => `${option.value}:${option.label || option.text || option.value}`).join(', ')}`);
+      }
       if (step.url) extras.push(`url=${step.url}`);
       if (step.explanation) extras.push(`note="${step.explanation}"`);
 
@@ -267,6 +306,10 @@ app.post('/api/step', async (req, res) => {
         url: $url,
         explanation: $explanation,
         label: $label,
+        controlType: $controlType,
+        selectedValue: $selectedValue,
+        selectedLabel: $selectedLabel,
+        allowedOptions: $allowedOptions,
         stepOrder: $stepOrder,
         timestamp: timestamp()
       })
@@ -297,6 +340,10 @@ app.post('/api/workflow/stop', async (req, res) => {
              s.url as url,
              s.explanation as explanation,
              s.label as label,
+             s.controlType as controlType,
+             s.selectedValue as selectedValue,
+             s.selectedLabel as selectedLabel,
+             s.allowedOptions as allowedOptions,
              s.stepOrder as stepOrder
       ORDER BY s.stepOrder ASC
     `, { id: currentWorkflowId });
@@ -382,6 +429,10 @@ app.post('/api/workflows', async (req, res) => {
         url: step.url,
         explanation: step.explanation,
         label: step.label,
+        controlType: step.controlType,
+        selectedValue: step.selectedValue,
+        selectedLabel: step.selectedLabel,
+        allowedOptions: step.allowedOptions,
         stepOrder: step.stepOrder,
         timestamp: timestamp()
       })
@@ -425,6 +476,10 @@ app.put('/api/workflows/:id', async (req, res) => {
         url: step.url,
         explanation: step.explanation,
         label: step.label,
+        controlType: step.controlType,
+        selectedValue: step.selectedValue,
+        selectedLabel: step.selectedLabel,
+        allowedOptions: step.allowedOptions,
         stepOrder: step.stepOrder,
         timestamp: timestamp()
       })

@@ -4,7 +4,7 @@ class GraphNavigator {
   constructor(db, ai) {
     this.db = db;
     this.ai = ai;
-    this.runner = new PlaywrightRunner();
+    this.runner = new PlaywrightRunner(ai);
   }
 
   toNativeNumber(value) {
@@ -32,6 +32,7 @@ class GraphNavigator {
     if (step.actionType === 'navigation') return Boolean(step.url);
     if (step.actionType === 'click') return Boolean(step.selector);
     if (step.actionType === 'input') return Boolean(step.selector);
+    if (step.actionType === 'select') return Boolean(step.selector);
     return false;
   }
 
@@ -43,14 +44,35 @@ class GraphNavigator {
     const variableMap = new Map();
 
     for (const step of steps) {
-      if (step.actionType !== 'input' || !step.value) continue;
+      const isSelectableField = step.actionType === 'select' && Array.isArray(step.allowedOptions) && step.allowedOptions.length > 0;
+      if (!['input', 'select'].includes(step.actionType)) continue;
+      if (!step.value && !isSelectableField) continue;
       const variableName = `input_${step.stepOrder}`;
+      const optionPairs = step.controlType === 'select' && Array.isArray(step.allowedOptions) && step.allowedOptions.length > 0
+        ? step.allowedOptions
+            .filter((option) => option.value)
+            .map((option) => `${option.value} = ${option.label || option.text || option.value}`)
+        : [];
+      const optionSummary = step.controlType === 'select' && Array.isArray(step.allowedOptions) && step.allowedOptions.length > 0
+        ? ` Allowed options: ${optionPairs.join('; ')}.`
+        : '';
+      const controlHint = step.controlType === 'select'
+        ? ' Choose the exact option value whose meaning best matches the request.'
+        : '';
+      const fallbackPrompt = step.controlType === 'select' && !step.value
+        ? `Choose a value for ${step.label || step.selector || `step ${step.stepOrder}`}.`
+        : `Value for ${step.label || step.selector || `step ${step.stepOrder}`}`;
       variableMap.set(variableName, {
         name: variableName,
         selector: step.selector,
+        controlType: step.controlType || '',
+        actionType: step.actionType,
         sourceStep: step.stepOrder,
         defaultValue: step.value,
-        prompt: step.explanation || `Value for ${step.label || step.selector || `step ${step.stepOrder}`}`
+        fieldLabel: step.label || '',
+        selectedLabel: step.selectedLabel || '',
+        allowedOptions: Array.isArray(step.allowedOptions) ? step.allowedOptions : [],
+        prompt: `${step.explanation || fallbackPrompt}${optionSummary}${controlHint}`.trim()
       });
     }
 
@@ -84,6 +106,10 @@ class GraphNavigator {
              s.url as url,
              s.explanation as explanation,
              s.label as label,
+             s.controlType as controlType,
+             s.selectedValue as selectedValue,
+             s.selectedLabel as selectedLabel,
+             s.allowedOptions as allowedOptions,
              s.stepOrder as stepOrder,
              s.timestamp as timestamp
       ORDER BY coalesce(s.stepOrder, s.timestamp) ASC
@@ -108,6 +134,10 @@ class GraphNavigator {
              s.url as url,
              s.explanation as explanation,
              s.label as label,
+             s.controlType as controlType,
+             s.selectedValue as selectedValue,
+             s.selectedLabel as selectedLabel,
+             s.allowedOptions as allowedOptions,
              s.stepOrder as stepOrder
       ORDER BY w.id DESC, s.stepOrder ASC
     `);
@@ -133,6 +163,10 @@ class GraphNavigator {
           url: row.url,
           explanation: row.explanation,
           label: row.label,
+          controlType: row.controlType,
+          selectedValue: row.selectedValue,
+          selectedLabel: row.selectedLabel,
+          allowedOptions: row.allowedOptions,
           stepOrder: row.stepOrder
         }, grouped.get(row.id).steps.length));
       }
@@ -154,7 +188,7 @@ class GraphNavigator {
     }
 
     console.log(`\x1b[33mActivating Workflow: ${workflowId}\x1b[0m`);
-    await this.runner.executeWorkflow(steps, variables);
+    await this.runner.executeWorkflow(steps, variables, { workflowId });
     return `Workflow ${workflowId} executed successfully.`;
   }
 

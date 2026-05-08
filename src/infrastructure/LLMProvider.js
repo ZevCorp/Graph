@@ -48,6 +48,19 @@ class LLMProvider {
     }
   }
 
+  async chatExpectingJson(messages, preferredResponseFormat) {
+    try {
+      return await this.chat(messages, preferredResponseFormat);
+    } catch (error) {
+      const message = `${error.message || ''}`;
+      if (!preferredResponseFormat || !message.includes('response format is not supported')) {
+        throw error;
+      }
+
+      return this.chat(messages);
+    }
+  }
+
   async translateToCypher(prompt, schema) {
     const content = await this.chat([
       { role: 'system', content: `Translate natural language to Neo4j Cypher. Schema: ${schema}. Return ONLY the Cypher query.` },
@@ -117,6 +130,11 @@ class LLMProvider {
           'reply: short assistant message to show the user.',
           'workflowId: exact workflow id or null.',
           'variables: object mapping variable names like input_2 to their values.',
+          'When a variable belongs to a select control, treat it as a closed set choice, not free text.',
+          'When a variable belongs to a select control, prefer one of the allowed option values exactly.',
+          'If the user intent matches an option label better than an option value, convert it to the corresponding option value.',
+          'Use the field label and option meanings, not position in the dropdown.',
+          'Never choose the first option just because it is first; choose based on semantic fit.',
           'shouldExecute: true only if the workflow and needed variables are clear enough to run now.',
           'If the request is ambiguous or missing required values, set shouldExecute to false and ask for the missing information in reply.'
         ].join(' ')
@@ -134,7 +152,11 @@ class LLMProvider {
               stepOrder: step.stepOrder,
               actionType: step.actionType,
               selector: step.selector,
-              explanation: step.explanation
+              explanation: step.explanation,
+              controlType: step.controlType,
+              selectedValue: step.selectedValue,
+              selectedLabel: step.selectedLabel,
+              allowedOptions: step.allowedOptions
             }))
           }))
         })
@@ -142,6 +164,60 @@ class LLMProvider {
     ]);
 
     return this.parseJsonObject(content);
+  }
+
+  async chooseSelectValues(selects, context = {}) {
+    if (!Array.isArray(selects) || selects.length === 0) {
+      return [];
+    }
+
+    if (!this.apiKey) {
+      return selects.map((select) => ({
+        field: select.testid || select.id || select.name || 'select',
+        value: select.options.find((option) => option.value)?.value || ''
+      }));
+    }
+
+    const content = await this.chatExpectingJson([
+      {
+        role: 'system',
+        content: [
+          'You choose values for HTML select fields during browser workflow execution.',
+          'Return JSON only.',
+          'The JSON must be an array of objects with keys: field and value.',
+          'field must match the provided field identifier exactly.',
+          'value must be exactly one of that field allowed option values.',
+          'Use the field label and option labels to infer the best value semantically.',
+          'Prefer choices that make the workflow coherent and clinically plausible.',
+          'Do not default to the first option unless it is semantically the best match.',
+          'Never invent values outside the allowed options.'
+        ].join(' ')
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          context,
+          selects: selects.map((select) => ({
+            field: select.testid || select.id || select.name || 'select',
+            label: select.label || '',
+            currentValue: select.value || '',
+            options: select.options.map((option) => ({
+              value: option.value,
+              label: option.label || option.text || option.value,
+              text: option.text || ''
+            }))
+          }))
+        })
+      }
+    ], { type: 'json_object' });
+
+    const parsed = this.parseJsonObject(content);
+    const rawChoices = Array.isArray(parsed) ? parsed : parsed.choices;
+    if (!Array.isArray(rawChoices)) {
+      throw new Error(`Could not parse select choices from LLM response: ${content}`);
+    }
+
+    return rawChoices;
   }
 
   async summarizeWorkflow(description, steps) {

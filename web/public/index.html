@@ -31,97 +31,10 @@
             margin: 0 auto;
             padding: 24px 24px 190px;
         }
-        .topbar, .hero, .card, .summary-card, .console {
+        .card, .console {
             background: var(--surface);
             border: 1px solid var(--line);
             box-shadow: var(--shadow);
-        }
-        .topbar {
-            border-radius: 18px;
-            padding: 16px 18px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 18px;
-            margin-bottom: 18px;
-        }
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .brand-mark {
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #0f5f8c, #0f7b8c);
-        }
-        .brand h1 {
-            margin: 0;
-            font-size: 18px;
-        }
-        .brand p, .meta-strip span {
-            margin: 0;
-            color: var(--muted);
-            font-size: 13px;
-        }
-        .meta-strip {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .meta-pill {
-            padding: 8px 10px;
-            border-radius: 999px;
-            background: var(--surface-2);
-            border: 1px solid var(--line);
-        }
-        .hero {
-            border-radius: 22px;
-            padding: 26px;
-            margin-bottom: 18px;
-            display: grid;
-            grid-template-columns: 1.3fr 0.7fr;
-            gap: 18px;
-        }
-        .hero h2 {
-            margin: 0 0 10px;
-            font-size: 34px;
-            letter-spacing: -0.03em;
-        }
-        .hero p {
-            margin: 0;
-            color: var(--muted);
-            line-height: 1.55;
-            max-width: 760px;
-        }
-        .summary-card {
-            border-radius: 18px;
-            padding: 18px;
-            background: var(--surface-2);
-        }
-        .summary-card h3 {
-            margin: 0 0 12px;
-            font-size: 15px;
-        }
-        .summary-metrics {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-        }
-        .summary-metric {
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 12px;
-            background: white;
-        }
-        .summary-metric strong {
-            display: block;
-            font-size: 12px;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            margin-bottom: 6px;
         }
         .nav {
             display: flex;
@@ -129,7 +42,7 @@
             flex-wrap: wrap;
             margin-bottom: 18px;
         }
-        .nav a {
+        .nav a, .nav button {
             text-decoration: none;
             color: var(--primary);
             font-weight: 600;
@@ -137,6 +50,10 @@
             border: 1px solid var(--line);
             border-radius: 999px;
             padding: 10px 14px;
+        }
+        .nav button {
+            font: inherit;
+            cursor: pointer;
         }
         .layout {
             display: grid;
@@ -299,7 +216,48 @@
             width: 100%;
         }
         .console-chat.open {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 240px;
+        }
+        .console-chat-log {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            padding: 4px 2px 2px;
+            max-height: 172px;
+        }
+        .chat-bubble {
+            max-width: min(100%, 460px);
+            padding: 10px 12px;
+            border-radius: 16px;
+            font-size: 0.94rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: #fff;
+            border-bottom-right-radius: 6px;
+        }
+        .chat-bubble.assistant {
+            align-self: flex-start;
+            background: #f1f5f8;
+            color: var(--text);
+            border-bottom-left-radius: 6px;
+        }
+        .chat-bubble .chat-meta {
             display: block;
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: rgba(0, 0, 0, 0.55);
+        }
+        .chat-bubble.user .chat-meta {
+            color: rgba(255, 255, 255, 0.8);
         }
         .console-chat textarea {
             min-height: 52px;
@@ -337,7 +295,7 @@
             border: 0;
         }
         @media (max-width: 1040px) {
-            .hero, .layout {
+            .layout {
                 grid-template-columns: 1fr;
             }
         }
@@ -357,57 +315,12 @@
 </head>
 <body>
     <div class="shell">
-        <section class="topbar">
-            <div class="brand">
-                <div class="brand-mark"></div>
-                <div>
-                    <h1>Graph EMR Workspace</h1>
-                    <p>Ambulatory intake and charting environment</p>
-                </div>
-            </div>
-            <div class="meta-strip">
-                <span class="meta-pill">Environment: Sandbox</span>
-                <span class="meta-pill">Role: Front Desk + Triage</span>
-                <span class="meta-pill">Clinic: General Practice</span>
-            </div>
-        </section>
-
-        <section class="hero">
-            <div>
-                <h2>Patient intake and triage dashboard</h2>
-                <p>
-                    Capture registration details, payer information, presenting complaint and baseline vitals before
-                    the encounter transitions into the physician chart.
-                </p>
-            </div>
-            <aside class="summary-card">
-                <h3>Current encounter snapshot</h3>
-                <div class="summary-metrics">
-                    <div class="summary-metric">
-                        <strong>Service line</strong>
-                        General outpatient
-                    </div>
-                    <div class="summary-metric">
-                        <strong>Visit type</strong>
-                        Adult consultation
-                    </div>
-                    <div class="summary-metric">
-                        <strong>Workflow stage</strong>
-                        Registration and triage
-                    </div>
-                    <div class="summary-metric">
-                        <strong>Chart status</strong>
-                        Intake in progress
-                    </div>
-                </div>
-            </aside>
-        </section>
-
         <nav class="nav">
             <a href="index.html">Patient Intake</a>
             <a href="page1.html">Anamnesis</a>
             <a href="page2.html">Diagnosis & Rx</a>
             <a href="visualize.html">Workflow Graph</a>
+            <button id="clear-emr" type="button">Clear EMR</button>
         </nav>
 
         <section class="layout">
@@ -509,6 +422,7 @@
 
     <section class="console" id="teaching-console">
         <div class="console-chat" id="console-chat">
+            <div class="console-chat-log" id="console-chat-log" aria-live="polite" aria-label="AI chat messages"></div>
             <textarea id="agent-message" rows="1" placeholder="Ask AI to execute a saved flow"></textarea>
         </div>
         <div class="console-toolbar">
@@ -527,9 +441,11 @@
         <button onclick="stopWF()" id="btn-stop" class="sr-only" type="button">Stop</button>
     </section>
 
+    <script src="emr-state.js"></script>
     <script src="recorder.js"></script>
     <script>
         const agentHistory = [];
+        const agentChatLog = document.getElementById('console-chat-log');
 
         async function startWF() {
             const desc = document.getElementById('wf-desc').value.trim();
@@ -543,6 +459,52 @@
         async function resetStatus() {
             await window.WorkflowRecorder.resetWorkflow();
         }
+
+        function hasValue(id) {
+            return document.getElementById(id).value.trim() !== '';
+        }
+
+        function syncRegistrationActions() {
+            const registrationReady = [
+                'intake-patient-id',
+                'intake-document-type',
+                'intake-first-name',
+                'intake-last-name',
+                'intake-dob',
+                'intake-sex',
+                'intake-phone'
+            ].every(hasValue);
+            const chartReady = registrationReady && [
+                'intake-insurance',
+                'intake-chief-complaint',
+                'triage-temperature',
+                'triage-heart-rate',
+                'triage-blood-pressure',
+                'triage-oxygen'
+            ].every(hasValue);
+
+            document.getElementById('intake-save-patient').disabled = !registrationReady;
+            document.getElementById('intake-open-chart').disabled = !chartReady;
+        }
+
+        [
+            'intake-patient-id',
+            'intake-document-type',
+            'intake-first-name',
+            'intake-last-name',
+            'intake-dob',
+            'intake-sex',
+            'intake-phone',
+            'intake-insurance',
+            'intake-chief-complaint',
+            'triage-temperature',
+            'triage-heart-rate',
+            'triage-blood-pressure',
+            'triage-oxygen'
+        ].forEach((id) => {
+            document.getElementById(id).addEventListener('input', syncRegistrationActions);
+            document.getElementById(id).addEventListener('change', syncRegistrationActions);
+        });
 
         document.getElementById('intake-save-patient').addEventListener('click', () => {
             const firstName = document.getElementById('intake-first-name').value.trim();
@@ -559,11 +521,33 @@
                 : 'Add the chief complaint before opening the clinical chart.';
         });
 
+        document.getElementById('clear-emr').addEventListener('click', () => {
+            window.EMRState.clearAll();
+            document.getElementById('intake-feedback').innerText = '';
+        });
+
         function appendAgentMessage(role, text, meta, pushHistory = true) {
             if (pushHistory) {
                 agentHistory.push({ role, content: text });
             }
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${role === 'user' ? 'user' : 'assistant'}`;
+            bubble.textContent = text;
+
+            if (meta) {
+                const metaEl = document.createElement('span');
+                metaEl.className = 'chat-meta';
+                metaEl.textContent = meta;
+                bubble.appendChild(metaEl);
+            }
+
+            agentChatLog.appendChild(bubble);
+            agentChatLog.scrollTop = agentChatLog.scrollHeight;
             console.log(role === 'user' ? `You: ${text}` : `Assistant: ${text}${meta ? ` | ${meta}` : ''}`);
+        }
+
+        async function submitAgentMessage() {
+            document.getElementById('agent-send').click();
         }
 
         document.getElementById('btn-record-toggle').addEventListener('click', async () => {
@@ -610,11 +594,22 @@
 
             const meta = payload.workflowId ? `workflow=${payload.workflowId} | executed=${payload.executed ? 'yes' : 'no'}` : null;
             appendAgentMessage('assistant', payload.reply, meta);
-            chat.classList.remove('open');
-            consoleEl.classList.remove('compact-open');
+            textarea.focus();
         });
 
-        window.onload = () => window.WorkflowRecorder.syncStatus();
+        document.getElementById('agent-message').addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || event.shiftKey || event.isComposing) {
+                return;
+            }
+
+            event.preventDefault();
+            submitAgentMessage();
+        });
+
+        window.onload = () => {
+            window.WorkflowRecorder.syncStatus();
+            syncRegistrationActions();
+        };
     </script>
 </body>
 </html>
