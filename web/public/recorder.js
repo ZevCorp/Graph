@@ -3,8 +3,6 @@ window.WorkflowRecorder = (() => {
   let statusId = null;
   let stepOrder = 0;
   let recordQueue = Promise.resolve();
-  let snapshotQueue = Promise.resolve();
-  let lastRecordedFieldValues = new Map();
 
   function explanationField() {
     return document.getElementById('step-explanation');
@@ -109,49 +107,7 @@ window.WorkflowRecorder = (() => {
     return explanation;
   }
 
-  function isRecordableField(element) {
-    if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)) {
-      return false;
-    }
-
-    if (!element.id) return false;
-    if (['agent-message', 'wf-desc', 'step-explanation'].includes(element.id)) return false;
-    if (element.closest('.console')) return false;
-    if (element.type === 'button' || element.type === 'submit' || element.type === 'reset' || element.type === 'file') {
-      return false;
-    }
-
-    return true;
-  }
-
-  function hasMeaningfulValue(element) {
-    if (element instanceof HTMLSelectElement) {
-      return element.value.trim() !== '';
-    }
-
-    return `${element.value || ''}`.trim() !== '';
-  }
-
-  function fieldSnapshotValue(element) {
-    if (element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio')) {
-      return element.checked ? 'true' : 'false';
-    }
-
-    return `${element.value || ''}`;
-  }
-
   async function recordFieldState(element) {
-    const shouldRecordEmptySelect = element instanceof HTMLSelectElement;
-    if (!isRecordableField(element) || (!hasMeaningfulValue(element) && !shouldRecordEmptySelect)) {
-      return;
-    }
-
-    const nextValue = fieldSnapshotValue(element);
-    if (lastRecordedFieldValues.get(element.id) === nextValue) {
-      return;
-    }
-
-    lastRecordedFieldValues.set(element.id, nextValue);
     const actionType = element instanceof HTMLSelectElement ? 'select' : 'input';
 
     await recordStep({
@@ -161,27 +117,6 @@ window.WorkflowRecorder = (() => {
       value: element.value,
       ...getControlMetadata(element)
     });
-  }
-
-  async function snapshotCurrentFieldState() {
-    if (!isRecording) return;
-
-    const fields = Array.from(document.querySelectorAll('input[id], textarea[id], select[id]'))
-      .filter((element) => isRecordableField(element) && hasMeaningfulValue(element));
-
-    for (const field of fields) {
-      await recordFieldState(field);
-    }
-  }
-
-  function queueSnapshot() {
-    snapshotQueue = snapshotQueue
-      .then(() => snapshotCurrentFieldState())
-      .catch((error) => {
-        console.error('Failed to snapshot current field state', error);
-      });
-
-    return snapshotQueue;
   }
 
   function appendActivity(step) {
@@ -237,7 +172,6 @@ window.WorkflowRecorder = (() => {
       if (statusField()) statusField().innerText = `Recording workflow ${status.id}`;
       updateRecordingUI(true);
       await recordStep({ actionType: 'navigation', selector: 'document', label: document.title, value: '' });
-      await queueSnapshot();
     } else if (statusField()) {
       statusField().innerText = 'Idle';
       updateRecordingUI(false);
@@ -253,10 +187,6 @@ window.WorkflowRecorder = (() => {
       if (!target) return;
       if (target.closest('.console')) return;
       if (['btn-start', 'btn-stop', 'btn-record-toggle', 'step-explanation', 'wf-desc'].includes(target.id)) return;
-
-      if (target instanceof HTMLAnchorElement || target instanceof HTMLButtonElement) {
-        await queueSnapshot();
-      }
 
       await recordStep({
         actionType: 'click',
@@ -290,6 +220,10 @@ window.WorkflowRecorder = (() => {
   return {
     async startWorkflow(description) {
       const desc = (description || '').trim();
+      if (window.EMRState && typeof window.EMRState.clearAll === 'function') {
+        window.EMRState.clearAll();
+      }
+
       await fetch('/api/workflow/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -299,8 +233,6 @@ window.WorkflowRecorder = (() => {
       isRecording = true;
       stepOrder = 0;
       recordQueue = Promise.resolve();
-      snapshotQueue = Promise.resolve();
-      lastRecordedFieldValues = new Map();
       if (startButton()) startButton().disabled = true;
       if (stopButton()) stopButton().disabled = false;
       if (statusField()) statusField().innerText = 'Recording live DOM actions';
@@ -308,7 +240,6 @@ window.WorkflowRecorder = (() => {
       const activity = document.getElementById('activity-log');
       if (activity) activity.innerHTML = '';
       await recordStep({ actionType: 'navigation', selector: 'document', label: document.title, value: '' });
-      await queueSnapshot();
     },
 
     async stopWorkflow(redirectTo) {
@@ -327,8 +258,6 @@ window.WorkflowRecorder = (() => {
       await fetch('/api/reset', { method: 'POST' });
       isRecording = false;
       stepOrder = 0;
-      snapshotQueue = Promise.resolve();
-      lastRecordedFieldValues = new Map();
       if (statusField()) statusField().innerText = 'Idle';
       if (startButton()) startButton().disabled = false;
       if (stopButton()) stopButton().disabled = true;

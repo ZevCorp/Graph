@@ -1,0 +1,38 @@
+function normalizeText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+class Step {
+  constructor(data = {}) {
+    this.actionType = normalizeText(data.actionType) || 'unknown';
+    this.selector = normalizeText(data.selector);
+    this.value = typeof data.value === 'string' ? data.value : '';
+    this.url = normalizeText(data.url);
+    this.explanation = normalizeText(data.explanation);
+    this.label = normalizeText(data.label);
+    this.controlType = normalizeText(data.controlType);
+    this.selectedValue = typeof data.selectedValue === 'string' ? data.selectedValue : '';
+    this.selectedLabel = normalizeText(data.selectedLabel);
+    
+    this.allowedOptions = Array.isArray(data.allowedOptions)
+      ? data.allowedOptions.map((option) => ({
+          value: typeof option?.value === 'string' ? option.value : '',
+          label: normalizeText(option?.label),
+          text: normalizeText(option?.text)
+        }))
+      : [];
+      
+    this.stepOrder = Number.isFinite(data.stepOrder) ? data.stepOrder : Number(data.stepOrder);
+  }
+
+  isExecutable() {
+    if (!this.actionType) return false;
+    if (this.actionType === 'navigation') return Boolean(this.url);
+    if (this.actionType === 'click') return Boolean(this.selector);
+    if (this.actionType === 'input') return Boolean(this.selector);
+    if (this.actionType === 'select') return Boolean(this.selector);
+    return false;
+  }
+}
+
+module.exports = Step;

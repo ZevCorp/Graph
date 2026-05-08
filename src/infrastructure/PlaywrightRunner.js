@@ -1,8 +1,8 @@
 const { chromium } = require('playwright');
 
 class PlaywrightRunner {
-  constructor(ai = null) {
-    this.ai = ai;
+  constructor() {
+    // Pure infrastructure runner, no direct LLM dependency
   }
 
   normalizeChoiceText(value) {
@@ -184,9 +184,9 @@ class PlaywrightRunner {
     }
 
     let aiChoices = [];
-    if (this.ai) {
+    if (context && typeof context.optionGuesser === 'function') {
       try {
-        aiChoices = await this.ai.chooseSelectValues(emptySelects, context);
+        aiChoices = await context.optionGuesser(emptySelects, context);
       } catch (error) {
         console.warn(`\x1b[33mLLM select choice fallback: ${error.message}\x1b[0m`);
       }
@@ -315,6 +315,7 @@ class PlaywrightRunner {
       if (step.actionType === 'click') {
         await this.clickWithRecovery(page, step, {
           workflowId: metadata.workflowId || '',
+          optionGuesser: metadata.optionGuesser,
           currentUrl: page.url(),
           currentStep: {
             stepOrder: step.stepOrder,
