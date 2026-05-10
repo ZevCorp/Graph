@@ -1,7 +1,7 @@
 ---
 tracker:
   kind: linear
-  project_slug: "graph"
+  project_slug: "a9239f6fefd8"
   active_states:
     - Todo
     - In Progress
@@ -20,7 +20,7 @@ workspace:
 hooks:
   after_create: |
     git clone --depth 1 https://github.com/ZevCorp/Graph.git .
-    npm install
+    npm ci
   before_remove: |
     branch=$(git branch --show-current 2>/dev/null)
     if [ -n "$branch" ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
@@ -29,7 +29,7 @@ hooks:
       done
     fi
 agent:
-  max_concurrent_agents: 10
+  max_concurrent_agents: 3
   max_turns: 20
 codex:
   command: codex --config shell_environment_policy.inherit=all --config model_reasoning_effort=xhigh --model gpt-5.3-codex app-server
@@ -96,6 +96,18 @@ The agent talks to Linear via the `linear_graphql` tool injected by Symphony's a
 - Operate autonomously end-to-end unless blocked by missing requirements, secrets, or permissions.
 - Use the blocked-access escape hatch only for true external blockers (missing required tools/auth) after exhausting documented fallbacks.
 
+## Product posture for Graph
+
+- Graph is a workflow learning and replay engine first. The medical EMR and Miracle note-taking experience are the current proving ground, not the long-term product boundary.
+- Prefer changes that strengthen generic learning primitives in `src/domain`, `src/application`, `src/infrastructure`, the CLI, and the Markdown catalog before adding medical-specific branching.
+- Keep the architecture modular: avoid baking EMR-, Miracle-, DOM-, AX-, or UIA-specific assumptions into core workflow entities, recorder contracts, catalog generation, or execution logic unless the ticket explicitly requires a temporary POC tradeoff.
+- When a temporary medical-demo shortcut is necessary, isolate it behind a clearly named adapter, service, endpoint, or file so it can be extracted later without rewriting the learning core.
+- Treat the learning loop as the product's critical path: record interaction -> persist workflow graph -> infer variables -> regenerate `WORKFLOWS.md` -> discover workflow -> execute workflow again.
+- Treat `WORKFLOWS.md` as an executable catalog artifact, not optional docs. If behavior changes would affect workflow discovery, variable prompts, CLI activation, or replay semantics, keep the catalog format and examples aligned.
+- Preserve explainability. When touching workflow capture or execution, favor storing stable selectors, field meaning, allowed options, and human-authored step explanations over brittle coordinates or opaque blobs.
+- For tickets that touch Miracle integration, preserve the boundary where Miracle is an external engine consumed by Graph rather than letting Graph business logic collapse into Miracle-specific behavior.
+- Call out architectural drift early in the workpad. If a ticket request would materially increase coupling between the learning engine and the medical demo, note the tradeoff and either contain it or create a follow-up issue.
+
 ## Related skills
 
 - `linear`: interact with Linear.
@@ -103,6 +115,7 @@ The agent talks to Linear via the `linear_graphql` tool injected by Symphony's a
 - `push`: keep remote branch current and publish updates.
 - `pull`: keep branch updated with latest `origin/main` before handoff.
 - `land`: when ticket reaches `Merging`, use the `land` skill, which includes the merge loop.
+- `launch-app`: launch Graph against the Miracle-backed runtime path for UI and integration validation.
 
 ## Status map
 
@@ -158,6 +171,9 @@ The agent talks to Linear via the `linear_graphql` tool injected by Symphony's a
 6.  Add explicit acceptance criteria and TODOs in checklist form in the same comment.
     - If changes are user-facing, include a UI walkthrough acceptance criterion that describes the end-to-end user path to validate.
     - If changes touch app files or app behavior, add explicit app-specific flow checks to `Acceptance Criteria` in the workpad (for example: launch path, changed interaction path, and expected result path).
+    - If changes touch the learning engine (`WorkflowLearner`, `WorkflowExecutor`, recorder flow, graph persistence, catalog writer, CLI activation, or workflow variable inference), add acceptance criteria for the full learning loop and for preserving modular boundaries between the core engine and the medical demo.
+    - If changes touch `WORKFLOWS.md` generation or workflow discoverability, add an acceptance criterion that names the exact catalog behavior expected after the change.
+    - If changes touch Miracle-backed behavior, add acceptance criteria for the Graph-to-Miracle boundary, including the request path or user flow that proves the integration still works.
     - If the ticket description/comment context includes `Validation`, `Test Plan`, or `Testing` sections, copy those requirements into the workpad `Acceptance Criteria` and `Validation` sections as required checkboxes (no optional downgrade).
 7.  Run a principal-style self-review of the plan and refine it in the comment.
 8.  Before implementing, capture a concrete reproduction signal and record it in the workpad `Notes` section (command/output, screenshot, or deterministic UI behavior).
@@ -212,6 +228,9 @@ Use this only when completion is blocked by missing required tools or missing au
 5.  Run validation/tests required for the scope.
     - Mandatory gate: execute all ticket-provided `Validation`/`Test Plan`/ `Testing` requirements when present; treat unmet items as incomplete work.
     - Prefer a targeted proof that directly demonstrates the behavior you changed.
+    - If the ticket changes the learning engine or workflow catalog path, validate as much of this chain as the environment allows: start/record/stop a workflow or exercise equivalent API coverage, confirm graph persistence or repository output, confirm catalog regeneration, and confirm CLI or executor activation still matches the catalog contract.
+    - If the ticket changes workflow prompts, variable inference, or replay semantics, inspect the resulting `WORKFLOWS.md` content and verify the CLI example and variable descriptions remain usable by another agent.
+    - If the ticket changes Miracle-backed behavior, use the `launch-app` skill and validate the affected flow against the Miracle integration path whenever the sidecar is available. If the sidecar is unavailable, document the exact missing runtime dependency and what was still validated locally.
     - You may make temporary local proof edits to validate assumptions (for example: tweak a local build input for `make`, or hardcode a UI account / response path) when this increases confidence.
     - Revert every temporary proof edit before commit/push.
     - Document these temporary proof steps and outcomes in the workpad `Validation`/`Notes` sections so reviewers can follow the evidence.
