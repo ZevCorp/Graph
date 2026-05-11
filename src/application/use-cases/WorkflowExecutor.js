@@ -5,6 +5,71 @@ class WorkflowExecutor {
     this.llmProvider = llmProvider;
   }
 
+  normalizeStepOrders(rawStepOrders) {
+    if (!Array.isArray(rawStepOrders)) {
+      return [];
+    }
+
+    const parsed = rawStepOrders
+      .map((value) => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') return Number(value.trim());
+        if (value && typeof value === 'object') {
+          return Number(value.stepOrder ?? value.order ?? value.id);
+        }
+        return Number.NaN;
+      })
+      .filter((value) => Number.isInteger(value) && value > 0);
+
+    return Array.from(new Set(parsed));
+  }
+
+  normalizeExecutionMode(options = {}) {
+    const requestedMode = `${options.executionMode || options.mode || ''}`.trim().toLowerCase();
+    if (requestedMode === 'partial' || requestedMode === 'full') {
+      return requestedMode;
+    }
+
+    return this.normalizeStepOrders(options.stepOrders).length > 0 ? 'partial' : 'full';
+  }
+
+  getVariableBackedStepOrders(variables = {}) {
+    return Object.keys(variables)
+      .map((name) => {
+        const match = /^input_(\d+)$/.exec(name);
+        return match ? Number(match[1]) : Number.NaN;
+      })
+      .filter((value) => Number.isInteger(value) && value > 0);
+  }
+
+  buildExecutionPlan(workflow, variables = {}, options = {}) {
+    const executableSteps = workflow.steps.filter((step) => this.isExecutableStep(step));
+    const executionMode = this.normalizeExecutionMode(options);
+
+    if (executionMode === 'full') {
+      return { executionMode, steps: executableSteps };
+    }
+
+    const selectedOrders = new Set([
+      ...this.normalizeStepOrders(options.stepOrders),
+      ...this.getVariableBackedStepOrders(variables)
+    ]);
+
+    const steps = executableSteps.filter((step) => {
+      if (!selectedOrders.has(step.stepOrder)) {
+        return false;
+      }
+
+      if (!['input', 'select'].includes(step.actionType)) {
+        return true;
+      }
+
+      return Object.prototype.hasOwnProperty.call(variables, `input_${step.stepOrder}`);
+    });
+
+    return { executionMode, steps };
+  }
+
   isExecutableStep(step) {
     if (!step || !step.actionType) return false;
     if (step.actionType === 'navigation') return Boolean(step.url);
@@ -87,25 +152,32 @@ class WorkflowExecutor {
     return rawChoices;
   }
 
-  async executeById(workflowId, variables = {}) {
+  async executeById(workflowId, variables = {}, options = {}) {
     const workflow = await this.catalogService.getWorkflowById(workflowId);
     
     if (!workflow || !workflow.steps || workflow.steps.length === 0) {
       throw new Error(`Workflow ${workflowId} not found or has no steps.`);
     }
 
-    const executableSteps = workflow.steps.filter(step => this.isExecutableStep(step));
+    const plan = this.buildExecutionPlan(workflow, variables, options);
     
-    if (executableSteps.length === 0) {
-        throw new Error(`Workflow ${workflowId} has no executable steps.`);
+    if (plan.steps.length === 0) {
+      if (plan.executionMode === 'partial') {
+        throw new Error(`Workflow ${workflowId} has no executable steps for partial activation.`);
+      }
+      throw new Error(`Workflow ${workflowId} has no executable steps.`);
     }
 
-    console.log(`\x1b[33mActivating Workflow: ${workflowId}\x1b[0m`);
+    const activationLabel = plan.executionMode === 'partial'
+      ? `Activating Workflow Partially: ${workflowId}`
+      : `Activating Workflow: ${workflowId}`;
+    console.log(`\x1b[33m${activationLabel}\x1b[0m`);
     
     // Inject the dynamic option chooser into the runner
-    await this.runner.executeWorkflow(executableSteps, variables, { 
+    await this.runner.executeWorkflow(plan.steps, variables, { 
       workflowId, 
-      optionGuesser: this.chooseDynamicOptions.bind(this) 
+      optionGuesser: this.chooseDynamicOptions.bind(this),
+      executionMode: plan.executionMode
     });
     return `Workflow ${workflowId} executed successfully.`;
   }
