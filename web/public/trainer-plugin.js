@@ -770,6 +770,17 @@
         element.dispatchEvent(new Event(eventName, { bubbles: true }));
     }
 
+    function notifyAutomationStep(step, message, options = {}) {
+        const selector = options.selector || step?.selector || 'body';
+        runtime()?.handleAutomationEvent?.({
+            selector,
+            label: step?.label || '',
+            mode: options.mode || 'executing',
+            spotlight: options.spotlight !== false,
+            message: message || step?.label || step?.selector || 'Estoy trabajando en esta parte.'
+        });
+    }
+
     async function applyInputStep(element, step, variables = {}) {
         const variableName = `input_${step.stepOrder}`;
         const nextValue = Object.prototype.hasOwnProperty.call(variables, variableName)
@@ -866,6 +877,10 @@
 
             if (step.actionType === 'navigation') {
                 const targetUrl = normalizeExecutionUrl(step.url);
+                notifyAutomationStep(step, `Abriendo ${step.label || targetUrl}.`, {
+                    selector: 'body',
+                    spotlight: false
+                });
                 if (!urlsMatch(window.location.href, targetUrl)) {
                     currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
                     updateWorkflowPanelStatus(`Abriendo ${targetUrl}...`);
@@ -887,6 +902,7 @@
             const element = await waitForStepElement(step);
             if (step.actionType === 'click') {
                 element.scrollIntoView({ block: 'center', inline: 'nearest' });
+                notifyAutomationStep(step, `Estoy interactuando con ${step.label || step.selector || 'este control'}.`);
                 if ('disabled' in element && element.disabled) {
                     throw new Error(`El elemento ${describeStep(step)} sigue deshabilitado.`);
                 }
@@ -894,9 +910,11 @@
                 currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
                 element.click();
             } else if (step.actionType === 'input') {
+                notifyAutomationStep(step, `Estoy completando ${step.label || step.selector || 'este campo'}.`);
                 await applyInputStep(element, step, currentPlan.variables || {});
                 currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
             } else if (step.actionType === 'select') {
+                notifyAutomationStep(step, `Estoy eligiendo una opcion en ${step.label || step.selector || 'este selector'}.`);
                 await applySelectStep(element, step, currentPlan.variables || {});
                 currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
             } else {

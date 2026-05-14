@@ -5,6 +5,131 @@ class AgentChat {
     this.executor = executor;
   }
 
+  wantsInventedValues(message = '', history = []) {
+    const combined = [
+      ...history.map((item) => item?.content || ''),
+      message || ''
+    ].join(' ').toLowerCase();
+
+    return [
+      'inventa',
+      'inventalo',
+      'invéntalo',
+      'inventa todo',
+      'usa datos falsos',
+      'datos falsos',
+      'es una prueba',
+      'no me preguntes',
+      'no te voy a dar',
+      'rellena tu',
+      'rellénalo tú',
+      'hazlo tu',
+      'hazlo tú'
+    ].some((token) => combined.includes(token));
+  }
+
+  pickWorkflowForInventedExecution(workflows = [], decision = {}, message = '') {
+    if (!Array.isArray(workflows) || workflows.length === 0) {
+      return null;
+    }
+
+    if (decision?.workflowId) {
+      const exact = workflows.find((workflow) => workflow.id === decision.workflowId);
+      if (exact) {
+        return exact;
+      }
+    }
+
+    const lowerMessage = `${message || ''}`.toLowerCase();
+    const matched = workflows.find((workflow) =>
+      `${workflow.id || ''} ${workflow.description || ''} ${workflow.summary || ''}`.toLowerCase().includes(lowerMessage)
+    );
+
+    return matched || workflows[0];
+  }
+
+  buildSyntheticValue(variable = {}, index = 0) {
+    const label = `${variable.fieldLabel || variable.prompt || variable.selector || ''}`.toLowerCase();
+    const dayOffset = 7 + index;
+    const baseDate = new Date(Date.UTC(2026, 4, 14 + dayOffset));
+    const isoDate = baseDate.toISOString().slice(0, 10);
+
+    if (label.includes('mail') || label.includes('correo') || label.includes('email')) {
+      return `prueba.graph.${index + 1}@example.com`;
+    }
+    if (label.includes('fecha de nacimiento') || label.includes('birth')) {
+      return '1994-08-17';
+    }
+    if (label.includes('fecha') || label.includes('desde') || label.includes('hasta') || label.includes('pickup') || label.includes('return')) {
+      return isoDate;
+    }
+    if (label.includes('telefono') || label.includes('whatsapp') || label.includes('phone') || label.includes('cel')) {
+      return '+573001112233';
+    }
+    if (label.includes('documento') || label.includes('cedula') || label.includes('passport') || label.includes('ident')) {
+      return `90000${String(100 + index)}`;
+    }
+    if (label.includes('nombre')) {
+      return index % 2 === 0 ? 'Alex' : 'Jordan';
+    }
+    if (label.includes('apellido')) {
+      return 'Prueba';
+    }
+    if (label.includes('ciudad')) {
+      return 'Medellin';
+    }
+    if (label.includes('nacionalidad')) {
+      return 'Colombiana';
+    }
+    if (label.includes('direccion') || label.includes('dirección')) {
+      return 'Calle 10 # 43A-25';
+    }
+    if (label.includes('comentario') || label.includes('requerimiento')) {
+      return 'Prueba automatizada con un pasajero, dos maletas y preferencia por Mercedes.';
+    }
+    if (label.includes('aerolinea')) {
+      return 'Avianca';
+    }
+    if (label.includes('vuelo')) {
+      return 'AV9543';
+    }
+    if (label.includes('reserva')) {
+      return 'PRUEBA123';
+    }
+
+    return `prueba-${index + 1}`;
+  }
+
+  buildInventedVariables(workflow, existingVariables = {}) {
+    const output = { ...(existingVariables || {}) };
+    const variables = Array.isArray(workflow?.variables) ? workflow.variables : [];
+
+    for (let index = 0; index < variables.length; index += 1) {
+      const variable = variables[index];
+      if (!variable?.name || Object.prototype.hasOwnProperty.call(output, variable.name)) {
+        continue;
+      }
+
+      const allowedOptions = Array.isArray(variable.allowedOptions)
+        ? variable.allowedOptions.filter((option) => option && option.value)
+        : [];
+
+      if (`${variable.defaultValue || ''}`.trim()) {
+        output[variable.name] = variable.defaultValue;
+        continue;
+      }
+
+      if (allowedOptions.length > 0) {
+        output[variable.name] = allowedOptions[0].value;
+        continue;
+      }
+
+      output[variable.name] = this.buildSyntheticValue(variable, index);
+    }
+
+    return output;
+  }
+
   filterWorkflowsForContext(workflows, context = {}) {
     if (!Array.isArray(workflows) || workflows.length === 0) {
       return [];
@@ -73,6 +198,8 @@ class AgentChat {
           'workflowId: exact workflow id or null.',
           'variables: object mapping variable names like input_2 to their values.',
           'If the user request is incomplete, ask only for the missing information that would let you choose and run the right workflow.',
+          'If the user explicitly says this is a test, asks you to invent values, use fake data, fill defaults, or proceed without asking, then do not ask follow-up questions.',
+          'In that case, choose the workflow, reuse recorded default values when available, invent any remaining required values, and set shouldExecute to true.',
           'Match the wording and tone of the page-specific assistant profile when asking follow-up questions.',
           'When a variable belongs to a select control, treat it as a closed set choice, not free text.',
           'When a variable belongs to a select control, prefer one of the allowed option values exactly.',
@@ -130,6 +257,21 @@ class AgentChat {
       console.warn(`[Agent Chat] LLM fallback: ${error.message}`);
       decision = this.fallbackAgentDecision(message, workflows);
       decision.reply = `${decision.reply} LLM fallback engaged because the provider request failed.`;
+    }
+
+    if (this.wantsInventedValues(message, history)) {
+      const chosenWorkflow = this.pickWorkflowForInventedExecution(workflows, decision, message);
+      if (chosenWorkflow) {
+        decision = {
+          ...decision,
+          workflowId: chosenWorkflow.id,
+          shouldExecute: true,
+          variables: this.buildInventedVariables(chosenWorkflow, decision.variables || {}),
+          reply: decision.reply && decision.shouldExecute
+            ? decision.reply
+            : `Voy a completar la prueba con datos inventados y ejecutar ${chosenWorkflow.id}.`
+        };
+      }
     }
 
     if (!decision.workflowId || !decision.shouldExecute) {
