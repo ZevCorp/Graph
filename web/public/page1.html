@@ -318,6 +318,7 @@
             <a href="index.html">Patient Intake</a>
             <a href="page1.html">Anamnesis</a>
             <a href="page2.html">Diagnosis & Rx</a>
+            <a href="/examples/car-demo">Car Demo</a>
             <a href="visualize.html">Workflow Graph</a>
             <button id="clear-emr" type="button">Clear EMR</button>
         </nav>
@@ -390,46 +391,11 @@
         </section>
     </div>
 
-    <section class="console" id="teaching-console">
-        <div class="console-chat" id="console-chat">
-            <div class="console-chat-log" id="console-chat-log" aria-live="polite" aria-label="AI chat messages"></div>
-            <textarea id="agent-message" rows="1" placeholder="Ask AI to execute a saved flow"></textarea>
-        </div>
-        <div class="console-toolbar">
-            <button class="icon-btn" id="btn-stethoscope" type="button" title="Clinical tools" aria-label="Clinical tools">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v5a4 4 0 0 0 8 0V4M10 17a4 4 0 1 0 8 0v-3a2 2 0 1 0-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
-            <button class="icon-btn" id="agent-send" type="button" title="Open AI chat" aria-label="Open AI chat">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3V5z" fill="currentColor"/></svg>
-            </button>
-        </div>
-        <input id="wf-desc" class="sr-only" value="">
-        <textarea id="step-explanation" class="sr-only"></textarea>
-        <div id="recording-status" class="sr-only">Idle</div>
-        <button onclick="startWF()" id="btn-start" class="sr-only" type="button">Start</button>
-        <button onclick="stopWF()" id="btn-stop" class="sr-only" type="button">Stop</button>
-    </section>
-
-    <script src="emr-state.js"></script>
+    <script src="page-state.js"></script>
     <script src="recorder.js"></script>
+    <script src="assistant-runtime.js"></script>
+    <script src="trainer-plugin.js"></script>
     <script>
-        const agentHistory = [];
-        const agentChatLog = document.getElementById('console-chat-log');
-
-        async function startWF() {
-            const desc = document.getElementById('wf-desc').value.trim();
-            await window.WorkflowRecorder.startWorkflow(desc);
-        }
-
-        async function stopWF() {
-            await window.WorkflowRecorder.stopWorkflow();
-        }
-
-        async function resetStatus() {
-            await window.WorkflowRecorder.resetWorkflow();
-        }
-
         function hasValue(id) {
             return document.getElementById(id).value.trim() !== '';
         }
@@ -479,92 +445,26 @@
         });
 
         document.getElementById('clear-emr').addEventListener('click', () => {
-            window.EMRState.clearAll();
+            window.PageState.clearAll();
             document.getElementById('anamnesis-feedback').innerText = '';
         });
 
-        function appendAgentMessage(role, text, meta, pushHistory = true) {
-            if (pushHistory) {
-                agentHistory.push({ role, content: text });
-            }
-            const bubble = document.createElement('div');
-            bubble.className = `chat-bubble ${role === 'user' ? 'user' : 'assistant'}`;
-            bubble.textContent = text;
-
-            if (meta) {
-                const metaEl = document.createElement('span');
-                metaEl.className = 'chat-meta';
-                metaEl.textContent = meta;
-                bubble.appendChild(metaEl);
-            }
-
-            agentChatLog.appendChild(bubble);
-            agentChatLog.scrollTop = agentChatLog.scrollHeight;
-            console.log(role === 'user' ? `You: ${text}` : `Assistant: ${text}${meta ? ` | ${meta}` : ''}`);
-        }
-
-        async function submitAgentMessage() {
-            document.getElementById('agent-send').click();
-        }
-
-        document.getElementById('btn-record-toggle').addEventListener('click', async () => {
-            if (window.WorkflowRecorder.isRecording()) {
-                await stopWF();
-                return;
-            }
-            await startWF();
-        });
-
-        document.getElementById('agent-send').addEventListener('click', async () => {
-            const consoleEl = document.getElementById('teaching-console');
-            const chat = document.getElementById('console-chat');
-            const textarea = document.getElementById('agent-message');
-
-            if (!chat.classList.contains('open')) {
-                chat.classList.add('open');
-                consoleEl.classList.add('compact-open');
-                textarea.focus();
-                return;
-            }
-
-            const message = textarea.value.trim();
-            if (!message) {
-                chat.classList.remove('open');
-                consoleEl.classList.remove('compact-open');
-                return;
-            }
-
-            const historyForRequest = agentHistory.slice(-8);
-            appendAgentMessage('user', message);
-            textarea.value = '';
-            const response = await fetch('/api/agent/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, history: historyForRequest })
-            });
-
-            const payload = await response.json();
-            if (!response.ok) {
-                appendAgentMessage('assistant', payload.error || 'Something went wrong.');
-                return;
-            }
-
-            const meta = payload.workflowId ? `workflow=${payload.workflowId} | executed=${payload.executed ? 'yes' : 'no'}` : null;
-            appendAgentMessage('assistant', payload.reply, meta);
-            textarea.focus();
-        });
-
-        document.getElementById('agent-message').addEventListener('keydown', (event) => {
-            if (event.key !== 'Enter' || event.shiftKey || event.isComposing) {
-                return;
-            }
-
-            event.preventDefault();
-            submitAgentMessage();
-        });
-
         window.onload = () => {
-            window.WorkflowRecorder.syncStatus();
+            window.PageState.init({ storageKey: 'graph-emr-form-state-v1' });
+            window.TrainerPlugin.mount({
+                title: 'Anamnesis Trainer',
+                workflowDescription: 'Anamnesis workflow',
+                appId: 'medical-demo',
+                assistantProfile: {
+                    tone: 'professional, calm, concise',
+                    style: 'clinical assistant',
+                    goals: [
+                        'Ask only for the information needed to execute the correct workflow.',
+                        'Stay direct and clear.',
+                        'Do not use a sales tone.'
+                    ]
+                }
+            });
             syncAnamnesisActions();
         };
     </script>

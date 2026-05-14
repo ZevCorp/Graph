@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Flota disponible | Rent a Car Medellin</title>
+  <link rel="stylesheet" href="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/style.css">
+  <link rel="stylesheet" href="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/bootstrap.min.css">
+  <link rel="stylesheet" href="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/style(1).css">
+  <link rel="stylesheet" href="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/font-awesome.min.css">
+  <style>
+    :root {
+      --brand-red: #d51717;
+      --brand-green: #8bc53f;
+      --text-main: #152238;
+      --text-soft: #4d5b70;
+      --surface: #ffffff;
+      --surface-soft: #f6f6f6;
+      --shadow: 0 20px 45px rgba(0, 0, 0, 0.08);
+      --line: #e3e7ec;
+    }
+    body { background: linear-gradient(180deg, #f6f4f2 0%, #ffffff 220px); color: var(--text-main); }
+    .results-hero { padding: 48px 0 26px; background: linear-gradient(115deg, rgba(0,0,0,.78), rgba(0,0,0,.48)), radial-gradient(circle at top left, rgba(213,23,23,.42), transparent 42%); color: #fff; border-bottom: 4px solid var(--brand-red); }
+    .results-hero h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.15rem); font-weight: 800; }
+    .results-hero p { color: rgba(255,255,255,.82); max-width: 720px; margin: 14px 0 0; }
+    .results-shell { max-width: 1180px; margin: -40px auto 0; padding: 0 16px 64px; position: relative; z-index: 2; }
+    .summary-card, .selection-stage, .client-stage, .family-stage, .flight-stage { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,.08); }
+    .summary-card { padding: 20px; margin-bottom: 26px; }
+    .summary-header, .results-toolbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+    .summary-header { margin-bottom: 16px; }
+    .summary-header h2, .results-toolbar h3 { margin: 0; font-weight: 800; }
+    .summary-header h2 { font-size: 1.35rem; }
+    .results-toolbar h3 { font-size: 1.8rem; }
+    .summary-header p, .results-toolbar p { margin: 4px 0 0; color: var(--text-soft); }
+    .trip-glance { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .summary-item { background: var(--surface-soft); border: 1px solid #ececec; border-radius: 14px; padding: 12px 14px; min-height: 82px; }
+    .summary-item span, .filter-chip label, .vehicle-meta span, .detail-label, .client-field label { display: block; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #7c8695; font-weight: 800; }
+    .summary-item strong, .vehicle-meta strong { display: block; color: var(--text-main); line-height: 1.35; margin-top: 6px; }
+    .filters-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 14px; border: 1px solid #ececec; border-radius: 16px; background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%); }
+    .filter-chip { min-width: 118px; flex: 1 1 118px; }
+    .filter-chip.compact { flex: .85 1 110px; }
+    .filter-chip.wide { flex: 1.2 1 150px; }
+    .filter-chip input[type="range"], .filter-chip select { width: 100%; }
+    .filter-chip select, .client-field input, .client-field select { border: 1px solid #d5dce5; background: #fff; color: #132238; font-weight: 700; }
+    .filter-chip select { border-radius: 999px; padding: 9px 12px; height: 42px; font-size: .92rem; }
+    .filter-chip input[type="range"] { accent-color: var(--brand-red); margin-top: 8px; }
+    .range-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 20px; }
+    .range-meta strong { color: var(--brand-red); font-size: .88rem; white-space: nowrap; }
+    .filters-actions { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; margin-left: auto; }
+    .btn-filter-reset { border: 1px solid #ffd7d7; background: #fff5f5; color: var(--brand-red); border-radius: 999px; padding: 10px 14px; font-weight: 800; font-size: .88rem; cursor: pointer; }
+    .filters-count, .fleet-count { white-space: nowrap; border-radius: 999px; background: #0f172a; color: #fff; padding: 10px 14px; font-weight: 800; font-size: .9rem; }
+    .results-toolbar { margin-bottom: 20px; }
+    .fleet-count { box-shadow: var(--shadow); }
+    .car-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 32px; }
+    .vehicle-card { background: #fff; border: 1px solid #cfcfcf; border-radius: 8px; overflow: hidden; box-shadow: 0 14px 30px rgba(30,41,59,.08); display: flex; flex-direction: column; transition: transform 180ms ease, box-shadow 180ms ease; }
+    .vehicle-card:hover { transform: translateY(-4px); box-shadow: 0 18px 34px rgba(30,41,59,.12); }
+    .vehicle-card.is-selected { border-color: var(--brand-red); box-shadow: 0 18px 40px rgba(213,23,23,.16); }
+    .vehicle-media { padding: 26px 20px 8px; min-height: 290px; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%); }
+    .vehicle-media img { width: 100%; max-width: 360px; max-height: 235px; object-fit: contain; }
+    .vehicle-body { padding: 0 34px 18px; display: flex; flex-direction: column; flex: 1; }
+    .vehicle-body h4 { margin: 0 0 10px; font-size: 1.15rem; line-height: 1.35; font-weight: 800; color: #0f172a; }
+    .vehicle-specs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .vehicle-specs span { padding: 6px 10px; border-radius: 999px; background: #f3f5f7; color: #415064; font-size: .82rem; font-weight: 700; }
+    .vehicle-body p { margin: 0; color: #334155; font-size: .98rem; line-height: 1.38; }
+    .vehicle-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0 10px; padding: 12px 0; border-top: 1px dashed #dbe2ea; border-bottom: 1px dashed #dbe2ea; }
+    .vehicle-footer { margin-top: auto; border-top: 1px solid #e3e3e3; padding-top: 16px; text-align: right; }
+    .price-day { font-size: 1.2rem; font-weight: 800; color: #10233d; margin: 0; }
+    .price-total { margin: 2px 0 0; font-size: .98rem; color: #22334c; text-decoration: underline; }
+    .price-note { margin: 2px 0 12px; color: #ff5f48; font-size: .88rem; }
+    .reserve-btn { display: inline-flex; justify-content: center; align-items: center; width: 46%; min-width: 180px; border: none; border-radius: 4px; background: var(--brand-green); color: #111; font-size: 1rem; font-weight: 800; padding: 12px 20px; cursor: pointer; }
+    .empty-state { display: none; border: 1px dashed #d6d6d6; border-radius: 18px; background: linear-gradient(180deg, #fff 0%, #fafafa 100%); padding: 34px 24px; text-align: center; color: #526074; margin-top: 10px; }
+    .selection-stage, .client-stage, .family-stage, .flight-stage { display: none; margin-top: 28px; overflow: hidden; }
+    .selection-stage.is-visible, .client-stage.is-visible, .family-stage.is-visible, .flight-stage.is-visible { display: block; }
+    .selection-breadcrumb { border-bottom: 4px solid var(--brand-red); background: #fff; padding: 14px 18px; font-size: .92rem; color: var(--brand-red); }
+    .selection-wrap { padding: 26px 18px 30px; background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.98)), radial-gradient(circle at center, rgba(4,33,61,.05), transparent 45%); }
+    .selection-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; align-items: stretch; }
+    .selection-vehicle, .selection-summary { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 28px 24px; }
+    .selection-vehicle img { display: block; width: 100%; max-width: 380px; max-height: 260px; object-fit: contain; margin: 0 auto 22px; }
+    .selection-vehicle h4, .client-head h3 { margin: 0 0 10px; font-weight: 800; color: #12253e; }
+    .selection-vehicle h4 { text-align: center; font-size: 1.5rem; }
+    .selection-vehicle p { margin: 0; color: #334155; line-height: 1.45; font-size: 1rem; }
+    .selection-summary h3 { margin: 0 0 28px; font-size: 1.45rem; text-align: center; color: #12253e; font-weight: 500; letter-spacing: .02em; }
+    .detail-block { margin-bottom: 20px; }
+    .detail-value { margin-top: 4px; font-size: 1.1rem; color: #21344d; line-height: 1.45; }
+    .totals-box { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+    .total-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-size: 1.1rem; }
+    .total-row strong { font-size: 1.9rem; font-weight: 500; }
+    .required-note { margin-top: 14px; color: var(--brand-red); text-align: center; font-size: .92rem; }
+    .client-stage, .family-stage, .flight-stage { padding: 0; }
+    .client-head, .family-head, .flight-head { padding: 18px 24px 14px; border-bottom: 1px solid var(--line); text-align: center; }
+    .client-head h3, .family-head h3, .flight-head h3 { font-size: 1.3rem; margin-bottom: 8px; }
+    .client-head p, .family-head p, .flight-head p { margin: 0; color: #334155; font-size: .98rem; line-height: 1.45; }
+    .client-body, .family-body, .flight-body { padding: 24px; }
+    .client-inline { text-align: center; margin-bottom: 20px; color: #22334c; }
+    .client-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 16px; }
+    .client-field label { margin-bottom: 8px; }
+    .client-field input, .client-field select { width: 100%; height: 44px; border-radius: 6px; padding: 10px 12px; font-size: .98rem; font-weight: 500; }
+    .client-field.span-3 { grid-column: 1 / -1; }
+    .family-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 16px; }
+    .family-card { border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: #fff; }
+    .family-card h4 { margin: 0 0 14px; text-align: center; color: #1a2d46; font-size: 1.05rem; font-weight: 700; }
+    .flight-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 16px; }
+    .flight-grid + .flight-grid { margin-top: 18px; }
+    @media (max-width: 991px) { .trip-glance, .car-grid, .vehicle-meta, .selection-grid, .client-grid, .family-grid, .flight-grid { grid-template-columns: 1fr; } .results-toolbar, .summary-header { flex-direction: column; align-items: flex-start; } .filters-bar { align-items: stretch; } .filter-chip, .filter-chip.compact, .filter-chip.wide { flex: 1 1 100%; } .filters-actions { width: 100%; margin-left: 0; justify-content: space-between; } .vehicle-body { padding: 0 20px 18px; } .vehicle-media { min-height: 240px; } .selection-wrap, .client-body, .family-body, .flight-body { padding-left: 16px; padding-right: 16px; } }
+  </style>
+</head>
+<body data-spy="scroll" data-target=".site-navbar-target" data-offset="100">
+  <div class="site-wrap">
+    <header class="site-navbar py-4 bg-white js-sticky-header site-navbar-target bg-dark" role="banner">
+      <div class="container"><div class="row align-items-center"><div class="col-8 col-xl-2"><div class="mb-0 site-logo"><a href="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h.html" class="text-black h2 mb-0"><img src="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/logo-color.webp" alt="Rent a Car Medellin" class="logo-header" width="200" height="57"></a></div></div></div></div>
+    </header>
+    <section class="results-hero"><div class="container"><div class="row"><div class="col-lg-10"><h1>Vehiculos disponibles para tu viaje</h1><p>Explora la flota lista para reservar y compara capacidad, comodidad y precio total segun las fechas seleccionadas.</p></div></div></div></section>
+    <main class="results-shell">
+      <section class="summary-card">
+        <div class="summary-header"><div><h2>Encuentra el carro ideal</h2><p>Filtros compactos, comparables y listos para afinar la busqueda en segundos.</p></div><a class="btn btn-dark btn-sm" href="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h.html">Editar busqueda</a></div>
+        <div class="trip-glance"><div class="summary-item"><span>Recogida</span><strong id="pickupDate">Hoy</strong></div><div class="summary-item"><span>Hora de recogida</span><strong id="pickupTime">Por confirmar</strong></div><div class="summary-item"><span>Devolucion</span><strong id="returnDate">En 2 dias</strong></div><div class="summary-item"><span>Duracion</span><strong id="durationLabel">2 dias de reserva</strong></div></div>
+        <div class="filters-bar">
+          <div class="filter-chip compact"><label for="filterPassengers">Pasajeros</label><select id="filterPassengers"><option value="0">Cualquiera</option><option value="4">4+</option><option value="5">5+</option><option value="7">7+</option></select></div>
+          <div class="filter-chip compact"><label for="filterVehicleType">Tipo</label><select id="filterVehicleType"><option value="all">Todos</option><option value="economico">Economico</option><option value="suv">SUV</option><option value="premium">Premium</option></select></div>
+          <div class="filter-chip wide"><div class="range-meta"><label for="filterAutonomy">Autonomia</label><strong id="autonomyValue">300 km</strong></div><input id="filterAutonomy" type="range" min="300" max="700" step="50" value="300"></div>
+          <div class="filter-chip wide"><div class="range-meta"><label for="filterGasCost">Gasolina / galon</label><strong id="gasValue">$ 18.000</strong></div><input id="filterGasCost" type="range" min="14000" max="18000" step="500" value="18000"></div>
+          <div class="filter-chip compact"><label for="filterDrivingStyle">Conduccion</label><select id="filterDrivingStyle"><option value="all">Todas</option><option value="urbano">Urbano</option><option value="balanceado">Balanceado</option><option value="viajero">Viajero</option><option value="ejecutivo">Ejecutivo</option></select></div>
+          <div class="filter-chip compact"><label for="filterTransmission">Transmision</label><select id="filterTransmission"><option value="all">Todas</option><option value="automatico">Automatica</option><option value="manual">Manual</option></select></div>
+          <div class="filters-actions"><button class="btn-filter-reset" type="button" id="resetFilters">Limpiar</button><div class="filters-count" id="filtersCount">4 visibles</div></div>
+        </div>
+      </section>
+      <section>
+        <div class="results-toolbar"><div><h3>Autos y camionetas listos para reservar</h3><p>Tarifas por dia, con total estimado de la reserva segun tu rango de fechas.</p></div><div class="fleet-count" id="fleetCount">4 vehiculos disponibles</div></div>
+        <div class="car-grid">
+          <article class="vehicle-card" data-daily-price="219000" data-passengers="4" data-autonomy="420" data-gas-cost="15200" data-driving-style="urbano" data-vehicle-type="economico" data-transmission="automatico"><div class="vehicle-media"><img src="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/home-car-1-compressed.webp" alt="Kia Picanto gris"></div><div class="vehicle-body"><h4>Kia Picanto Emotion - Gris - Economico y agil en ciudad</h4><div class="vehicle-specs"><span>4 pasajeros</span><span>Aire acondicionado</span><span>Automatico</span></div><p>Ideal para moverse por Medellin con facilidad. Compacto, de bajo consumo y perfecto para recorridos urbanos, reuniones de trabajo o escapadas cortas.</p><div class="vehicle-meta"><div><span>Autonomia</span><strong>420 km aprox.</strong></div><div><span>Gasolina / galon</span><strong>$ 15.200</strong></div><div><span>Conduccion</span><strong>Urbano agil</strong></div><div><span>Tipo</span><strong>Economico</strong></div></div><div class="vehicle-footer"><p class="price-day">$ 219.000 / Dia</p><p class="price-total" data-total-price>$ 438.000 total de la reserva</p><p class="price-note">* Precio para usuarios con tarjeta de credito</p><button class="reserve-btn" type="button">Reservar</button></div></div></article>
+          <article class="vehicle-card" data-daily-price="289000" data-passengers="5" data-autonomy="560" data-gas-cost="16900" data-driving-style="balanceado" data-vehicle-type="suv" data-transmission="automatico"><div class="vehicle-media"><img src="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/home-car-2-compressed.webp" alt="Renault Duster roja"></div><div class="vehicle-body"><h4>Renault Duster Zen - Roja - Mayor altura y confort</h4><div class="vehicle-specs"><span>5 pasajeros</span><span>Baul amplio</span><span>Ideal para carretera</span></div><p>SUV versatil para planes familiares y viajes por Antioquia. Entrega una conduccion estable, posicion elevada y espacio suficiente para equipaje mediano.</p><div class="vehicle-meta"><div><span>Autonomia</span><strong>560 km aprox.</strong></div><div><span>Gasolina / galon</span><strong>$ 16.900</strong></div><div><span>Conduccion</span><strong>Balanceado</strong></div><div><span>Tipo</span><strong>SUV</strong></div></div><div class="vehicle-footer"><p class="price-day">$ 289.000 / Dia</p><p class="price-total" data-total-price>$ 578.000 total de la reserva</p><p class="price-note">* Precio para usuarios con tarjeta de credito</p><button class="reserve-btn" type="button">Reservar</button></div></div></article>
+          <article class="vehicle-card" data-daily-price="449000" data-passengers="4" data-autonomy="510" data-gas-cost="17800" data-driving-style="ejecutivo" data-vehicle-type="premium" data-transmission="automatico"><div class="vehicle-media"><img src="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/home-car-3-compressed.webp" alt="Mercedes Benz C 250"></div><div class="vehicle-body"><h4>Mercedes Benz C 250 - SIN PICO Y PLACA</h4><div class="vehicle-specs"><span>4 pasajeros</span><span>Coupe premium</span><span>Techo panoramico</span></div><p>Hermosa coupe deportiva con motor 2000cc turbo, caja automatica y acabados premium. Una opcion ideal para una experiencia mas ejecutiva o especial.</p><div class="vehicle-meta"><div><span>Autonomia</span><strong>510 km aprox.</strong></div><div><span>Gasolina / galon</span><strong>$ 17.800</strong></div><div><span>Conduccion</span><strong>Ejecutivo / premium</strong></div><div><span>Tipo</span><strong>Premium</strong></div></div><div class="vehicle-footer"><p class="price-day">$ 449.000 / Dia</p><p class="price-total" data-total-price>$ 898.000 total de la reserva</p><p class="price-note">* Precio para usuarios con tarjeta de credito</p><button class="reserve-btn" type="button">Reservar</button></div></div></article>
+          <article class="vehicle-card" data-daily-price="449900" data-passengers="7" data-autonomy="640" data-gas-cost="17500" data-driving-style="viajero" data-vehicle-type="suv" data-transmission="automatico"><div class="vehicle-media"><img src="./Alquiler de Carros en Medellín _ Rent a Car Medellín 24h_files/white-car-compressed2.webp" alt="New Captiva Premier blanca"></div><div class="vehicle-body"><h4>New Captiva Premier - Blanca - Hasta 7 pasajeros</h4><div class="vehicle-specs"><span>7 pasajeros</span><span>Pantalla de 8"</span><span>Asientos en cuero</span></div><p>Camioneta familiar espaciosa con excelente presencia y comodidad. Perfecta para grupos, traslados al aeropuerto o viajes con mas equipaje y acompanantes.</p><div class="vehicle-meta"><div><span>Autonomia</span><strong>640 km aprox.</strong></div><div><span>Gasolina / galon</span><strong>$ 17.500</strong></div><div><span>Conduccion</span><strong>Viajero / carretera</strong></div><div><span>Tipo</span><strong>SUV</strong></div></div><div class="vehicle-footer"><p class="price-day">$ 449.900 / Dia</p><p class="price-total" data-total-price>$ 899.800 total de la reserva</p><p class="price-note">* Precio para usuarios con tarjeta de credito</p><button class="reserve-btn" type="button">Reservar</button></div></div></article>
+        </div>
+        <div class="empty-state" id="emptyState"><h4>No encontramos carros con esa combinacion de filtros.</h4><p class="mb-0">Prueba bajando la autonomia minima, subiendo el tope de gasolina o cambiando el tipo de vehiculo.</p></div>
+      </section>
+      <section class="selection-stage" id="selectionStage">
+        <div class="selection-breadcrumb">Home / Cotizaciones y reservas / Resumen</div>
+        <div class="selection-wrap">
+          <div class="selection-grid">
+            <div class="selection-vehicle"><img id="selectedVehicleImage" src="" alt="Vehiculo seleccionado"><h4 id="selectedVehicleTitle"></h4><p id="selectedVehicleDescription"></p></div>
+            <div class="selection-summary"><h3>DETALLES DE TU RESERVA</h3><div class="detail-block"><span class="detail-label">Datos de Entrega:</span><div class="detail-value" id="deliveryInfo"></div></div><div class="detail-block"><span class="detail-label">Datos de Devolucion:</span><div class="detail-value" id="returnInfo"></div></div><div class="totals-box"><div class="total-row"><span>Sub-Total:</span><strong id="subtotalValue">$ 0</strong></div><div class="total-row"><span>Total:</span><strong id="totalValue">$ 0</strong></div></div></div>
+          </div>
+          <div class="required-note">* Campos obligatorios o requeridos</div>
+        </div>
+      </section>
+      <section class="client-stage" id="clientStage">
+        <div class="client-head"><h3>Datos del cliente</h3><p>Diligenciar el formulario de reserva con los datos del titular de la tarjeta de credito que se usara para la garantia en el momento de recoger el carro.</p></div>
+        <div class="client-body">
+          <div class="client-inline">Vive en colombia <label><input type="radio" name="vive-colombia"> Si</label> <label><input type="radio" name="vive-colombia" checked> No</label></div>
+          <div class="client-grid">
+            <div class="client-field"><label>Email *</label><input type="email" placeholder=""></div>
+            <div class="client-field"><label>Nombres *</label><input type="text" placeholder=""></div>
+            <div class="client-field"><label>Apellidos *</label><input type="text" placeholder=""></div>
+            <div class="client-field"><label>Tipo Documento *</label><select><option>* Tipo documento</option><option>Pasaporte</option><option>CC</option><option>CE</option></select></div>
+            <div class="client-field"><label>Numero de Documento *</label><input type="text" placeholder="# ID"></div>
+            <div class="client-field"><label>Fecha de nacimiento *</label><input type="text" placeholder="dd/mm/aaaa"></div>
+            <div class="client-field"><label>Nacionalidad</label><input type="text" placeholder=""></div>
+            <div class="client-field"><label>Pais de Residencia *</label><select><option>Seleccione pais de residencia</option><option>Colombia</option><option>Estados Unidos</option><option>Mexico</option></select></div>
+            <div class="client-field"><label>Ciudad *</label><input type="text" placeholder="Ciudad de residencia"></div>
+            <div class="client-field span-3"><label>Telefono con WhatsApp *</label><input type="text" placeholder="+ Indicativo Internacional / numero"></div>
+          </div>
+        </div>
+      </section>
+      <section class="family-stage" id="familyStage">
+        <div class="family-head"><h3>Referencias familiares</h3></div>
+        <div class="family-body">
+          <div class="family-grid">
+            <div class="family-card"><h4>Referencia 1 *</h4><div class="client-field"><label>Nombre completo</label><input type="text" placeholder="Nombre de la referencia"></div><div class="client-field"><label>Telefono</label><input type="text" placeholder="234567890"></div></div>
+            <div class="family-card"><h4>Referencia 2 *</h4><div class="client-field"><label>Nombre completo</label><input type="text" placeholder="Nombre de la referencia"></div><div class="client-field"><label>Telefono</label><input type="text" placeholder="234567890"></div></div>
+            <div class="family-card"><h4>Referencia 3 *</h4><div class="client-field"><label>Nombre completo</label><input type="text" placeholder="Nombre de la referencia"></div><div class="client-field"><label>Telefono</label><input type="text" placeholder="234567890"></div></div>
+          </div>
+        </div>
+      </section>
+      <section class="flight-stage" id="flightStage">
+        <div class="flight-head"><h3>Informacion del vuelo</h3></div>
+        <div class="flight-body">
+          <div class="flight-grid">
+            <div class="client-field"><label>Codigo de Reserva aerea</label><input type="text" placeholder="dyc356"></div>
+            <div class="client-field"><label>Aerolinea</label><input type="text" placeholder="Esic Airlines"></div>
+            <div class="client-field"><label>Numero de vuelo</label><input type="text" placeholder="WIN2026"></div>
+            <div class="client-field"><label>Ciudad de procedencia del vuelo</label><input type="text" placeholder="Ciudad de origen"></div>
+          </div>
+        </div>
+        <div class="flight-head"><h3>Datos adicionales para reservas de clientes que residen fuera de Colombia</h3></div>
+        <div class="flight-body">
+          <div class="flight-grid">
+            <div class="client-field span-3" style="grid-column: 1 / -1;"><label>Direccion hospedaje en Medellin</label><input type="text" placeholder="Direccion del hospedaje"></div>
+            <div class="client-field span-3" style="grid-column: 1 / -1;"><label>Comentarios y requerimientos adicionales</label><input type="text" placeholder="Comentarios y requerimientos adicionales"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script>
+      function formatDateLabel(value) { if (!value) return 'Por confirmar'; const parsed = new Date(value + 'T12:00:00'); if (Number.isNaN(parsed.getTime())) return value; return parsed.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }); }
+      function formatMoney(value) { return '$ ' + new Intl.NumberFormat('es-CO').format(value); }
+      function resolveDurationDays(startValue, endValue) { const start = new Date(startValue + 'T12:00:00'); const end = new Date(endValue + 'T12:00:00'); if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 2; return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000)); }
+      function resolveLocationLabel(raw) { const map = { ofc: 'OFICINA MEDELLIN (EL POBLADO)', jmc: 'AEROPUERTO JOSE MARIA CORDOVA (RIONEGRO)', eoh: 'AEROPUERTO OLAYA HERRERA (MEDELLIN)' }; return map[raw] || 'Lugar por confirmar'; }
+      const params = new URLSearchParams(window.location.search);
+      const pickupDate = params.get('desde') || '';
+      const pickupTime = params.get('desdeH') || '';
+      const returnDate = params.get('hasta') || '';
+      const returnTime = params.get('hastaH') || '';
+      const pickupLocation = resolveLocationLabel(params.get('entrega'));
+      const returnLocation = resolveLocationLabel(params.get('devuelve'));
+      const days = resolveDurationDays(pickupDate, returnDate);
+      document.getElementById('pickupDate').textContent = formatDateLabel(pickupDate);
+      document.getElementById('pickupTime').textContent = pickupTime || 'Por confirmar';
+      document.getElementById('returnDate').textContent = formatDateLabel(returnDate);
+      document.getElementById('durationLabel').textContent = days + (days === 1 ? ' dia de reserva' : ' dias de reserva');
+      const cards = Array.from(document.querySelectorAll('.vehicle-card'));
+      cards.forEach((card) => { const totalNode = card.querySelector('[data-total-price]'); if (totalNode) totalNode.textContent = formatMoney((Number(card.dataset.dailyPrice) || 0) * days) + ' total de la reserva'; });
+      const filterPassengers = document.getElementById('filterPassengers');
+      const filterVehicleType = document.getElementById('filterVehicleType');
+      const filterAutonomy = document.getElementById('filterAutonomy');
+      const filterGasCost = document.getElementById('filterGasCost');
+      const filterDrivingStyle = document.getElementById('filterDrivingStyle');
+      const filterTransmission = document.getElementById('filterTransmission');
+      const autonomyValue = document.getElementById('autonomyValue');
+      const gasValue = document.getElementById('gasValue');
+      const fleetCount = document.getElementById('fleetCount');
+      const filtersCount = document.getElementById('filtersCount');
+      const emptyState = document.getElementById('emptyState');
+      const selectionStage = document.getElementById('selectionStage');
+      const clientStage = document.getElementById('clientStage');
+      const familyStage = document.getElementById('familyStage');
+      const flightStage = document.getElementById('flightStage');
+      function updateRangeLabels() { autonomyValue.textContent = filterAutonomy.value + ' km'; gasValue.textContent = formatMoney(Number(filterGasCost.value)); }
+      function applyFilters() {
+        const passengers = Number(filterPassengers.value || 0);
+        const vehicleType = filterVehicleType.value;
+        const autonomy = Number(filterAutonomy.value || 300);
+        const gasCost = Number(filterGasCost.value || 18000);
+        const drivingStyle = filterDrivingStyle.value;
+        const transmission = filterTransmission.value;
+        let visibleCount = 0;
+        cards.forEach((card) => {
+          const matches = Number(card.dataset.passengers || 0) >= passengers && Number(card.dataset.autonomy || 0) >= autonomy && Number(card.dataset.gasCost || 0) <= gasCost && (vehicleType === 'all' || card.dataset.vehicleType === vehicleType) && (drivingStyle === 'all' || card.dataset.drivingStyle === drivingStyle) && (transmission === 'all' || card.dataset.transmission === transmission);
+          card.style.display = matches ? '' : 'none';
+          if (matches) visibleCount += 1;
+        });
+        fleetCount.textContent = visibleCount + (visibleCount === 1 ? ' vehiculo disponible' : ' vehiculos disponibles');
+        filtersCount.textContent = visibleCount + (visibleCount === 1 ? ' visible' : ' visibles');
+        emptyState.style.display = visibleCount === 0 ? 'block' : 'none';
+      }
+      function selectVehicle(card) {
+        cards.forEach((node) => node.classList.remove('is-selected'));
+        card.classList.add('is-selected');
+        const title = card.querySelector('h4').textContent.trim();
+        const description = card.querySelector('.vehicle-body p').textContent.trim();
+        const image = card.querySelector('img').getAttribute('src');
+        const total = formatMoney((Number(card.dataset.dailyPrice) || 0) * days);
+        document.getElementById('selectedVehicleTitle').textContent = title;
+        document.getElementById('selectedVehicleDescription').textContent = description;
+        document.getElementById('selectedVehicleImage').setAttribute('src', image);
+        document.getElementById('selectedVehicleImage').setAttribute('alt', title);
+        document.getElementById('deliveryInfo').innerHTML = pickupLocation + '<br>' + (pickupDate || 'Fecha por confirmar') + ' ' + (pickupTime || '');
+        document.getElementById('returnInfo').innerHTML = returnLocation + '<br>' + (returnDate || 'Fecha por confirmar') + ' ' + (returnTime || '');
+        document.getElementById('subtotalValue').textContent = total;
+        document.getElementById('totalValue').textContent = total;
+        selectionStage.classList.add('is-visible');
+        clientStage.classList.add('is-visible');
+        familyStage.classList.add('is-visible');
+        flightStage.classList.add('is-visible');
+        selectionStage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      [filterPassengers, filterVehicleType, filterAutonomy, filterGasCost, filterDrivingStyle, filterTransmission].forEach((control) => { control.addEventListener('input', () => { updateRangeLabels(); applyFilters(); }); control.addEventListener('change', applyFilters); });
+      document.getElementById('resetFilters').addEventListener('click', () => { filterPassengers.value = '0'; filterVehicleType.value = 'all'; filterAutonomy.value = '300'; filterGasCost.value = '18000'; filterDrivingStyle.value = 'all'; filterTransmission.value = 'all'; updateRangeLabels(); applyFilters(); });
+      updateRangeLabels();
+      applyFilters();
+      document.querySelectorAll('.reserve-btn').forEach((button) => { button.addEventListener('click', () => { selectVehicle(button.closest('.vehicle-card')); }); });
+    </script>
+  </div>
+</body>
+</html>

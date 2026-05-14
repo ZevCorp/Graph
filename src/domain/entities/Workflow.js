@@ -6,6 +6,11 @@ class Workflow {
     this.description = data.description || '';
     this.summary = data.summary || '';
     this.status = data.status || 'draft';
+    this.appId = data.appId || '';
+    this.sourceUrl = data.sourceUrl || '';
+    this.sourceOrigin = data.sourceOrigin || '';
+    this.sourcePathname = data.sourcePathname || '';
+    this.sourceTitle = data.sourceTitle || '';
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
     this.completedAt = data.completedAt;
@@ -77,6 +82,11 @@ class Workflow {
       description: this.description,
       summary: this.summary,
       status: this.status,
+      appId: this.appId,
+      sourceUrl: this.sourceUrl,
+      sourceOrigin: this.sourceOrigin,
+      sourcePathname: this.sourcePathname,
+      sourceTitle: this.sourceTitle,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       completedAt: this.completedAt,

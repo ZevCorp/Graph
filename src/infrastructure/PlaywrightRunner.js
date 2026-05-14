@@ -3,6 +3,7 @@ const { chromium } = require('playwright');
 class PlaywrightRunner {
   constructor() {
     // Pure infrastructure runner, no direct LLM dependency
+    this.stepDelayMs = Number(process.env.PLAYWRIGHT_STEP_DELAY_MS || 220);
   }
 
   normalizeChoiceText(value) {
@@ -23,6 +24,22 @@ class PlaywrightRunner {
       consoleEl.style.opacity = '0.08';
       consoleEl.style.transform = 'translateX(-50%) scale(0.98)';
     }).catch(() => {});
+  }
+
+  async notifyAssistant(page, payload = {}) {
+    await page.evaluate((eventPayload) => {
+      if (window.GraphAssistantRuntime && typeof window.GraphAssistantRuntime.handleAutomationEvent === 'function') {
+        window.GraphAssistantRuntime.handleAutomationEvent(eventPayload);
+      }
+    }, payload).catch(() => {});
+  }
+
+  async waitBetweenSteps(page, customDelayMs = this.stepDelayMs) {
+    const delayMs = Number(customDelayMs || 0);
+    if (!Number.isFinite(delayMs) || delayMs <= 0) {
+      return;
+    }
+    await page.waitForTimeout(delayMs);
   }
 
   resolveLocator(page, step) {
@@ -99,10 +116,28 @@ class PlaywrightRunner {
 
   async applyInputAction(page, step, value) {
     const locator = this.resolveLocator(page, step);
-    const tagName = await locator.evaluate((element) => element.tagName.toLowerCase());
+    const elementInfo = await locator.evaluate((element) => ({
+      tagName: element.tagName.toLowerCase(),
+      inputType: element instanceof HTMLInputElement ? (element.type || 'text').toLowerCase() : '',
+      currentValue: element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement
+        ? element.value
+        : ''
+    }));
 
-    if (tagName === 'select' || step.controlType === 'select') {
+    if (elementInfo.tagName === 'select' || step.controlType === 'select') {
       await this.applySelectAction(page, step, value);
+      return;
+    }
+
+    if (elementInfo.inputType === 'radio' || elementInfo.inputType === 'checkbox') {
+      const requestedValue = `${value ?? step.selectedValue ?? step.value ?? ''}`.trim().toLowerCase();
+      const shouldCheck = requestedValue === '' || requestedValue === 'on' || requestedValue === 'true' || requestedValue === '1' || requestedValue === 'yes';
+
+      if (shouldCheck) {
+        await locator.check();
+      } else if (elementInfo.inputType === 'checkbox') {
+        await locator.uncheck();
+      }
       return;
     }
 
@@ -304,15 +339,35 @@ class PlaywrightRunner {
       if (step.actionType === 'navigation') {
         await page.goto(step.url);
         await this.disableTeachingConsole(page);
+        await this.notifyAssistant(page, {
+          selector: 'body',
+          mode: 'executing',
+          spotlight: false,
+          message: `Abri ${step.label || step.url || 'la pagina del workflow'}.`
+        });
+        await this.waitBetweenSteps(page, this.stepDelayMs + 80);
         continue;
       }
 
       if (step.url && page.url() !== step.url) {
         await page.goto(step.url);
         await this.disableTeachingConsole(page);
+        await this.notifyAssistant(page, {
+          selector: 'body',
+          mode: 'executing',
+          spotlight: false,
+          message: `Cambie a ${step.label || step.url || 'la siguiente pagina'}.`
+        });
+        await this.waitBetweenSteps(page, this.stepDelayMs + 80);
       }
 
       if (step.actionType === 'click') {
+        await this.notifyAssistant(page, {
+          selector: step.selector,
+          label: step.label,
+          mode: 'executing',
+          message: `Estoy interactuando con ${step.label || step.selector || 'este control'}.`
+        });
         await this.clickWithRecovery(page, step, {
           workflowId: metadata.workflowId || '',
           optionGuesser: metadata.optionGuesser,
@@ -331,6 +386,7 @@ class PlaywrightRunner {
             explanation: candidate.explanation
           }))
         });
+        await this.waitBetweenSteps(page);
         continue;
       }
 
@@ -339,7 +395,14 @@ class PlaywrightRunner {
         const nextValue = Object.prototype.hasOwnProperty.call(variables, variableName)
           ? variables[variableName]
           : step.value;
+        await this.notifyAssistant(page, {
+          selector: step.selector,
+          label: step.label,
+          mode: 'executing',
+          message: `Estoy completando ${step.label || step.selector || 'este campo'}.`
+        });
         await this.applyInputAction(page, step, nextValue);
+        await this.waitBetweenSteps(page);
         continue;
       }
 
@@ -348,7 +411,14 @@ class PlaywrightRunner {
         const nextValue = Object.prototype.hasOwnProperty.call(variables, variableName)
           ? variables[variableName]
           : step.selectedValue || step.selectedLabel || step.value;
+        await this.notifyAssistant(page, {
+          selector: step.selector,
+          label: step.label,
+          mode: 'executing',
+          message: `Estoy eligiendo una opcion en ${step.label || step.selector || 'este selector'}.`
+        });
         await this.applySelectAction(page, step, nextValue);
+        await this.waitBetweenSteps(page);
         continue;
       }
 

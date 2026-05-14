@@ -6,9 +6,9 @@ class WorkflowLearner {
     this.catalogService = catalogService; // To rebuild catalog after stopping
   }
 
-  async startSession(description) {
+  async startSession(description, context = {}) {
     const id = `wf_${Date.now()}`;
-    await this.repository.startWorkflow(id, description || 'Untitled workflow');
+    await this.repository.startWorkflow(id, description || 'Untitled workflow', context);
     return id;
   }
 

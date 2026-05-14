@@ -23,6 +23,11 @@ class Neo4jWorkflowRepository {
              w.description as description,
              w.summary as summary,
              w.status as status,
+             w.appId as appId,
+             w.sourceUrl as sourceUrl,
+             w.sourceOrigin as sourceOrigin,
+             w.sourcePathname as sourcePathname,
+             w.sourceTitle as sourceTitle,
              w.createdAt as createdAt,
              w.updatedAt as updatedAt,
              w.completedAt as completedAt,
@@ -41,10 +46,28 @@ class Neo4jWorkflowRepository {
     `, params);
   }
 
-  async startWorkflow(id, description) {
+  async startWorkflow(id, description, context = {}) {
     await this.db.run(
-      'CREATE (w:Workflow {id: $id, description: $desc, status: "recording", createdAt: timestamp()})',
-      { id, desc: description }
+      `CREATE (w:Workflow {
+        id: $id,
+        description: $desc,
+        status: "recording",
+        appId: $appId,
+        sourceUrl: $sourceUrl,
+        sourceOrigin: $sourceOrigin,
+        sourcePathname: $sourcePathname,
+        sourceTitle: $sourceTitle,
+        createdAt: timestamp()
+      })`,
+      {
+        id,
+        desc: description,
+        appId: context.appId || '',
+        sourceUrl: context.sourceUrl || '',
+        sourceOrigin: context.sourceOrigin || '',
+        sourcePathname: context.sourcePathname || '',
+        sourceTitle: context.sourceTitle || ''
+      }
     );
   }
 
@@ -121,6 +144,11 @@ class Neo4jWorkflowRepository {
         description: $description,
         summary: $summary,
         status: $status,
+        appId: $appId,
+        sourceUrl: $sourceUrl,
+        sourceOrigin: $sourceOrigin,
+        sourcePathname: $sourcePathname,
+        sourceTitle: $sourceTitle,
         createdAt: timestamp(),
         updatedAt: timestamp()
       })
@@ -150,6 +178,11 @@ class Neo4jWorkflowRepository {
       SET w.description = $description,
           w.summary = $summary,
           w.status = $status,
+          w.appId = $appId,
+          w.sourceUrl = $sourceUrl,
+          w.sourceOrigin = $sourceOrigin,
+          w.sourcePathname = $sourcePathname,
+          w.sourceTitle = $sourceTitle,
           w.updatedAt = timestamp()
       WITH w
       OPTIONAL MATCH (w)-[rel:HAS_STEP]->(old:Step)

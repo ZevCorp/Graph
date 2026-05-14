@@ -287,16 +287,17 @@ window.WorkflowRecorder = (() => {
   installListeners();
 
   return {
-    async startWorkflow(description) {
+    async startWorkflow(description, context = {}) {
       const desc = (description || '').trim();
-      if (window.EMRState && typeof window.EMRState.clearAll === 'function') {
-        window.EMRState.clearAll();
+      const pageState = window.PageState?.current || window.PageState || window.EMRState;
+      if (pageState && typeof pageState.clearAll === 'function') {
+        pageState.clearAll();
       }
 
       await fetch('/api/workflow/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: desc })
+        body: JSON.stringify({ description: desc, context })
       });
 
       isRecording = true;
