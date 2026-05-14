@@ -8,7 +8,7 @@
         assistantRuntime: {
             name: 'Graph',
             accentColor: '#0f5f8c',
-            idleMessage: 'Puedo guiarte por esta pagina o ejecutar un workflow por ti.'
+            idleMessage: 'Puedo hacer la reserva de un carro por ti, solo hazme clic.'
         }
     };
 
@@ -925,6 +925,7 @@
         }
 
         clearPendingExecution();
+        runtime()?.clearSpotlight?.();
         updateWorkflowPanelStatus(`Workflow ${plan.workflowId} ejecutado en esta pagina.`);
         runtime()?.speak(`Termine de ejecutar ${plan.workflowId} en esta misma pagina.`, { mode: 'idle' });
     }

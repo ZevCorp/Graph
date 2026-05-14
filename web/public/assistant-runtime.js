@@ -19,6 +19,11 @@
             offsetX: 0,
             offsetY: 0
         },
+        speech: {
+            displayedText: '',
+            targetText: '',
+            typingTimer: null
+        },
         face: {
             mode: 'idle',
             blinkFactor: 1,
@@ -451,6 +456,21 @@
         shell.dataset.dragging = active ? 'true' : 'false';
     }
 
+    function stopTypingAnimation() {
+        if (state.speech.typingTimer) {
+            clearTimeout(state.speech.typingTimer);
+            state.speech.typingTimer = null;
+        }
+    }
+
+    function renderBubbleText(text) {
+        const { bubble } = ensureElements();
+        if (!bubble) return;
+        bubble.textContent = text || '';
+        bubble.dataset.visible = text ? 'true' : 'false';
+        window.requestAnimationFrame(positionBubbleNearShell);
+    }
+
     function bindDragHandlers() {
         const { avatar } = ensureElements();
         if (!avatar || avatar.dataset.dragBound === 'true') {
@@ -464,6 +484,7 @@
             const rect = shell.getBoundingClientRect();
 
             state.pinned = false;
+            api.clearSpotlight();
             state.dragging.pointerId = event.pointerId;
             state.dragging.offsetX = event.clientX - rect.left;
             state.dragging.offsetY = event.clientY - rect.top;
@@ -479,6 +500,7 @@
                 return;
             }
 
+            api.clearSpotlight();
             const { shell } = ensureElements();
             const rect = shell.getBoundingClientRect();
             const nextLeft = event.clientX - state.dragging.offsetX;
@@ -555,11 +577,31 @@
     }
 
     function showBubble(text) {
-        const { bubble } = ensureElements();
-        if (!bubble) return;
-        bubble.textContent = text || '';
-        bubble.dataset.visible = text ? 'true' : 'false';
-        window.requestAnimationFrame(positionBubbleNearShell);
+        const finalText = `${text || ''}`;
+        stopTypingAnimation();
+        state.speech.targetText = finalText;
+        state.speech.displayedText = '';
+
+        if (!finalText) {
+            renderBubbleText('');
+            return;
+        }
+
+        const typeNextChunk = () => {
+            const remaining = state.speech.targetText.slice(state.speech.displayedText.length);
+            if (!remaining) {
+                state.speech.typingTimer = null;
+                return;
+            }
+
+            const nextChunkLength = remaining.length > 42 ? 4 : remaining.length > 18 ? 3 : 2;
+            state.speech.displayedText += remaining.slice(0, nextChunkLength);
+            renderBubbleText(state.speech.displayedText);
+            state.speech.typingTimer = setTimeout(typeNextChunk, 12);
+        };
+
+        renderBubbleText('');
+        typeNextChunk();
     }
 
     function positionBubbleNearShell() {
