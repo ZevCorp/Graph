@@ -224,6 +224,9 @@ function injectHomeCallWidget(html) {
     display: flex;
     gap: 8px;
   }
+  .home-call-widget.is-calling .home-call-row {
+    display: none;
+  }
   .home-call-row input {
     min-width: 0;
     flex: 1;
@@ -251,6 +254,98 @@ function injectHomeCallWidget(html) {
     color: #d51717;
     font-size: 0.86rem;
     font-weight: 700;
+  }
+  .home-call-widget.is-calling .home-call-status {
+    display: none;
+  }
+  .home-call-live {
+    display: none;
+    margin-top: 12px;
+    padding: 18px 16px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #fff6f6, #ffe1e1);
+    border: 1px solid rgba(213, 23, 23, 0.14);
+    text-align: center;
+  }
+  .home-call-widget.is-calling .home-call-live {
+    display: block;
+  }
+  .home-call-pulse {
+    position: relative;
+    width: 74px;
+    height: 74px;
+    margin: 0 auto 12px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ff4d4d, #d51717);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    box-shadow: 0 14px 30px rgba(213, 23, 23, 0.24);
+  }
+  .home-call-pulse::before,
+  .home-call-pulse::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: inherit;
+    border: 2px solid rgba(213, 23, 23, 0.25);
+    animation: homeCallRing 1.8s ease-out infinite;
+  }
+  .home-call-pulse::after {
+    animation-delay: 0.6s;
+  }
+  .home-call-pulse svg {
+    width: 28px;
+    height: 28px;
+  }
+  .home-call-live strong,
+  .home-call-live span,
+  .home-call-live small {
+    display: block;
+  }
+  .home-call-live strong {
+    color: #8e0f0f;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .home-call-live span {
+    margin-top: 6px;
+    color: #18263d;
+    font-size: 1rem;
+    font-weight: 800;
+  }
+  .home-call-live small {
+    margin-top: 6px;
+    color: #5f6775;
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+  .home-call-live-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+  }
+  .home-call-reset {
+    border: none;
+    border-radius: 999px;
+    background: #12253e;
+    color: #fff;
+    height: 40px;
+    padding: 0 18px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  @keyframes homeCallRing {
+    0% {
+      transform: scale(0.92);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(1.38);
+      opacity: 0;
+    }
   }
   .home-call-toggle {
     display: inline-flex;
@@ -333,6 +428,19 @@ function injectHomeCallWidget(html) {
         <button class="home-call-submit" id="homeCallSubmit" data-testid="home-call-submit" type="button">Enviar</button>
       </div>
       <div class="home-call-status" id="homeCallStatus" data-testid="home-call-status" aria-live="polite"></div>
+      <div class="home-call-live" id="homeCallLive" data-testid="home-call-live" aria-live="polite">
+        <div class="home-call-pulse" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.11.37 2.3.56 3.58.56a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.28.19 2.47.56 3.58a1 1 0 0 1-.24 1.01l-2.2 2.2Z"></path>
+          </svg>
+        </div>
+        <strong>Llamando...</strong>
+        <span id="homeCallLivePhone">Conectando con un asesor</span>
+        <small>Estamos simulando la llamada en este momento para que el usuario sienta respuesta inmediata.</small>
+        <div class="home-call-live-actions">
+          <button class="home-call-reset" id="homeCallReset" data-testid="home-call-reset" type="button">Volver</button>
+        </div>
+      </div>
     </div>
   </div>
   <div class="home-contact-actions">
@@ -355,11 +463,18 @@ window.addEventListener('load', function () {
   var phone = document.getElementById('homeCallPhone');
   var submit = document.getElementById('homeCallSubmit');
   var status = document.getElementById('homeCallStatus');
-  if (!widget || !toggle || !phone || !submit || !status) return;
+  var livePhone = document.getElementById('homeCallLivePhone');
+  var reset = document.getElementById('homeCallReset');
+  if (!widget || !toggle || !phone || !submit || !status || !livePhone || !reset) return;
+  function resetCallingState() {
+    widget.classList.remove('is-calling');
+    status.textContent = '';
+    submit.disabled = false;
+  }
   toggle.addEventListener('click', function () {
     var isOpen = widget.classList.toggle('is-open');
     toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-    if (isOpen) phone.focus();
+    if (isOpen && !widget.classList.contains('is-calling')) phone.focus();
   });
   submit.addEventListener('click', function () {
     if (!phone.value.trim()) {
@@ -367,7 +482,14 @@ window.addEventListener('load', function () {
       phone.focus();
       return;
     }
-    status.textContent = 'Listo. Te contactaremos pronto a este numero.';
+    livePhone.textContent = 'Llamando ahora al ' + phone.value.trim();
+    widget.classList.add('is-calling');
+    status.textContent = '';
+    submit.disabled = true;
+  });
+  reset.addEventListener('click', function () {
+    resetCallingState();
+    phone.focus();
   });
 });
 </script>
@@ -710,10 +832,11 @@ app.get('/phone-mic/:id', (req, res) => {
       socket.addEventListener('open', async () => {
         setStatus('Conectado. Pidiendo permiso de microfono...');
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: 0 } });
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+          await audioContext.resume();
           const source = audioContext.createMediaStreamSource(stream);
-          const processor = audioContext.createScriptProcessor(4096, 1, 1);
+          const processor = audioContext.createScriptProcessor(1024, 1, 1);
           const silenceGain = audioContext.createGain();
           silenceGain.gain.value = 0;
           processor.onaudioprocess = (event) => {

@@ -88,7 +88,7 @@ class VoiceRealtimeGateway {
       this.log(session.id, 'Connecting to Deepgram STT', {
         model: process.env.DEEPGRAM_STT_MODEL || 'nova-3',
         language: process.env.DEEPGRAM_STT_LANGUAGE || 'es',
-        endpointing: process.env.DEEPGRAM_ENDPOINTING_MS || '350'
+        endpointing: process.env.DEEPGRAM_ENDPOINTING_MS || '1200'
       });
 
       const params = new URLSearchParams({
@@ -99,7 +99,9 @@ class VoiceRealtimeGateway {
         channels: '1',
         interim_results: 'true',
         smart_format: 'true',
-        endpointing: process.env.DEEPGRAM_ENDPOINTING_MS || '350'
+        punctuate: 'true',
+        vad_events: 'true',
+        endpointing: process.env.DEEPGRAM_ENDPOINTING_MS || '1200'
       });
 
       session.dgListen = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, {
@@ -313,7 +315,9 @@ class VoiceRealtimeGateway {
       channels: '1',
       interim_results: 'true',
       smart_format: 'true',
-      endpointing: process.env.DEEPGRAM_ENDPOINTING_MS || '350'
+      punctuate: 'true',
+      vad_events: 'true',
+      endpointing: process.env.DEEPGRAM_ENDPOINTING_MS || '1200'
     });
 
     session.dgListen = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, {

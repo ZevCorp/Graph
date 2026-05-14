@@ -1687,12 +1687,16 @@
                         channelCount: 1,
                         echoCancellation: true,
                         noiseSuppression: true,
-                        autoGainControl: true
+                        autoGainControl: true,
+                        latency: 0
                     }
                 });
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    latencyHint: 'interactive'
+                });
+                await audioContext.resume();
                 const source = audioContext.createMediaStreamSource(stream);
-                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                const processor = audioContext.createScriptProcessor(1024, 1, 1);
                 const silenceGain = audioContext.createGain();
                 silenceGain.gain.value = 0;
 
