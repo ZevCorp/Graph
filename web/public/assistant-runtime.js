@@ -24,6 +24,9 @@
             targetText: '',
             typingTimer: null
         },
+        interaction: {
+            lastTouchAt: 0
+        },
         face: {
             mode: 'idle',
             blinkFactor: 1,
@@ -532,15 +535,27 @@
     function updateFaceTintFromBackdrop() {
         const { shell } = ensureElements();
         const rect = shell.getBoundingClientRect();
-        const sampleX = clamp(rect.left + rect.width / 2, 1, window.innerWidth - 1);
-        const sampleY = clamp(rect.top + rect.height / 2, 1, window.innerHeight - 1);
-        const stack = typeof document.elementsFromPoint === 'function'
-            ? document.elementsFromPoint(sampleX, sampleY)
-            : [];
-        const target = stack.find((element) => !isRuntimeOwnedElement(element)) || document.body;
-        const background = resolveBackgroundColorFromElement(target);
-        const luminance = relativeLuminance(background);
-        const faceTint = luminance >= 0.58 ? '#111111' : '#ffffff';
+        const samplePoints = [
+            { x: rect.left + rect.width * 0.18, y: rect.top + rect.height * 0.18 },
+            { x: rect.left + rect.width * 0.82, y: rect.top + rect.height * 0.18 },
+            { x: rect.left + rect.width * 0.18, y: rect.top + rect.height * 0.82 },
+            { x: rect.left + rect.width * 0.82, y: rect.top + rect.height * 0.82 },
+            { x: rect.left + rect.width * 0.5, y: rect.top + rect.height * 0.5 }
+        ];
+
+        const luminances = samplePoints.map((point) => {
+            const sampleX = clamp(point.x, 1, window.innerWidth - 1);
+            const sampleY = clamp(point.y, 1, window.innerHeight - 1);
+            const stack = typeof document.elementsFromPoint === 'function'
+                ? document.elementsFromPoint(sampleX, sampleY)
+                : [];
+            const target = stack.find((element) => !isRuntimeOwnedElement(element)) || document.body;
+            return relativeLuminance(resolveBackgroundColorFromElement(target));
+        });
+
+        const darkest = Math.min(...luminances);
+        const average = luminances.reduce((sum, value) => sum + value, 0) / Math.max(1, luminances.length);
+        const faceTint = (darkest < 0.42 || average < 0.5) ? '#ffffff' : '#111111';
         document.documentElement.style.setProperty('--graph-assistant-face-tint', faceTint);
     }
 
@@ -579,6 +594,8 @@
 
             state.pinned = false;
             api.clearSpotlight();
+            state.interaction.lastTouchAt = Date.now();
+            emit('touched', { type: 'pointerdown' });
             state.dragging.pointerId = event.pointerId;
             state.dragging.offsetX = event.clientX - rect.left;
             state.dragging.offsetY = event.clientY - rect.top;

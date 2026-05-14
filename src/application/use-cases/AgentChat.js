@@ -50,8 +50,11 @@ class AgentChat {
 
   buildSyntheticValue(variable = {}, index = 0) {
     const label = `${variable.fieldLabel || variable.prompt || variable.selector || ''}`.toLowerCase();
-    const dayOffset = 7 + index;
-    const baseDate = new Date(Date.UTC(2026, 4, 14 + dayOffset));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOffset = label.includes('hasta') || label.includes('return') ? 2 : 1;
+    const baseDate = new Date(today);
+    baseDate.setDate(today.getDate() + dayOffset + Math.floor(index / 8));
     const isoDate = baseDate.toISOString().slice(0, 10);
 
     if (label.includes('mail') || label.includes('correo') || label.includes('email')) {
@@ -207,6 +210,8 @@ class AgentChat {
           'When a variable belongs to a select control, prefer one of the allowed option values exactly.',
           'If the user intent matches an option label better than an option value, convert it to the corresponding option value.',
           'Use the field label and option meanings, not position in the dropdown.',
+          'Any date you choose or invent must be today or later, never in the past.',
+          'Return dates must be the same day as pickup or later.',
           'Never choose the first option just because it is first; choose based on semantic fit.',
           'shouldExecute: true only if the workflow and needed variables are clear enough to run now.',
           'If the request is ambiguous or missing required values, set shouldExecute to false and ask for the missing information in reply.'

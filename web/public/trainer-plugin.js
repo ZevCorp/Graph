@@ -21,6 +21,7 @@
     let improvementPanelLoaded = false;
     let longPressTimer = null;
     let longPressTriggered = false;
+    let runtimeTouchBound = false;
     const voiceState = {
         active: false,
         socket: null,
@@ -33,6 +34,10 @@
         nextPlaybackTime: 0,
         ttsSampleRate: 24000,
         phoneSession: null
+    };
+    const greetingState = {
+        playing: false,
+        lastPlayedAt: 0
     };
     const executionState = {
         running: false
@@ -1237,6 +1242,63 @@
         voiceState.nextPlaybackTime = startAt + audioBuffer.duration;
     }
 
+    async function playAssistantGreeting(text) {
+        const message = `${text || ''}`.trim();
+        if (!message) {
+            return;
+        }
+
+        const now = Date.now();
+        if (greetingState.playing || now - greetingState.lastPlayedAt < 5000) {
+            return;
+        }
+
+        greetingState.playing = true;
+        greetingState.lastPlayedAt = now;
+
+        const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${socketProtocol}//${window.location.host}/api/voice/realtime`);
+        socket.binaryType = 'arraybuffer';
+
+        await new Promise((resolve) => {
+            let settled = false;
+            const finish = () => {
+                if (settled) return;
+                settled = true;
+                greetingState.playing = false;
+                resolve();
+            };
+
+            socket.addEventListener('open', () => {
+                socket.send(JSON.stringify({
+                    type: 'preview_tts',
+                    text: message
+                }));
+            });
+
+            socket.addEventListener('message', async (event) => {
+                if (event.data instanceof ArrayBuffer) {
+                    await playLinear16Audio(event.data);
+                    return;
+                }
+
+                let payload;
+                try {
+                    payload = JSON.parse(event.data);
+                } catch (error) {
+                    return;
+                }
+
+                if (payload.type === 'audio_end' || payload.type === 'error') {
+                    finish();
+                }
+            });
+
+            socket.addEventListener('close', finish);
+            socket.addEventListener('error', finish);
+        });
+    }
+
     async function startVoiceConversation(config = {}) {
         if (voiceState.active) {
             return;
@@ -1737,6 +1799,14 @@
             ensureStyles();
             ensureConsole();
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
+            if (!runtimeTouchBound) {
+                runtime()?.subscribe?.('touched', () => {
+                    const greeting = 'Hola, puedo ayudarte a reservar un vehiculo. Solo dime que necesitas y yo me encargo.';
+                    runtime()?.speak(greeting, { mode: 'listening' });
+                    playAssistantGreeting(greeting).catch(() => {});
+                });
+                runtimeTouchBound = true;
+            }
 
             document.getElementById('agent-message').placeholder = options.aiPlaceholder;
             document.getElementById('wf-desc').value = options.workflowDescription || '';

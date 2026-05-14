@@ -128,6 +128,18 @@ class VoiceRealtimeGateway {
         return;
       }
 
+      if (payload.type === 'preview_tts') {
+        const previewText = `${payload.text || ''}`.trim();
+        this.speak(client, previewText).finally(() => {
+          try {
+            client.close();
+          } catch (error) {
+            // Ignore close errors after preview playback.
+          }
+        });
+        return;
+      }
+
       if (payload.type === 'stop') {
         session.stoppedByUser = true;
         session.dgListen?.close();
