@@ -61,7 +61,19 @@ class VoiceRealtimeGateway {
   }
 
   getVoiceAgentUrl() {
-    return process.env.DEEPGRAM_VOICE_AGENT_URL || 'wss://api.deepgram.com/v1/agent/converse';
+    return process.env.DEEPGRAM_VOICE_AGENT_URL || 'wss://agent.deepgram.com/v1/agent/converse';
+  }
+
+  getVoiceAgentUrlCandidates() {
+    const configured = `${process.env.DEEPGRAM_VOICE_AGENT_URL || ''}`.trim();
+    if (configured) {
+      return [configured];
+    }
+
+    return [
+      'wss://agent.deepgram.com/v1/agent/converse',
+      'wss://api.deepgram.com/v1/agent/converse'
+    ];
   }
 
   filterWorkflowsForContext(workflows, context = {}) {
@@ -281,10 +293,12 @@ class VoiceRealtimeGateway {
     session.settingsApplied = false;
   }
 
-  async openVoiceAgentSession(client, session) {
+  async openVoiceAgentSession(client, session, attemptIndex = 0) {
     this.closeAgentSocket(session);
+    const candidates = this.getVoiceAgentUrlCandidates();
+    const targetUrl = candidates[Math.min(attemptIndex, candidates.length - 1)];
 
-    const agentSocket = new WebSocket(this.getVoiceAgentUrl(), {
+    const agentSocket = new WebSocket(targetUrl, {
       headers: {
         Authorization: `Token ${this.deepgramApiKey}`
       }
@@ -294,7 +308,7 @@ class VoiceRealtimeGateway {
     session.lastAudioAt = Date.now();
 
     agentSocket.on('open', () => {
-      this.log(session.id, 'Deepgram Voice Agent socket opened', this.getVoiceAgentUrl());
+      this.log(session.id, 'Deepgram Voice Agent socket opened', targetUrl);
       this.startKeepAlive(session);
       if (session.phoneSessionId) {
         this.sendJson(client, { type: 'phone_waiting', sessionId: session.phoneSessionId });
@@ -422,9 +436,33 @@ class VoiceRealtimeGateway {
       this.log(session.id, 'Unhandled Voice Agent message', payload);
     });
 
-    agentSocket.on('error', (error) => {
-      this.log(session.id, 'Deepgram Voice Agent socket error', error.message);
-      this.sendJson(client, { type: 'error', error: `Deepgram Voice Agent error: ${error.message}` });
+    agentSocket.on('error', async (error) => {
+      const message = error.message || 'Unknown Voice Agent socket error';
+      this.log(session.id, 'Deepgram Voice Agent socket error', {
+        url: targetUrl,
+        message
+      });
+
+      const shouldRetry =
+        message.includes('404')
+        && attemptIndex + 1 < candidates.length
+        && !session.settingsApplied;
+
+      if (shouldRetry) {
+        this.log(session.id, 'Retrying Voice Agent endpoint after 404', {
+          from: targetUrl,
+          to: candidates[attemptIndex + 1]
+        });
+        try {
+          agentSocket.close();
+        } catch (closeError) {
+          // Ignore close races before retry.
+        }
+        await this.openVoiceAgentSession(client, session, attemptIndex + 1);
+        return;
+      }
+
+      this.sendJson(client, { type: 'error', error: `Deepgram Voice Agent error: ${message}` });
     });
 
     agentSocket.on('close', (code, reasonBuffer) => {
@@ -432,7 +470,8 @@ class VoiceRealtimeGateway {
       this.log(session.id, 'Deepgram Voice Agent socket closed', {
         code,
         reason: reason || '',
-        settingsApplied: session.settingsApplied
+        settingsApplied: session.settingsApplied,
+        url: targetUrl
       });
       this.stopKeepAlive(session);
       this.sendJson(client, { type: 'voice_session_closed' });
