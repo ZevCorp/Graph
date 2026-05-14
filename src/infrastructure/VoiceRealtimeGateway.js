@@ -330,7 +330,8 @@ class VoiceRealtimeGateway {
       type: 'assistant_turn',
       text: reply,
       workflowId: response.workflowId || null,
-      executed: Boolean(response.executed)
+      executed: Boolean(response.executed),
+      executionPlan: response.executionPlan || null
     });
 
     await this.speak(client, reply);

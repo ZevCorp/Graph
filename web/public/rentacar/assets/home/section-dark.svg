@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Dark road background</title>
+  <desc id="desc">Dark textured section background with road curves.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06080f"/>
+      <stop offset="100%" stop-color="#1a1f2f"/>
+    </linearGradient>
+    <radialGradient id="red" cx="80%" cy="20%" r="45%">
+      <stop offset="0%" stop-color="#d51717" stop-opacity=".42"/>
+      <stop offset="100%" stop-color="#d51717" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <rect width="1200" height="800" fill="url(#red)"/>
+  <g fill="none" stroke="#ffffff" stroke-opacity=".07" stroke-width="2">
+    <path d="M1010 40C930 120 840 180 800 280C750 400 750 520 610 650"/>
+    <path d="M1090 0C980 120 930 190 900 280C855 420 810 570 700 760"/>
+    <path d="M880 50C815 140 770 240 730 360C680 510 620 620 520 760"/>
+  </g>
+  <path d="M870 40C790 145 740 245 705 355C665 478 625 580 520 760" fill="none" stroke="#ffc44c" stroke-opacity=".55" stroke-width="8" stroke-linecap="round"/>
+  <path d="M820 30C752 124 704 224 670 331C630 457 593 561 492 760" fill="none" stroke="#ffffff" stroke-opacity=".14" stroke-width="3" stroke-dasharray="8 20" stroke-linecap="round"/>
+</svg>

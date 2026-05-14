@@ -21,6 +21,38 @@ class WorkflowExecutor {
     return false;
   }
 
+  buildExecutionPlan(workflow, variables = {}) {
+    if (!workflow || !workflow.steps || workflow.steps.length === 0) {
+      throw new Error(`Workflow ${workflow?.id || 'unknown'} not found or has no steps.`);
+    }
+
+    const executableSteps = workflow.steps.filter((step) => this.isExecutableStep(step));
+    if (executableSteps.length === 0) {
+      throw new Error(`Workflow ${workflow.id} has no executable steps.`);
+    }
+
+    return {
+      workflowId: workflow.id,
+      description: workflow.description || '',
+      appId: workflow.appId || '',
+      sourceUrl: workflow.sourceUrl || '',
+      sourceOrigin: workflow.sourceOrigin || '',
+      sourcePathname: workflow.sourcePathname || '',
+      sourceTitle: workflow.sourceTitle || '',
+      variables: { ...variables },
+      steps: executableSteps
+    };
+  }
+
+  async getExecutionPlanById(workflowId, variables = {}) {
+    const workflow = await this.catalogService.getWorkflowById(workflowId);
+    if (!workflow) {
+      throw new Error(`Workflow ${workflowId} not found or has no steps.`);
+    }
+
+    return this.buildExecutionPlan(workflow, variables);
+  }
+
   async chooseDynamicOptions(selects, context = {}) {
     if (!Array.isArray(selects) || selects.length === 0) {
       return [];
@@ -98,17 +130,8 @@ class WorkflowExecutor {
   }
 
   async executeById(workflowId, variables = {}) {
-    const workflow = await this.catalogService.getWorkflowById(workflowId);
-    
-    if (!workflow || !workflow.steps || workflow.steps.length === 0) {
-      throw new Error(`Workflow ${workflowId} not found or has no steps.`);
-    }
-
-    const executableSteps = workflow.steps.filter(step => this.isExecutableStep(step));
-    
-    if (executableSteps.length === 0) {
-        throw new Error(`Workflow ${workflowId} has no executable steps.`);
-    }
+    const plan = await this.getExecutionPlanById(workflowId, variables);
+    const executableSteps = plan.steps;
 
     console.log(`\x1b[33mActivating Workflow: ${workflowId}\x1b[0m`);
     

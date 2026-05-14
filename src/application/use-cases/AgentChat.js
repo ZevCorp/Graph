@@ -116,7 +116,7 @@ class AgentChat {
     return this.llmProvider.parseJsonObject(content);
   }
 
-  async handleMessage(message, history = [], context = {}) {
+  async handleMessage(message, history = [], context = {}, options = {}) {
     if (!message) {
       throw new Error('Message is required');
     }
@@ -137,17 +137,34 @@ class AgentChat {
         reply: decision.reply || 'I need a bit more information before I can run a workflow.',
         workflowId: decision.workflowId || null,
         executed: false,
-        variables: decision.variables || {}
+        variables: decision.variables || {},
+        executionPlan: null
       };
     }
 
-    await this.executor.executeById(decision.workflowId, decision.variables || {});
+    const executionMode = `${options.executionMode || 'browser'}`.trim().toLowerCase();
+    const variables = decision.variables || {};
+
+    if (executionMode === 'server') {
+      await this.executor.executeById(decision.workflowId, variables);
+
+      return {
+        reply: decision.reply || `Executing workflow ${decision.workflowId}.`,
+        workflowId: decision.workflowId,
+        executed: true,
+        variables,
+        executionPlan: null
+      };
+    }
+
+    const executionPlan = await this.executor.getExecutionPlanById(decision.workflowId, variables);
 
     return {
       reply: decision.reply || `Executing workflow ${decision.workflowId}.`,
       workflowId: decision.workflowId,
-      executed: true,
-      variables: decision.variables || {}
+      executed: false,
+      variables,
+      executionPlan
     };
   }
 }

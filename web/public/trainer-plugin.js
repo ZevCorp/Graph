@@ -34,6 +34,12 @@
         ttsSampleRate: 24000,
         phoneSession: null
     };
+    const executionState = {
+        running: false
+    };
+    const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
+    const EXECUTION_WAIT_TIMEOUT_MS = 15000;
+    const EXECUTION_STEP_DELAY_MS = 180;
 
     function runtime() {
         return window.GraphAssistantRuntime || null;
@@ -644,22 +650,305 @@
         }
     }
 
-    async function executeWorkflowFromPanel(workflowId) {
-        updateWorkflowPanelStatus(`Ejecutando ${workflowId}...`);
-        runtime()?.speak(`Voy a ejecutar ${workflowId} y moverme por la pagina durante la automatizacion.`, { mode: 'executing' });
+    function cloneJson(value) {
+        return value ? JSON.parse(JSON.stringify(value)) : value;
+    }
 
-        const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}/execute`, {
+    function getExecutionStorageKey() {
+        const appId = `${options.appId || 'page'}`.trim() || 'page';
+        return `${EXECUTION_STORAGE_PREFIX}:${appId}`;
+    }
+
+    function readPendingExecution() {
+        try {
+            const raw = window.sessionStorage.getItem(getExecutionStorageKey());
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.workflowId || !Array.isArray(parsed.steps)) {
+                return null;
+            }
+            return parsed;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function persistPendingExecution(plan) {
+        if (!plan) {
+            executionState.running = false;
+            window.sessionStorage.removeItem(getExecutionStorageKey());
+            return;
+        }
+
+        executionState.running = true;
+        window.sessionStorage.setItem(getExecutionStorageKey(), JSON.stringify(plan));
+    }
+
+    function clearPendingExecution() {
+        executionState.running = false;
+        window.sessionStorage.removeItem(getExecutionStorageKey());
+    }
+
+    function normalizeExecutionUrl(rawUrl) {
+        if (!rawUrl) {
+            return window.location.href;
+        }
+
+        try {
+            const candidate = new URL(rawUrl, window.location.href);
+            if (candidate.origin === window.location.origin) {
+                return candidate.toString();
+            }
+
+            if (candidate.pathname) {
+                return new URL(`${candidate.pathname}${candidate.search}${candidate.hash}`, window.location.origin).toString();
+            }
+
+            return candidate.toString();
+        } catch (error) {
+            try {
+                return new URL(rawUrl, window.location.origin).toString();
+            } catch (nestedError) {
+                return `${rawUrl}`;
+            }
+        }
+    }
+
+    function urlsMatch(left, right) {
+        try {
+            const leftUrl = new URL(left, window.location.href);
+            const rightUrl = new URL(right, window.location.href);
+            return leftUrl.origin === rightUrl.origin
+                && leftUrl.pathname === rightUrl.pathname
+                && leftUrl.search === rightUrl.search;
+        } catch (error) {
+            return `${left || ''}` === `${right || ''}`;
+        }
+    }
+
+    function describeStep(step) {
+        if (!step) return 'workflow';
+        if (step.label) return step.label;
+        if (step.selector) return step.selector;
+        if (step.url) return step.url;
+        return step.actionType || 'workflow';
+    }
+
+    function resolveElementFromStep(step) {
+        if (step?.selector) {
+            const directMatch = document.querySelector(step.selector);
+            if (directMatch) {
+                return directMatch;
+            }
+        }
+
+        if (step?.actionType === 'click' && step?.label) {
+            const candidates = Array.from(document.querySelectorAll('button, a, input[type="submit"], input[type="button"]'));
+            return candidates.find((element) => {
+                const text = (element.textContent || element.value || element.getAttribute('aria-label') || '').trim();
+                return text === step.label;
+            }) || null;
+        }
+
+        return null;
+    }
+
+    async function waitForStepElement(step, timeoutMs = EXECUTION_WAIT_TIMEOUT_MS) {
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < timeoutMs) {
+            const element = resolveElementFromStep(step);
+            if (element) {
+                return element;
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 120));
+        }
+
+        throw new Error(`No pude encontrar ${describeStep(step)} en esta pagina.`);
+    }
+
+    function fireDomEvent(element, eventName) {
+        element.dispatchEvent(new Event(eventName, { bubbles: true }));
+    }
+
+    async function applyInputStep(element, step, variables = {}) {
+        const variableName = `input_${step.stepOrder}`;
+        const nextValue = Object.prototype.hasOwnProperty.call(variables, variableName)
+            ? variables[variableName]
+            : step.value;
+        const inputType = (element.type || '').toLowerCase();
+
+        element.scrollIntoView({ block: 'center', inline: 'nearest' });
+        element.focus?.();
+
+        if (inputType === 'checkbox' || inputType === 'radio') {
+            const shouldCheck = ['1', 'true', 'yes', 'on', ''].includes(`${nextValue ?? ''}`.trim().toLowerCase());
+            if (shouldCheck && !element.checked) {
+                element.click();
+            } else if (!shouldCheck && inputType === 'checkbox' && element.checked) {
+                element.click();
+            }
+            return;
+        }
+
+        element.value = `${nextValue ?? ''}`;
+        fireDomEvent(element, 'input');
+        fireDomEvent(element, 'change');
+    }
+
+    function normalizeChoiceText(value) {
+        return `${value || ''}`
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+    }
+
+    async function applySelectStep(element, step, variables = {}) {
+        const variableName = `input_${step.stepOrder}`;
+        const requestedValue = Object.prototype.hasOwnProperty.call(variables, variableName)
+            ? variables[variableName]
+            : (step.selectedValue || step.selectedLabel || step.value || '');
+        const normalizedRequested = normalizeChoiceText(requestedValue);
+        const optionsList = Array.from(element.options || []);
+        const selected = optionsList.find((option) =>
+            normalizeChoiceText(option.value) === normalizedRequested
+            || normalizeChoiceText(option.label || option.textContent || '') === normalizedRequested
+            || normalizeChoiceText(option.textContent || '') === normalizedRequested
+        ) || optionsList.find((option) =>
+            normalizeChoiceText(option.value).includes(normalizedRequested)
+            || normalizeChoiceText(option.label || option.textContent || '').includes(normalizedRequested)
+            || normalizeChoiceText(option.textContent || '').includes(normalizedRequested)
+        );
+
+        if (!selected) {
+            throw new Error(`No encontre una opcion compatible para ${describeStep(step)}.`);
+        }
+
+        element.scrollIntoView({ block: 'center', inline: 'nearest' });
+        element.focus?.();
+        element.value = selected.value;
+        fireDomEvent(element, 'input');
+        fireDomEvent(element, 'change');
+    }
+
+    function updateExecutionProgress(plan, nextStepIndex) {
+        const nextPlan = {
+            ...plan,
+            nextStepIndex,
+            updatedAt: Date.now()
+        };
+        persistPendingExecution(nextPlan);
+        return nextPlan;
+    }
+
+    async function executeWorkflowPlan(plan, trigger = 'panel') {
+        if (!plan || !plan.workflowId || !Array.isArray(plan.steps) || plan.steps.length === 0) {
+            throw new Error('No hay un plan valido para ejecutar.');
+        }
+
+        if (executionState.running) {
+            throw new Error('Ya hay un workflow corriendo en esta pagina.');
+        }
+
+        let currentPlan = updateExecutionProgress({
+            ...cloneJson(plan),
+            trigger,
+            nextStepIndex: Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0,
+            startedAt: plan.startedAt || Date.now()
+        }, Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0);
+
+        updateWorkflowPanelStatus(`Ejecutando ${currentPlan.workflowId} en esta pagina...`);
+
+        for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
+            const step = currentPlan.steps[stepIndex];
+            const expectedUrl = step.url ? normalizeExecutionUrl(step.url) : '';
+
+            if (step.actionType === 'navigation') {
+                const targetUrl = normalizeExecutionUrl(step.url);
+                if (!urlsMatch(window.location.href, targetUrl)) {
+                    currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                    updateWorkflowPanelStatus(`Abriendo ${targetUrl}...`);
+                    window.location.assign(targetUrl);
+                    return;
+                }
+
+                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                continue;
+            }
+
+            if (expectedUrl && !urlsMatch(window.location.href, expectedUrl)) {
+                currentPlan = updateExecutionProgress(currentPlan, stepIndex);
+                updateWorkflowPanelStatus(`Cambiando a la pagina correcta para ${describeStep(step)}...`);
+                window.location.assign(expectedUrl);
+                return;
+            }
+
+            const element = await waitForStepElement(step);
+            if (step.actionType === 'click') {
+                element.scrollIntoView({ block: 'center', inline: 'nearest' });
+                if ('disabled' in element && element.disabled) {
+                    throw new Error(`El elemento ${describeStep(step)} sigue deshabilitado.`);
+                }
+
+                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                element.click();
+            } else if (step.actionType === 'input') {
+                await applyInputStep(element, step, currentPlan.variables || {});
+                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+            } else if (step.actionType === 'select') {
+                await applySelectStep(element, step, currentPlan.variables || {});
+                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+            } else {
+                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+            }
+
+            await new Promise((resolve) => window.setTimeout(resolve, EXECUTION_STEP_DELAY_MS));
+        }
+
+        clearPendingExecution();
+        updateWorkflowPanelStatus(`Workflow ${plan.workflowId} ejecutado en esta pagina.`);
+        runtime()?.speak(`Termine de ejecutar ${plan.workflowId} en esta misma pagina.`, { mode: 'idle' });
+    }
+
+    async function fetchExecutionPlan(workflowId, variables = {}) {
+        const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}/plan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ variables: {} })
+            body: JSON.stringify({
+                variables,
+                context: getPageContext()
+            })
         });
 
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-            throw new Error(payload.error || 'No se pudo ejecutar el workflow.');
+            throw new Error(payload.error || 'No se pudo preparar el workflow.');
         }
 
-        updateWorkflowPanelStatus(`Workflow ${workflowId} ejecutado.`);
+        return payload.executionPlan || null;
+    }
+
+    async function resumePendingExecution() {
+        const pending = readPendingExecution();
+        if (!pending || executionState.running) {
+            return;
+        }
+
+        try {
+            await executeWorkflowPlan(pending, pending.trigger || 'resume');
+        } catch (error) {
+            clearPendingExecution();
+            updateWorkflowPanelStatus(error.message || 'No pude reanudar el workflow en esta pagina.');
+            appendAgentMessage('assistant', error.message || 'No pude reanudar el workflow en esta pagina.', 'execution error', false);
+        }
+    }
+
+    async function executeWorkflowFromPanel(workflowId) {
+        updateWorkflowPanelStatus(`Ejecutando ${workflowId}...`);
+        runtime()?.speak(`Voy a ejecutar ${workflowId} y moverme por la pagina durante la automatizacion.`, { mode: 'executing' });
+        const executionPlan = await fetchExecutionPlan(workflowId, {});
+        await executeWorkflowPlan(executionPlan, 'panel');
     }
 
     async function generatePitchArtifacts() {
@@ -1068,9 +1357,15 @@
             }
 
             if (payload.type === 'assistant_turn') {
-                const meta = payload.workflowId ? `workflow=${payload.workflowId} | executed=${payload.executed ? 'yes' : 'no'}` : 'voice';
+                const meta = payload.workflowId ? `workflow=${payload.workflowId} | mode=${payload.executionPlan ? 'browser' : 'chat'}` : 'voice';
                 appendAgentMessage('assistant', payload.text, meta);
                 updateVoiceStatus('Respondiendo por voz...');
+                if (payload.executionPlan) {
+                    executeWorkflowPlan(payload.executionPlan, 'voice').catch((error) => {
+                        appendAgentMessage('assistant', error.message || 'No pude ejecutar el workflow en esta pagina.', 'execution error', false);
+                        updateVoiceStatus(error.message || 'No pude ejecutar el workflow en esta pagina.');
+                    });
+                }
                 return;
             }
 
@@ -1317,7 +1612,8 @@
                 body: JSON.stringify({
                     message,
                     history: historyForRequest,
-                    context: getPageContext()
+                    context: getPageContext(),
+                    executionMode: 'browser'
                 })
             });
 
@@ -1327,8 +1623,16 @@
                 return;
             }
 
-            const meta = payload.workflowId ? `workflow=${payload.workflowId} | executed=${payload.executed ? 'yes' : 'no'}` : null;
+            const meta = payload.workflowId ? `workflow=${payload.workflowId} | mode=${payload.executionPlan ? 'browser' : 'chat'}` : null;
             appendAgentMessage('assistant', payload.reply, meta);
+            if (payload.executionPlan) {
+                try {
+                    await executeWorkflowPlan(payload.executionPlan, 'chat');
+                } catch (error) {
+                    appendAgentMessage('assistant', error.message || 'No pude ejecutar el workflow en esta pagina.', 'execution error', false);
+                    updateWorkflowPanelStatus(error.message || 'No pude ejecutar el workflow en esta pagina.');
+                }
+            }
             textarea.focus();
         });
 
@@ -1434,6 +1738,12 @@
             if (options.autoSyncStatus && window.WorkflowRecorder?.syncStatus) {
                 window.WorkflowRecorder.syncStatus();
             }
+
+            window.setTimeout(() => {
+                resumePendingExecution().catch((error) => {
+                    updateWorkflowPanelStatus(error.message || 'No pude reanudar el workflow pendiente.');
+                });
+            }, 120);
         },
         appendAgentMessage,
         resetWorkflow,

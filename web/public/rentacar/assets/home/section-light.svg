@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Light route background</title>
+  <desc id="desc">Light background with map routes and warm accents.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f7f3ef"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <g fill="none" stroke="#e8ddd6" stroke-width="2">
+    <path d="M0 120C170 190 280 215 380 190C495 160 530 80 650 74C760 68 835 124 920 178C1020 241 1088 308 1200 342"/>
+    <path d="M0 270C126 324 214 368 336 350C458 332 529 252 650 228C809 198 897 248 1012 326C1066 362 1120 390 1200 410"/>
+    <path d="M0 520C123 478 252 456 358 498C462 540 520 638 645 648C766 658 849 570 958 534C1052 502 1122 500 1200 520"/>
+  </g>
+  <path d="M0 265C126 321 214 365 336 348C458 331 529 252 650 228C809 198 897 248 1012 326C1066 362 1120 390 1200 410" fill="none" stroke="#d51717" stroke-opacity=".25" stroke-width="6"/>
+  <g>
+    <circle cx="208" cy="230" r="11" fill="#d51717"/>
+    <circle cx="563" cy="98" r="11" fill="#8bc53f"/>
+    <circle cx="940" cy="302" r="11" fill="#d51717"/>
+    <circle cx="208" cy="230" r="26" fill="#d51717" fill-opacity=".12"/>
+    <circle cx="563" cy="98" r="26" fill="#8bc53f" fill-opacity=".12"/>
+    <circle cx="940" cy="302" r="26" fill="#d51717" fill-opacity=".12"/>
+  </g>
+</svg>

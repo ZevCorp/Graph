@@ -384,7 +384,8 @@ function enhanceCarDemoHome(html) {
       '<span class="text-black booking-form2-text2">Ingresa las fechas y horarios para ver disponibilidad y precios</span>',
       '<span class="text-black booking-form2-text2">Ingresa las fechas y horarios para ver disponibilidad y precios</span><div class="service-hours-banner" data-testid="service-hours-banner"><strong>Horario de atencion</strong><span>8:00 a.m. a 5:00 p.m. todos los dias</span></div>'
     )
-    .replace('<input type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">', '<input id="quote-submit" data-testid="quote-submit" type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">');
+    .replace('<input type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">', '<input id="quote-submit" data-testid="quote-submit" type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">')
+    .replace('style="background-image: url(/src/img/que-hacer.webp);"', 'style="background-image: url(/rentacar/assets/home/why-rent.svg);"');
 
   return injectHomeCallWidget(enhanced);
 }
@@ -520,6 +521,20 @@ app.post('/api/workflows/:id/execute', async (req, res) => {
     res.json({ executed: true, workflowId });
   } catch (err) {
     console.error(`[Workflows] Execute Error: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/workflows/:id/plan', async (req, res) => {
+  try {
+    const workflowId = (req.params.id || '').trim();
+    const plan = await workflowExecutor.getExecutionPlanById(workflowId, req.body?.variables || {});
+    res.json({ executionPlan: plan });
+  } catch (err) {
+    console.error(`[Workflows] Plan Error: ${err.message}`);
+    if ((err.message || '').includes('not found')) {
+      return res.status(404).json({ error: err.message });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -728,7 +743,12 @@ app.get('/phone-mic/:id', (req, res) => {
 
 app.post('/api/agent/chat', async (req, res) => {
   try {
-    const response = await agentChat.handleMessage(req.body?.message, req.body?.history, req.body?.context || {});
+    const response = await agentChat.handleMessage(
+      req.body?.message,
+      req.body?.history,
+      req.body?.context || {},
+      { executionMode: req.body?.executionMode || 'browser' }
+    );
     res.json(response);
   } catch (err) {
     console.error(`[Agent Chat] Error: ${err.message}`);
@@ -764,3 +784,4 @@ const voiceGateway = new VoiceRealtimeGateway({
 voiceGateway.attach(server);
 
 server.listen(PORT, () => console.log(`[Server] Running on http://localhost:${PORT}`));
+

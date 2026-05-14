@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" role="img" aria-labelledby="title desc">
+  <title id="title">Travel pattern</title>
+  <desc id="desc">Soft topographic and route pattern used as decorative background.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff8f5"/>
+      <stop offset="100%" stop-color="#fff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="500" fill="url(#bg)"/>
+  <g fill="none" stroke="#efddd5" stroke-width="2">
+    <path d="M0 160C115 120 190 100 290 116C410 136 450 196 560 204C690 214 770 126 890 120C1020 114 1080 198 1215 212C1335 226 1450 170 1600 116"/>
+    <path d="M0 250C150 210 265 226 360 272C465 322 550 348 670 328C790 308 850 226 980 214C1100 204 1210 248 1320 278C1410 302 1490 302 1600 254"/>
+    <path d="M0 346C118 380 252 402 395 380C540 358 620 290 760 284C915 278 1030 350 1190 372C1320 390 1440 372 1600 326"/>
+  </g>
+  <g fill="none" stroke="#f4b7a7" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 18">
+    <path d="M220 110C295 145 340 190 435 192C520 194 566 158 654 136C774 106 824 124 925 184C1028 246 1112 286 1205 286"/>
+  </g>
+  <g>
+    <circle cx="220" cy="110" r="10" fill="#d51717"/>
+    <circle cx="654" cy="136" r="10" fill="#8bc53f"/>
+    <circle cx="1205" cy="286" r="10" fill="#d51717"/>
+    <circle cx="220" cy="110" r="24" fill="#d51717" fill-opacity=".12"/>
+    <circle cx="654" cy="136" r="24" fill="#8bc53f" fill-opacity=".12"/>
+    <circle cx="1205" cy="286" r="24" fill="#d51717" fill-opacity=".12"/>
+  </g>
+</svg>

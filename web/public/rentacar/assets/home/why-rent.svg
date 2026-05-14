@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Why rent background</title>
+  <desc id="desc">Scenic mountain and lake background with warm sunset for the final section.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#30131b"/>
+      <stop offset="40%" stop-color="#7d2231"/>
+      <stop offset="100%" stop-color="#ef8b41"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#163546"/>
+      <stop offset="100%" stop-color="#08131d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <circle cx="1180" cy="180" r="92" fill="#ffd078" fill-opacity=".8"/>
+  <path d="M0 470C155 390 280 360 450 380C620 400 710 470 830 476C980 484 1080 396 1235 400C1364 403 1478 455 1600 470V900H0Z" fill="#1a2231"/>
+  <path d="M0 540C210 500 325 486 470 505C620 524 770 600 930 595C1068 591 1215 522 1370 522C1455 522 1536 542 1600 560V900H0Z" fill="#243044"/>
+  <rect y="590" width="1600" height="310" fill="url(#water)"/>
+  <path d="M0 665C150 650 304 638 477 648C660 658 809 701 965 699C1118 697 1360 645 1600 618V900H0Z" fill="#0c1825"/>
+  <path d="M0 675C248 690 474 720 758 738C1054 756 1308 738 1600 690" fill="none" stroke="#f4b176" stroke-opacity=".28" stroke-width="5"/>
+  <path d="M0 708C266 726 516 745 805 752C1064 758 1326 742 1600 712" fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="2"/>
+</svg>
