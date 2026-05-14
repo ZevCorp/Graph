@@ -259,7 +259,11 @@
                 background: rgba(20, 27, 34, 0.94);
                 color: #f8fbff;
                 font: 500 13px/1.45 "Inter", "Segoe UI", sans-serif;
-                box-shadow: 0 18px 42px rgba(7, 16, 24, 0.18);
+                box-shadow:
+                    0 24px 64px rgba(2, 8, 18, 0.55),
+                    0 0 0 1px rgba(255, 255, 255, 0.12),
+                    0 0 34px rgba(255, 255, 255, 0.12),
+                    0 10px 28px rgba(255, 255, 255, 0.08);
                 opacity: 0;
                 transform: translateY(8px);
                 transition: opacity 180ms ease, transform 180ms ease;
@@ -446,8 +450,98 @@
         shell.style.left = `${left}px`;
         shell.style.top = `${top}px`;
         updateFaceDirectionFromShell();
+        updateFaceTintFromBackdrop();
         positionBubbleNearShell();
         window.setTimeout(positionBubbleNearShell, 360);
+    }
+
+    function parseCssColor(colorText) {
+        if (!colorText || colorText === 'transparent') {
+            return null;
+        }
+
+        const rgbMatch = colorText.match(/rgba?\(([^)]+)\)/i);
+        if (rgbMatch) {
+            const parts = rgbMatch[1].split(',').map((value) => Number.parseFloat(value.trim()));
+            if (parts.length >= 3) {
+                return {
+                    r: parts[0],
+                    g: parts[1],
+                    b: parts[2],
+                    a: Number.isFinite(parts[3]) ? parts[3] : 1
+                };
+            }
+        }
+
+        const hex = colorText.replace('#', '').trim();
+        if (hex.length === 3) {
+            return {
+                r: Number.parseInt(hex[0] + hex[0], 16),
+                g: Number.parseInt(hex[1] + hex[1], 16),
+                b: Number.parseInt(hex[2] + hex[2], 16),
+                a: 1
+            };
+        }
+        if (hex.length === 6) {
+            return {
+                r: Number.parseInt(hex.slice(0, 2), 16),
+                g: Number.parseInt(hex.slice(2, 4), 16),
+                b: Number.parseInt(hex.slice(4, 6), 16),
+                a: 1
+            };
+        }
+
+        return null;
+    }
+
+    function isRuntimeOwnedElement(element) {
+        return Boolean(
+            element?.closest?.('#graph-assistant-shell')
+            || element?.closest?.('#graph-assistant-bubble')
+            || element?.closest?.('#graph-assistant-spotlight')
+        );
+    }
+
+    function resolveBackgroundColorFromElement(element) {
+        let current = element;
+        while (current && current !== document.documentElement) {
+            const computed = window.getComputedStyle(current);
+            const parsed = parseCssColor(computed.backgroundColor);
+            if (parsed && parsed.a > 0.08) {
+                return parsed;
+            }
+            current = current.parentElement;
+        }
+
+        const bodyColor = parseCssColor(window.getComputedStyle(document.body).backgroundColor);
+        return bodyColor || { r: 255, g: 255, b: 255, a: 1 };
+    }
+
+    function relativeLuminance(color) {
+        const normalizeChannel = (value) => {
+            const channel = value / 255;
+            return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        };
+
+        const r = normalizeChannel(color.r || 0);
+        const g = normalizeChannel(color.g || 0);
+        const b = normalizeChannel(color.b || 0);
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+
+    function updateFaceTintFromBackdrop() {
+        const { shell } = ensureElements();
+        const rect = shell.getBoundingClientRect();
+        const sampleX = clamp(rect.left + rect.width / 2, 1, window.innerWidth - 1);
+        const sampleY = clamp(rect.top + rect.height / 2, 1, window.innerHeight - 1);
+        const stack = typeof document.elementsFromPoint === 'function'
+            ? document.elementsFromPoint(sampleX, sampleY)
+            : [];
+        const target = stack.find((element) => !isRuntimeOwnedElement(element)) || document.body;
+        const background = resolveBackgroundColorFromElement(target);
+        const luminance = relativeLuminance(background);
+        const faceTint = luminance >= 0.58 ? '#111111' : '#ffffff';
+        document.documentElement.style.setProperty('--graph-assistant-face-tint', faceTint);
     }
 
     function setDragging(active) {

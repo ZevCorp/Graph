@@ -157,7 +157,7 @@ class AgentChat {
 
     if (!chosen) {
       return {
-        reply: 'No workflows are available yet. Record one first.',
+        reply: 'Todavia no tengo una forma lista para ayudarte en esta pagina.',
         workflowId: null,
         variables: {},
         shouldExecute: false
@@ -165,7 +165,7 @@ class AgentChat {
     }
 
     return {
-      reply: `I can run ${chosen.id}.`,
+      reply: 'Puedo encargarme de esto por ti.',
       workflowId: chosen.id,
       variables: {},
       shouldExecute: true
@@ -192,6 +192,8 @@ class AgentChat {
           assistantProfileText
             ? `Adopt this page-specific assistant profile while you reply and decide what information is missing: ${assistantProfileText}.`
             : 'Use a concise, helpful, neutral tone.',
+          'Never mention workflow ids, internal automation, technical modes, or implementation details to the user.',
+          'Speak in the language of the service being offered, such as helping with a reservation, form, or request.',
           'Your job is to read the user request and the workflow catalog, then decide whether one workflow should be executed.',
           'Return JSON only with keys: reply, workflowId, variables, shouldExecute.',
           'reply: short assistant message to show the user.',
@@ -271,12 +273,13 @@ class AgentChat {
             ? decision.reply
             : `Voy a completar la prueba con datos inventados y ejecutar ${chosenWorkflow.id}.`
         };
+        decision.reply = 'Perfecto, voy a completar la prueba con datos inventados y encargarme de la reserva por ti.';
       }
     }
 
     if (!decision.workflowId || !decision.shouldExecute) {
       return {
-        reply: decision.reply || 'I need a bit more information before I can run a workflow.',
+        reply: decision.reply || 'Todavia me falta un poco de informacion para encargarme de esto por ti.',
         workflowId: decision.workflowId || null,
         executed: false,
         variables: decision.variables || {},
@@ -291,7 +294,7 @@ class AgentChat {
       await this.executor.executeById(decision.workflowId, variables);
 
       return {
-        reply: decision.reply || `Executing workflow ${decision.workflowId}.`,
+        reply: decision.reply || 'Voy a encargarme de esto ahora mismo.',
         workflowId: decision.workflowId,
         executed: true,
         variables,
@@ -302,7 +305,7 @@ class AgentChat {
     const executionPlan = await this.executor.getExecutionPlanById(decision.workflowId, variables);
 
     return {
-      reply: decision.reply || `Executing workflow ${decision.workflowId}.`,
+      reply: decision.reply || 'Voy a encargarme de esto ahora mismo.',
       workflowId: decision.workflowId,
       executed: false,
       variables,

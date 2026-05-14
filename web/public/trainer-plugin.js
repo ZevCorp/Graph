@@ -488,7 +488,7 @@
         closeImprovementPanel();
         chat.classList.add('open');
         updateConsoleExpandedState();
-        runtime()?.speak('Estoy listo para conversar contigo y decidir el siguiente workflow.', { mode: 'listening' });
+        runtime()?.speak('Estoy listo para ayudarte con la reserva cuando quieras.', { mode: 'listening' });
 
         if (textarea) {
             textarea.focus();
@@ -855,11 +855,11 @@
 
     async function executeWorkflowPlan(plan, trigger = 'panel') {
         if (!plan || !plan.workflowId || !Array.isArray(plan.steps) || plan.steps.length === 0) {
-            throw new Error('No hay un plan valido para ejecutar.');
+            throw new Error('No pude preparar la automatizacion para ayudarte con la reserva.');
         }
 
         if (executionState.running) {
-            throw new Error('Ya hay un workflow corriendo en esta pagina.');
+            throw new Error('Ya estoy completando una reserva en esta pagina.');
         }
 
         let currentPlan = updateExecutionProgress({
@@ -869,7 +869,7 @@
             startedAt: plan.startedAt || Date.now()
         }, Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0);
 
-        updateWorkflowPanelStatus(`Ejecutando ${currentPlan.workflowId} en esta pagina...`);
+        updateWorkflowPanelStatus('Completando la reserva en esta pagina...');
 
         for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
             const step = currentPlan.steps[stepIndex];
@@ -926,8 +926,8 @@
 
         clearPendingExecution();
         runtime()?.clearSpotlight?.();
-        updateWorkflowPanelStatus(`Workflow ${plan.workflowId} ejecutado en esta pagina.`);
-        runtime()?.speak(`Termine de ejecutar ${plan.workflowId} en esta misma pagina.`, { mode: 'idle' });
+        updateWorkflowPanelStatus('Reserva completada en esta pagina.');
+        runtime()?.speak('Listo, termine de completar la reserva aqui mismo.', { mode: 'idle' });
     }
 
     async function fetchExecutionPlan(workflowId, variables = {}) {
@@ -942,7 +942,7 @@
 
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-            throw new Error(payload.error || 'No se pudo preparar el workflow.');
+            throw new Error(payload.error || 'No pude preparar la automatizacion para la reserva.');
         }
 
         return payload.executionPlan || null;
@@ -958,14 +958,14 @@
             await executeWorkflowPlan(pending, pending.trigger || 'resume');
         } catch (error) {
             clearPendingExecution();
-            updateWorkflowPanelStatus(error.message || 'No pude reanudar el workflow en esta pagina.');
-            appendAgentMessage('assistant', error.message || 'No pude reanudar el workflow en esta pagina.', 'execution error', false);
+            updateWorkflowPanelStatus(error.message || 'No pude retomar la reserva en esta pagina.');
+            appendAgentMessage('assistant', error.message || 'No pude retomar la reserva en esta pagina.', null, false);
         }
     }
 
     async function executeWorkflowFromPanel(workflowId) {
-        updateWorkflowPanelStatus(`Ejecutando ${workflowId}...`);
-        runtime()?.speak(`Voy a ejecutar ${workflowId} y moverme por la pagina durante la automatizacion.`, { mode: 'executing' });
+        updateWorkflowPanelStatus('Empezando la reserva...');
+        runtime()?.speak('Voy a encargarme de la reserva y moverme por la pagina por ti.', { mode: 'executing' });
         const executionPlan = await fetchExecutionPlan(workflowId, {});
         await executeWorkflowPlan(executionPlan, 'panel');
     }
@@ -1245,7 +1245,7 @@
         openChatPanel();
         updateVoiceStatus(config.phoneSessionId ? 'Esperando audio del telefono...' : 'Conectando voz en tiempo real...');
         if (!config.phoneSessionId) {
-            runtime()?.speak('Te escucho. Habla con naturalidad y ejecuto los workflows cuando tenga la informacion.', { mode: 'listening' });
+            runtime()?.speak('Te escucho. Habla con naturalidad y me encargo de la reserva cuando tenga lo necesario.', { mode: 'listening' });
         } else {
             runtime()?.speak('Escanea el QR y activa el microfono del telefono para empezar.', { mode: 'listening' });
         }
@@ -1371,18 +1371,17 @@
 
             if (payload.type === 'user_turn') {
                 appendAgentMessage('user', payload.text);
-                updateVoiceStatus('Pensando y revisando workflows...');
+                updateVoiceStatus('Pensando y preparando la reserva...');
                 return;
             }
 
             if (payload.type === 'assistant_turn') {
-                const meta = payload.workflowId ? `workflow=${payload.workflowId} | mode=${payload.executionPlan ? 'browser' : 'chat'}` : 'voice';
-                appendAgentMessage('assistant', payload.text, meta);
+                appendAgentMessage('assistant', payload.text, null);
                 updateVoiceStatus('Respondiendo por voz...');
                 if (payload.executionPlan) {
                     executeWorkflowPlan(payload.executionPlan, 'voice').catch((error) => {
-                        appendAgentMessage('assistant', error.message || 'No pude ejecutar el workflow en esta pagina.', 'execution error', false);
-                        updateVoiceStatus(error.message || 'No pude ejecutar el workflow en esta pagina.');
+                        appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
+                        updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
                     });
                 }
                 return;
@@ -1494,14 +1493,14 @@
             descField.value = description;
         }
         runtime()?.pinBottomRight();
-        runtime()?.speak(`Empece a grabar el workflow "${description}".`, { mode: 'recording' });
+        runtime()?.speak(`Empece a aprender este recorrido: "${description}".`, { mode: 'recording' });
         await window.WorkflowRecorder.startWorkflow(description, getPageContext());
         workflowPanelLoaded = false;
     }
 
     async function stopWorkflow() {
         runtime()?.unpin();
-        runtime()?.speak('Guarde el workflow actual.', { mode: 'idle' });
+        runtime()?.speak('Listo, guarde este recorrido.', { mode: 'idle' });
         await window.WorkflowRecorder.stopWorkflow();
         workflowPanelLoaded = false;
     }
@@ -1642,14 +1641,13 @@
                 return;
             }
 
-            const meta = payload.workflowId ? `workflow=${payload.workflowId} | mode=${payload.executionPlan ? 'browser' : 'chat'}` : null;
-            appendAgentMessage('assistant', payload.reply, meta);
+            appendAgentMessage('assistant', payload.reply, null);
             if (payload.executionPlan) {
                 try {
                     await executeWorkflowPlan(payload.executionPlan, 'chat');
                 } catch (error) {
-                    appendAgentMessage('assistant', error.message || 'No pude ejecutar el workflow en esta pagina.', 'execution error', false);
-                    updateWorkflowPanelStatus(error.message || 'No pude ejecutar el workflow en esta pagina.');
+                    appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
+                    updateWorkflowPanelStatus(error.message || 'No pude completar la reserva en esta pagina.');
                 }
             }
             textarea.focus();
@@ -1706,7 +1704,7 @@
                 try {
                     await executeWorkflowFromPanel(workflowId);
                 } catch (error) {
-                    updateWorkflowPanelStatus(error.message || 'No se pudo ejecutar el workflow.');
+                    updateWorkflowPanelStatus(error.message || 'No pude completar la reserva.');
                 } finally {
                     button.disabled = false;
                 }
@@ -1760,7 +1758,7 @@
 
             window.setTimeout(() => {
                 resumePendingExecution().catch((error) => {
-                    updateWorkflowPanelStatus(error.message || 'No pude reanudar el workflow pendiente.');
+                    updateWorkflowPanelStatus(error.message || 'No pude retomar la reserva pendiente.');
                 });
             }, 120);
         },
