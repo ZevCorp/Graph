@@ -6,6 +6,28 @@ class VoiceRealtimeGateway {
     this.agentChat = agentChat;
     this.conversationInsights = conversationInsights;
     this.phoneSessions = new Map();
+    this.sessionCounter = 0;
+  }
+
+  log(scope, message, details = null) {
+    const prefix = `[VoiceGateway:${scope}] ${message}`;
+    if (details && typeof details === 'object') {
+      console.log(prefix, JSON.stringify(details));
+      return;
+    }
+    if (details !== null && details !== undefined) {
+      console.log(prefix, details);
+      return;
+    }
+    console.log(prefix);
+  }
+
+  summarizeText(text = '', maxLength = 140) {
+    const cleaned = `${text || ''}`.replace(/\s+/g, ' ').trim();
+    if (cleaned.length <= maxLength) {
+      return cleaned;
+    }
+    return `${cleaned.slice(0, maxLength - 1)}…`;
   }
 
   attach(server) {
@@ -45,6 +67,7 @@ class VoiceRealtimeGateway {
     }
 
     const session = {
+      id: `desktop_${Date.now()}_${++this.sessionCounter}`,
       context: {},
       history: [],
       dgListen: null,
@@ -53,11 +76,18 @@ class VoiceRealtimeGateway {
       phoneSessionId: null,
       stoppedByUser: false
     };
+    this.log(session.id, 'Desktop voice client connected');
 
     const connectToDeepgram = () => {
       if (session.dgListen && session.dgListen.readyState === WebSocket.OPEN) {
+        this.log(session.id, 'Deepgram already open, skipping reconnect');
         return;
       }
+      this.log(session.id, 'Connecting to Deepgram STT', {
+        model: process.env.DEEPGRAM_STT_MODEL || 'nova-3',
+        language: process.env.DEEPGRAM_STT_LANGUAGE || 'es',
+        endpointing: process.env.DEEPGRAM_ENDPOINTING_MS || '350'
+      });
 
       const params = new URLSearchParams({
         model: process.env.DEEPGRAM_STT_MODEL || 'nova-3',
@@ -77,6 +107,7 @@ class VoiceRealtimeGateway {
       });
 
       session.dgListen.on('open', () => {
+        this.log(session.id, 'Deepgram STT open');
         this.sendJson(client, { type: 'ready' });
       });
 
@@ -87,16 +118,19 @@ class VoiceRealtimeGateway {
       });
 
       session.dgListen.on('error', (error) => {
+        this.log(session.id, 'Deepgram STT error', error.message);
         this.sendJson(client, { type: 'error', error: `Deepgram STT error: ${error.message}` });
       });
 
       session.dgListen.on('close', () => {
+        this.log(session.id, 'Deepgram STT closed');
         this.sendJson(client, { type: 'stt_closed' });
       });
     };
 
     client.on('message', (data, isBinary) => {
       if (isBinary) {
+        this.log(session.id, 'Binary audio chunk received', { bytes: data.length || data.byteLength || 0 });
         if (session.dgListen?.readyState === WebSocket.OPEN) {
           session.dgListen.send(data);
         }
@@ -115,6 +149,12 @@ class VoiceRealtimeGateway {
         session.context = payload.context || {};
         session.history = Array.isArray(payload.history) ? payload.history : [];
         session.phoneSessionId = payload.phoneSessionId || null;
+        this.log(session.id, 'Start message received', {
+          phoneSessionId: session.phoneSessionId || null,
+          historyItems: session.history.length,
+          appId: session.context?.appId || '',
+          sourcePathname: session.context?.sourcePathname || ''
+        });
         if (session.phoneSessionId) {
           this.bindDesktopToPhoneSession(session.phoneSessionId, session, client);
           this.sendJson(client, {
@@ -130,6 +170,7 @@ class VoiceRealtimeGateway {
 
       if (payload.type === 'preview_tts') {
         const previewText = `${payload.text || ''}`.trim();
+        this.log(session.id, 'Preview TTS requested', this.summarizeText(previewText));
         this.speak(client, previewText).finally(() => {
           try {
             client.close();
@@ -142,12 +183,17 @@ class VoiceRealtimeGateway {
 
       if (payload.type === 'stop') {
         session.stoppedByUser = true;
+        this.log(session.id, 'Stop requested by client');
         session.dgListen?.close();
         client.close();
       }
     });
 
     client.on('close', () => {
+      this.log(session.id, 'Desktop voice client closed', {
+        stoppedByUser: session.stoppedByUser,
+        phoneSessionId: session.phoneSessionId || null
+      });
       try {
         session.dgListen?.close();
       } catch (error) {
@@ -169,6 +215,10 @@ class VoiceRealtimeGateway {
     current.desktopClient = desktopClient;
     current.updatedAt = Date.now();
     this.phoneSessions.set(sessionId, current);
+    this.log(desktopSession.id, 'Bound desktop session to phone session', {
+      phoneSessionId: sessionId,
+      phoneConnected: Boolean(current.phoneClient?.readyState === WebSocket.OPEN)
+    });
 
     if (current.phoneClient?.readyState === WebSocket.OPEN) {
       this.sendJson(desktopClient, { type: 'phone_connected', sessionId });
@@ -182,6 +232,9 @@ class VoiceRealtimeGateway {
     phoneSession.updatedAt = Date.now();
     phoneSession.audioStarted = false;
     this.phoneSessions.set(sessionId, phoneSession);
+    this.log(`phone_${sessionId}`, 'Phone microphone client connected', {
+      hasDesktop: Boolean(phoneSession.desktopClient)
+    });
 
     this.sendJson(phoneClient, {
       type: 'phone_ready',
@@ -204,6 +257,7 @@ class VoiceRealtimeGateway {
         }
 
         if (payload.type === 'phone_status' && phoneSession.desktopClient?.readyState === WebSocket.OPEN) {
+          this.log(`phone_${sessionId}`, 'Phone status forwarded', payload.status || '');
           this.sendJson(phoneSession.desktopClient, {
             type: 'phone_status',
             status: payload.status || ''
@@ -215,6 +269,7 @@ class VoiceRealtimeGateway {
       const desktopSession = phoneSession.desktopSession;
       if (desktopSession && !phoneSession.audioStarted) {
         phoneSession.audioStarted = true;
+        this.log(desktopSession.id, 'First phone audio chunk received');
         if (desktopSession.dgListen?.readyState !== WebSocket.OPEN && desktopSession.dgListen?.readyState !== WebSocket.CONNECTING) {
           this.connectSessionToDeepgram(desktopSession, phoneSession.desktopClient);
         }
@@ -229,6 +284,7 @@ class VoiceRealtimeGateway {
     });
 
     phoneClient.on('close', () => {
+      this.log(`phone_${sessionId}`, 'Phone microphone client closed');
       const current = this.phoneSessions.get(sessionId);
       if (current?.phoneClient === phoneClient) {
         current.phoneClient = null;
@@ -242,8 +298,10 @@ class VoiceRealtimeGateway {
 
   connectSessionToDeepgram(session, client) {
     if (session.dgListen && [WebSocket.OPEN, WebSocket.CONNECTING].includes(session.dgListen.readyState)) {
+      this.log(session.id, 'Deepgram STT already open or connecting for phone-driven session');
       return;
     }
+    this.log(session.id, 'Connecting phone-driven session to Deepgram STT');
 
     const params = new URLSearchParams({
       model: process.env.DEEPGRAM_STT_MODEL || 'nova-3',
@@ -263,6 +321,7 @@ class VoiceRealtimeGateway {
     });
 
     session.dgListen.on('open', () => {
+      this.log(session.id, 'Deepgram STT open for phone-driven session');
       this.sendJson(client, { type: 'ready' });
     });
 
@@ -273,10 +332,12 @@ class VoiceRealtimeGateway {
     });
 
     session.dgListen.on('error', (error) => {
+      this.log(session.id, 'Deepgram STT error for phone-driven session', error.message);
       this.sendJson(client, { type: 'error', error: `Deepgram STT error: ${error.message}` });
     });
 
     session.dgListen.on('close', () => {
+      this.log(session.id, 'Deepgram STT closed for phone-driven session');
       this.sendJson(client, { type: 'stt_closed' });
     });
   }
@@ -294,6 +355,7 @@ class VoiceRealtimeGateway {
     if (!transcript) {
       return;
     }
+    this.log(session.id, payload.is_final ? 'Transcript final received' : 'Transcript interim received', this.summarizeText(transcript));
 
     this.sendJson(client, {
       type: payload.is_final ? 'transcript_final' : 'transcript_interim',
@@ -311,6 +373,7 @@ class VoiceRealtimeGateway {
     const userText = session.currentFinalText;
     session.currentFinalText = '';
     session.processing = true;
+    this.log(session.id, 'Speech final reached, handling user turn', this.summarizeText(userText));
 
     try {
       await this.handleUserTurn(client, session, userText);
@@ -320,6 +383,7 @@ class VoiceRealtimeGateway {
   }
 
   async handleUserTurn(client, session, userText) {
+    this.log(session.id, 'User turn start', this.summarizeText(userText));
     this.sendJson(client, { type: 'user_turn', text: userText });
     session.history.push({ role: 'user', content: userText });
 
@@ -330,6 +394,12 @@ class VoiceRealtimeGateway {
     );
 
     const reply = response.reply || 'Listo.';
+    this.log(session.id, 'Assistant response ready', {
+      reply: this.summarizeText(reply),
+      workflowId: response.workflowId || null,
+      executed: Boolean(response.executed),
+      hasExecutionPlan: Boolean(response.executionPlan)
+    });
     session.history.push({ role: 'assistant', content: reply });
 
     await this.conversationInsights?.captureTurn({
@@ -347,6 +417,7 @@ class VoiceRealtimeGateway {
     });
 
     await this.speak(client, reply);
+    this.log(session.id, 'Assistant TTS finished');
   }
 
   speak(client, text) {
@@ -356,11 +427,13 @@ class VoiceRealtimeGateway {
         resolve();
         return;
       }
+      this.log('tts', 'Starting Deepgram TTS', this.summarizeText(cleanText));
 
       const params = new URLSearchParams({
-        model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-sirio-es',
+        model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-aquila-es',
         encoding: 'linear16',
-        sample_rate: process.env.DEEPGRAM_TTS_SAMPLE_RATE || '24000'
+        sample_rate: process.env.DEEPGRAM_TTS_SAMPLE_RATE || '24000',
+        speed: process.env.DEEPGRAM_TTS_SPEED || '1.05'
       });
 
       const dgSpeak = new WebSocket(`wss://api.deepgram.com/v1/speak?${params.toString()}`, {
@@ -385,6 +458,10 @@ class VoiceRealtimeGateway {
       };
 
       dgSpeak.on('open', () => {
+        this.log('tts', 'Deepgram TTS socket open', {
+          model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-aquila-es',
+          speed: process.env.DEEPGRAM_TTS_SPEED || '1.05'
+        });
         this.sendJson(client, {
           type: 'audio_start',
           encoding: 'linear16',
@@ -410,16 +487,21 @@ class VoiceRealtimeGateway {
         }
 
         if (event.type === 'Flushed') {
+          this.log('tts', 'Deepgram TTS flushed');
           finish();
         }
       });
 
       dgSpeak.on('error', (error) => {
+        this.log('tts', 'Deepgram TTS error', error.message);
         this.sendJson(client, { type: 'error', error: `Deepgram TTS error: ${error.message}` });
         finish();
       });
 
-      dgSpeak.on('close', finish);
+      dgSpeak.on('close', () => {
+        this.log('tts', 'Deepgram TTS socket closed');
+        finish();
+      });
     });
   }
 }

@@ -185,7 +185,7 @@ function injectHomeCallWidget(html) {
   .home-contact-dock {
     position: fixed;
     right: 18px;
-    bottom: 18px;
+    bottom: 126px;
     z-index: 9999;
     display: flex;
     flex-direction: column;
@@ -255,16 +255,16 @@ function injectHomeCallWidget(html) {
   .home-call-toggle {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
+    justify-content: flex-start;
+    gap: 10px;
     border: none;
     background: #d51717;
     color: #fff;
     box-shadow: 0 14px 30px rgba(213, 23, 23, 0.35);
     cursor: pointer;
-    width: 56px;
+    width: 156px;
     height: 56px;
-    padding: 0;
+    padding: 0 18px;
     border-radius: 999px;
     font-weight: 800;
   }
@@ -272,34 +272,47 @@ function injectHomeCallWidget(html) {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    width: 56px;
+    width: 156px;
   }
   .home-contact-link {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 56px;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 156px;
     height: 56px;
-    padding: 0;
+    padding: 0 18px;
     border-radius: 999px;
     color: #fff !important;
     text-decoration: none !important;
     font-weight: 800;
     box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
   }
+  .home-call-toggle svg,
   .home-contact-link img {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     object-fit: contain;
+    flex: 0 0 auto;
   }
   .home-contact-link.whatsapp {
     background: #1f9d55;
   }
   .home-contact-link span,
   .home-call-toggle span {
-    display: none;
+    display: inline;
+    line-height: 1;
   }
   @media (max-width: 767px) {
+    .home-call-widget,
+    .home-contact-actions,
+    .home-call-toggle,
+    .home-contact-link {
+      width: min(156px, calc(100vw - 36px));
+    }
+    .home-contact-dock {
+      bottom: 112px;
+    }
     .service-hours-banner {
       margin-bottom: 16px;
       padding: 12px 14px;
@@ -324,7 +337,9 @@ function injectHomeCallWidget(html) {
   </div>
   <div class="home-contact-actions">
     <button class="home-call-toggle" id="homeCallToggle" data-testid="home-call-toggle" type="button" aria-controls="homeCallCard" aria-expanded="false" aria-label="Llamame" title="Llamame">
-      <i class="fa fa-phone" aria-hidden="true"></i>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.11.37 2.3.56 3.58.56a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.28.19 2.47.56 3.58a1 1 0 0 1-.24 1.01l-2.2 2.2Z"></path>
+      </svg>
       <span>Llamame</span>
     </button>
     <a class="home-contact-link whatsapp" href="https://api.whatsapp.com/send?phone=573045459999" target="_blank" rel="noreferrer" data-testid="home-whatsapp-link" aria-label="WhatsApp" title="WhatsApp">

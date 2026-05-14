@@ -46,6 +46,14 @@
     const EXECUTION_WAIT_TIMEOUT_MS = 15000;
     const EXECUTION_STEP_DELAY_MS = 180;
 
+    function voiceLog(event, details) {
+        if (details !== undefined) {
+            console.log(`[VoiceUI] ${event}`, details);
+            return;
+        }
+        console.log(`[VoiceUI] ${event}`);
+    }
+
     function runtime() {
         return window.GraphAssistantRuntime || null;
     }
@@ -1256,6 +1264,7 @@
 
         greetingState.playing = true;
         greetingState.lastPlayedAt = now;
+        voiceLog('preview_tts_start', { text: message.slice(0, 120) });
 
         const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(`${socketProtocol}//${window.location.host}/api/voice/realtime`);
@@ -1267,10 +1276,12 @@
                 if (settled) return;
                 settled = true;
                 greetingState.playing = false;
+                voiceLog('preview_tts_finish');
                 resolve();
             };
 
             socket.addEventListener('open', () => {
+                voiceLog('preview_tts_socket_open');
                 socket.send(JSON.stringify({
                     type: 'preview_tts',
                     text: message
@@ -1291,26 +1302,39 @@
                 }
 
                 if (payload.type === 'audio_end' || payload.type === 'error') {
+                    voiceLog('preview_tts_event', payload.type);
                     finish();
                 }
             });
 
-            socket.addEventListener('close', finish);
-            socket.addEventListener('error', finish);
+            socket.addEventListener('close', () => {
+                voiceLog('preview_tts_socket_close');
+                finish();
+            });
+            socket.addEventListener('error', (error) => {
+                voiceLog('preview_tts_socket_error', error?.message || 'socket error');
+                finish();
+            });
         });
     }
 
     async function startVoiceConversation(config = {}) {
         if (voiceState.active) {
+            voiceLog('start_ignored_already_active');
             return;
         }
 
+        const effectivePhoneSessionId = config.phoneSessionId || voiceState.phoneSession?.id || null;
+        voiceLog('start_voice_conversation', {
+            phoneSessionId: effectivePhoneSessionId,
+            hasStoredPhoneSession: Boolean(voiceState.phoneSession?.id)
+        });
         openChatPanel();
-        updateVoiceStatus(config.phoneSessionId ? 'Esperando audio del telefono...' : 'Conectando voz en tiempo real...');
-        if (!config.phoneSessionId) {
+        updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
+        if (!effectivePhoneSessionId) {
             runtime()?.speak('Te escucho. Habla con naturalidad y me encargo de la reserva cuando tenga lo necesario.', { mode: 'listening' });
         } else {
-            runtime()?.speak('Escanea el QR y activa el microfono del telefono para empezar.', { mode: 'listening' });
+            runtime()?.speak('Estoy retomando el audio de tu telefono para seguir con la reserva.', { mode: 'listening' });
         }
 
         const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1319,17 +1343,19 @@
         voiceState.socket = socket;
 
         socket.addEventListener('open', async () => {
+            voiceLog('realtime_socket_open', { phoneSessionId: effectivePhoneSessionId });
             socket.send(JSON.stringify({
                 type: 'start',
                 context: getPageContext(),
                 history: agentHistory.slice(-10),
-                phoneSessionId: config.phoneSessionId || null
+                phoneSessionId: effectivePhoneSessionId
             }));
 
-            if (config.phoneSessionId) {
+            if (effectivePhoneSessionId) {
                 voiceState.active = true;
                 setVoiceButton(true);
-                updateVoiceStatus('Escanea el QR y activa el microfono del telefono.');
+                updateVoiceStatus('Esperando audio del telefono...');
+                voiceLog('waiting_for_phone_audio', { phoneSessionId: effectivePhoneSessionId });
                 return;
             }
 
@@ -1373,8 +1399,10 @@
                 voiceState.active = true;
                 setVoiceButton(true);
                 updateVoiceStatus('Escuchando...');
+                voiceLog('desktop_microphone_ready');
             } catch (error) {
                 const message = error.message || 'No pude acceder al microfono. Mantén presionado el botón de micrófono para sincronizar tu teléfono.';
+                voiceLog('desktop_microphone_error', message);
                 updateVoiceStatus(message);
                 appendAgentMessage('assistant', message, null, false);
                 stopVoiceConversation({ announce: false });
@@ -1395,45 +1423,53 @@
             }
 
             if (payload.type === 'ready') {
-                updateVoiceStatus(config.phoneSessionId ? 'Te escucho desde el telefono.' : 'Deepgram listo. Puedes hablar.');
-                if (config.phoneSessionId) {
+                voiceLog('server_event_ready', { phoneSessionId: effectivePhoneSessionId });
+                updateVoiceStatus(effectivePhoneSessionId ? 'Te escucho desde el telefono.' : 'Deepgram listo. Puedes hablar.');
+                if (effectivePhoneSessionId) {
                     runtime()?.speak('Te escucho desde el telefono. Habla con naturalidad.', { mode: 'listening' });
                 }
                 return;
             }
 
             if (payload.type === 'phone_waiting') {
+                voiceLog('server_event_phone_waiting');
                 updateVoiceStatus('Esperando que el telefono se conecte por QR...');
                 return;
             }
 
             if (payload.type === 'phone_connected') {
+                voiceLog('server_event_phone_connected');
                 updateVoiceStatus('Telefono conectado. Activa el microfono en el telefono cuando quieras empezar.');
                 return;
             }
 
             if (payload.type === 'phone_audio_started') {
+                voiceLog('server_event_phone_audio_started');
                 updateVoiceStatus('Audio del telefono recibido. Conectando Deepgram...');
                 return;
             }
 
             if (payload.type === 'phone_disconnected') {
+                voiceLog('server_event_phone_disconnected');
                 updateVoiceStatus('Telefono desconectado. Puedes escanear el QR otra vez.');
                 return;
             }
 
             if (payload.type === 'phone_status') {
+                voiceLog('server_event_phone_status', payload.status || 'Telefono conectado.');
                 updateVoiceStatus(payload.status || 'Telefono conectado.');
                 return;
             }
 
             if (payload.type === 'transcript_interim') {
+                voiceLog('server_event_transcript_interim', payload.text);
                 updateVoiceStatus(payload.text);
                 runtime()?.showUserSpeech?.(payload.text);
                 return;
             }
 
             if (payload.type === 'user_turn') {
+                voiceLog('server_event_user_turn', payload.text);
                 appendAgentMessage('user', payload.text);
                 updateVoiceStatus('Pensando y preparando la reserva...');
                 runtime()?.showUserSpeech?.(payload.text);
@@ -1441,11 +1477,16 @@
             }
 
             if (payload.type === 'assistant_turn') {
+                voiceLog('server_event_assistant_turn', {
+                    text: (payload.text || '').slice(0, 140),
+                    hasExecutionPlan: Boolean(payload.executionPlan)
+                });
                 appendAgentMessage('assistant', payload.text, null);
                 updateVoiceStatus('Respondiendo por voz...');
                 runtime()?.clearUserSpeech?.();
                 if (payload.executionPlan) {
                     executeWorkflowPlan(payload.executionPlan, 'voice').catch((error) => {
+                        voiceLog('browser_execution_error', error.message || 'plan execution failed');
                         appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
                         updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
                     });
@@ -1454,22 +1495,34 @@
             }
 
             if (payload.type === 'audio_end') {
+                voiceLog('server_event_audio_end');
                 updateVoiceStatus('Escuchando...');
                 return;
             }
 
             if (payload.type === 'error') {
+                voiceLog('server_event_error', payload.error || 'Error en la conversacion de voz.');
                 appendAgentMessage('assistant', payload.error || 'Error en la conversacion de voz.', null, false);
                 updateVoiceStatus(payload.error || 'Error en la conversacion de voz.');
             }
         });
 
         socket.addEventListener('close', () => {
+            voiceLog('realtime_socket_close', { wasActive: voiceState.active });
             stopVoiceConversation({ announce: voiceState.active });
+        });
+
+        socket.addEventListener('error', (error) => {
+            voiceLog('realtime_socket_error', error?.message || 'socket error');
         });
     }
 
     function stopVoiceConversation(options = {}) {
+        voiceLog('stop_voice_conversation', {
+            announce: options.announce !== false,
+            active: voiceState.active,
+            usingPhoneSession: Boolean(voiceState.phoneSession?.id)
+        });
         const shouldAnnounce = options.announce !== false && voiceState.active;
         if (voiceState.socket && voiceState.socket.readyState === WebSocket.OPEN) {
             voiceState.socket.send(JSON.stringify({ type: 'stop' }));
@@ -1525,6 +1578,10 @@
         }
 
         voiceState.phoneSession = payload;
+        voiceLog('phone_session_created', {
+            id: payload.id,
+            phoneUrl: payload.phoneUrl
+        });
         const qr = document.getElementById('phone-mic-qr');
         const url = document.getElementById('phone-mic-url');
         if (qr) qr.src = payload.qrDataUrl;
