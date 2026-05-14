@@ -163,6 +163,14 @@ function enhanceCarDemoHome(html) {
       /<input type="text" class="form-control datetimepicker-input dateArrow hasDatepicker" id="hasta" name="hasta" data-target="#dateDev" autocomplete="off" value="\s*([^"]*)">/,
       '<input type="date" class="form-control datetimepicker-input dateArrow" id="hasta" data-testid="return-date" name="hasta" data-target="#dateDev" autocomplete="off" value="$1">'
     )
+    .replace(
+      /\s*<li class="has-children"><span class="arrow-collapse collapsed" data-toggle="collapse" data-target="#collapseItem2"><\/span>[\s\S]*?<li><a href="https:\/\/rentacarmedellin\.co\/contacto" class="nav-link">CONTACTO<\/a><\/li>/,
+      '\n                        <li><span class="nav-link">HORARIOS DE ATENCION: 8AM A 5PM DOMINGO A DOMINGO</span></li>'
+    )
+    .replace(
+      /\s*<li class="has-children">\s*<a href="https:\/\/rentacarmedellin\.co\/#" class="nav-link">REQUISITOS<\/a>[\s\S]*?<li><a href="https:\/\/rentacarmedellin\.co\/contacto" class="nav-link">CONTACTO<\/a><\/li>/,
+      '\n                        <li><span class="nav-link">HORARIOS DE ATENCION: 8AM A 5PM DOMINGO A DOMINGO</span></li>'
+    )
     .replace('id="searchFormRangeDateTimePicker-endTime" class="form-control datetimepicker-input"', 'id="searchFormRangeDateTimePicker-endTime" data-testid="return-time" class="form-control datetimepicker-input"')
     .replace('id="lugDevId" required="required"', 'id="lugDevId" data-testid="return-location" required="required"')
     .replace('<input type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">', '<input id="quote-submit" data-testid="quote-submit" type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">');
