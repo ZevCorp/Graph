@@ -620,7 +620,10 @@ app.post('/api/voice/complaints/process', async (req, res) => {
 
 app.post('/api/voice/phone-session', async (req, res) => {
   try {
-    const id = `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+    const requestedId = `${req.body?.requestedId || ''}`.trim();
+    const id = /^[a-zA-Z0-9_-]{12,120}$/.test(requestedId)
+      ? requestedId
+      : `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
     const phoneUrl = `${getPublicBaseUrl(req)}/phone-mic/${encodeURIComponent(id)}`;
     const qrDataUrl = await QRCode.toDataURL(phoneUrl, {
       margin: 1,

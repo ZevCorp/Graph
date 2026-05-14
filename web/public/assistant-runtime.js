@@ -27,6 +27,10 @@
         interaction: {
             lastTouchAt: 0
         },
+        mic: {
+            longPressTimer: null,
+            longPressTriggered: false
+        },
         face: {
             mode: 'idle',
             blinkFactor: 1,
@@ -871,6 +875,13 @@
         spotlight.dataset.visible = 'true';
     }
 
+    function clearMicLongPressTimer() {
+        if (state.mic.longPressTimer) {
+            window.clearTimeout(state.mic.longPressTimer);
+            state.mic.longPressTimer = null;
+        }
+    }
+
     function emit(eventName, payload) {
         const handlers = state.listeners.get(eventName) || [];
         handlers.forEach((handler) => {
@@ -895,7 +906,26 @@
             }
             if (micButton && micButton.dataset.bound !== 'true') {
                 micButton.dataset.bound = 'true';
-                micButton.addEventListener('click', () => emit('voice-button', {}));
+                micButton.addEventListener('pointerdown', () => {
+                    state.mic.longPressTriggered = false;
+                    clearMicLongPressTimer();
+                    state.mic.longPressTimer = window.setTimeout(() => {
+                        state.mic.longPressTriggered = true;
+                        emit('voice-button-long-press', {});
+                    }, 550);
+                });
+                ['pointerup', 'pointerleave', 'pointercancel'].forEach((eventName) => {
+                    micButton.addEventListener(eventName, clearMicLongPressTimer);
+                });
+                micButton.addEventListener('click', (event) => {
+                    if (state.mic.longPressTriggered) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        state.mic.longPressTriggered = false;
+                        return;
+                    }
+                    emit('voice-button', {});
+                });
             }
             showBubble(state.options.idleMessage || DEFAULTS.idleMessage);
             setShellPosition(window.innerWidth - 96, window.innerHeight - 164);

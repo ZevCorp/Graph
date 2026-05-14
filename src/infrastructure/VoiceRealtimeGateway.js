@@ -73,6 +73,8 @@ class VoiceRealtimeGateway {
       dgListen: null,
       currentFinalText: '',
       processing: false,
+      assistantSpeaking: false,
+      ignoreTranscriptsUntil: 0,
       phoneSessionId: null,
       stoppedByUser: false
     };
@@ -355,6 +357,12 @@ class VoiceRealtimeGateway {
     if (!transcript) {
       return;
     }
+
+    if (session.assistantSpeaking || Date.now() < (session.ignoreTranscriptsUntil || 0)) {
+      this.log(session.id, 'Transcript ignored while assistant audio is active', this.summarizeText(transcript));
+      return;
+    }
+
     this.log(session.id, payload.is_final ? 'Transcript final received' : 'Transcript interim received', this.summarizeText(transcript));
 
     this.sendJson(client, {
@@ -416,8 +424,19 @@ class VoiceRealtimeGateway {
       executionPlan: response.executionPlan || null
     });
 
-    await this.speak(client, reply);
-    this.log(session.id, 'Assistant TTS finished');
+    session.assistantSpeaking = true;
+    session.currentFinalText = '';
+    try {
+      await this.speak(client, reply);
+      this.log(session.id, 'Assistant TTS finished');
+    } finally {
+      session.assistantSpeaking = false;
+      session.currentFinalText = '';
+      session.ignoreTranscriptsUntil = Date.now() + Number(process.env.VOICE_STT_SUPPRESS_MS || 1200);
+      this.log(session.id, 'Transcript suppression window set', {
+        suppressUntil: session.ignoreTranscriptsUntil
+      });
+    }
   }
 
   speak(client, text) {
@@ -430,7 +449,7 @@ class VoiceRealtimeGateway {
       this.log('tts', 'Starting Deepgram TTS', this.summarizeText(cleanText));
 
       const params = new URLSearchParams({
-        model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-aquila-es',
+        model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-javier-es',
         encoding: 'linear16',
         sample_rate: process.env.DEEPGRAM_TTS_SAMPLE_RATE || '24000',
         speed: process.env.DEEPGRAM_TTS_SPEED || '1.05'
@@ -459,7 +478,7 @@ class VoiceRealtimeGateway {
 
       dgSpeak.on('open', () => {
         this.log('tts', 'Deepgram TTS socket open', {
-          model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-aquila-es',
+          model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-javier-es',
           speed: process.env.DEEPGRAM_TTS_SPEED || '1.05'
         });
         this.sendJson(client, {

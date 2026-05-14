@@ -22,6 +22,7 @@
     let longPressTimer = null;
     let longPressTriggered = false;
     let runtimeTouchBound = false;
+    let feedbackOverlayVisible = false;
     const voiceState = {
         active: false,
         socket: null,
@@ -43,6 +44,7 @@
         running: false
     };
     const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
+    const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
     const EXECUTION_WAIT_TIMEOUT_MS = 15000;
     const EXECUTION_STEP_DELAY_MS = 180;
 
@@ -52,6 +54,26 @@
             return;
         }
         console.log(`[VoiceUI] ${event}`);
+    }
+
+    function getStoredPhoneSessionId() {
+        try {
+            return window.localStorage.getItem(PHONE_MIC_SESSION_STORAGE_KEY) || '';
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function setStoredPhoneSessionId(id) {
+        try {
+            if (!id) {
+                window.localStorage.removeItem(PHONE_MIC_SESSION_STORAGE_KEY);
+                return;
+            }
+            window.localStorage.setItem(PHONE_MIC_SESSION_STORAGE_KEY, id);
+        } catch (error) {
+            // Ignore storage failures in restricted browsers.
+        }
     }
 
     function runtime() {
@@ -134,6 +156,10 @@
             #pitch-generate {
                 background: #fff4dd;
                 color: #8a4b08;
+            }
+            #pitch-generate[data-active="true"] {
+                background: #8a4b08;
+                color: white;
             }
             #agent-send {
                 background: #e8f1f7;
@@ -289,6 +315,28 @@
                 background: #fff4dd;
                 color: #8a4b08;
             }
+            .improvement-panel-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .improvement-panel-actions button {
+                border: none;
+                border-radius: 999px;
+                padding: 9px 12px;
+                cursor: pointer;
+                font: inherit;
+                font-size: 12px;
+                font-weight: 700;
+            }
+            .improvement-panel-actions button[data-action="toggle-overlay"] {
+                background: #fff1d6;
+                color: #8a4b08;
+            }
+            .improvement-panel-actions button[data-action="run-pitch"] {
+                background: #8a4b08;
+                color: white;
+            }
             .workflow-panel-list {
                 max-height: 260px;
                 overflow: auto;
@@ -345,6 +393,11 @@
                 display: grid;
                 gap: 6px;
             }
+            .improvement-item-target {
+                font-size: 11px;
+                color: #8b6a39;
+                word-break: break-word;
+            }
             .improvement-item-pill {
                 display: inline-flex;
                 align-items: center;
@@ -391,6 +444,73 @@
                 white-space: nowrap;
                 border: 0;
             }
+            .feedback-overlay {
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                z-index: 2147482998;
+            }
+            .feedback-overlay[hidden] {
+                display: none;
+            }
+            .feedback-pin {
+                position: absolute;
+                transform: translate(-10px, -10px);
+                display: grid;
+                gap: 8px;
+                align-items: start;
+                max-width: min(280px, calc(100vw - 40px));
+            }
+            .feedback-pin[data-side="left"] {
+                justify-items: end;
+            }
+            .feedback-dot {
+                width: 20px;
+                height: 20px;
+                border-radius: 999px;
+                background: #d97706;
+                color: white;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 800;
+                box-shadow: 0 8px 22px rgba(94, 57, 8, 0.3);
+                border: 2px solid rgba(255, 255, 255, 0.9);
+            }
+            .feedback-card {
+                pointer-events: auto;
+                background: rgba(255, 250, 240, 0.96);
+                border: 1px solid #f1ddb6;
+                border-radius: 14px;
+                padding: 10px 12px;
+                box-shadow: 0 18px 36px rgba(53, 35, 9, 0.16);
+                color: #5e3908;
+                line-height: 1.45;
+            }
+            .feedback-card strong {
+                display: block;
+                font-size: 12px;
+                margin-bottom: 4px;
+            }
+            .feedback-card span {
+                display: block;
+                font-size: 12px;
+            }
+            .feedback-card small {
+                display: block;
+                margin-top: 6px;
+                font-size: 11px;
+                color: #8b6a39;
+            }
+            @media (max-width: 768px) {
+                .feedback-pin {
+                    max-width: min(220px, calc(100vw - 32px));
+                }
+                .feedback-card {
+                    padding: 9px 10px;
+                }
+            }
         `;
         document.head.appendChild(style);
     }
@@ -419,15 +539,19 @@
             <div class="improvement-panel" id="improvement-panel" aria-live="polite">
                 <div class="improvement-panel-header">
                     <div>
-                        <strong>Sugerencias para mejorar la pagina</strong>
-                        <div class="improvement-panel-status" id="improvement-panel-status">Manten este boton oprimido para ver oportunidades de mejora.</div>
+                        <strong>Feedback visible sobre la pagina</strong>
+                        <div class="improvement-panel-status" id="improvement-panel-status">Manten este boton oprimido para ver comentarios y acciones de mejora.</div>
                     </div>
                     <button id="improvement-panel-refresh" type="button">Actualizar</button>
+                </div>
+                <div class="improvement-panel-actions">
+                    <button type="button" data-action="toggle-overlay" id="feedback-overlay-toggle">Mostrar puntos en la pagina</button>
+                    <button type="button" data-action="run-pitch" id="improvement-run-pitch">Generar pitch</button>
                 </div>
                 <div class="improvement-panel-list" id="improvement-panel-list"></div>
                 <div class="improvement-panel-empty" id="improvement-panel-empty" hidden>No hay sugerencias disponibles para esta pagina todavia.</div>
                 <div class="improvement-panel-footnote" id="improvement-panel-footnote">
-                    Estas sugerencias salen por ahora de workflows y heuristicas del plugin. Proximamente se conectaran a evidencia real recolectada por el asistente de IA durante conversaciones de voz.
+                    Estos comentarios son simulados pero coherentes con la experiencia esperada. Proximamente se conectaran a evidencia real recolectada por el asistente.
                 </div>
             </div>
             <div class="console-chat" id="console-chat">
@@ -462,7 +586,22 @@
             <button id="btn-stop" class="sr-only" type="button">Stop</button>
         `;
         document.body.appendChild(consoleEl);
+        ensureFeedbackOverlay();
         return consoleEl;
+    }
+
+    function ensureFeedbackOverlay() {
+        let overlay = document.getElementById('feedback-overlay');
+        if (overlay) {
+            return overlay;
+        }
+
+        overlay = document.createElement('div');
+        overlay.className = 'feedback-overlay';
+        overlay.id = 'feedback-overlay';
+        overlay.hidden = true;
+        document.body.appendChild(overlay);
+        return overlay;
     }
 
     function updateConsoleExpandedState() {
@@ -550,6 +689,161 @@
         }
         openImprovementPanel();
         loadImprovementPanel(true);
+    }
+
+    function escapeHtml(value) {
+        return `${value || ''}`
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
+    function getMockFeedbackSuggestions() {
+        const pathname = normalizePathname(window.location.pathname);
+
+        if (pathname.includes('/rentacar/reservar.html')) {
+            return [
+                {
+                    id: 'clarity-dates',
+                    selector: '.summary-card',
+                    title: 'Las fechas parecen bloqueadas demasiado pronto',
+                    summary: 'Varios usuarios podrian pensar que este resumen ya es definitivo y no notar que deben devolverse para cambiar fechas o sedes.',
+                    evidence: 'Comentario simulado: "No me queda claro si aqui todavia puedo corregir la recogida o si ya perdi ese paso."',
+                    opportunity: 'Hacer mas visible la accion para editar el trayecto desde este mismo bloque.',
+                    source: 'Feedback simulado de usuario',
+                    priority: 'alta',
+                    area: 'Resumen del viaje'
+                },
+                {
+                    id: 'filter-confidence',
+                    selector: '.filters-bar',
+                    title: 'Los filtros no siempre transmiten confianza',
+                    summary: 'Cuando la lista cambia, puede faltar una explicacion rapida de que filtro dejo menos resultados o por que no aparece cierto carro.',
+                    evidence: 'Comentario simulado: "Movi un filtro y ya no supe que fue lo que oculto las otras opciones."',
+                    opportunity: 'Dar feedback mas explicito sobre cambios y filtros activos en lenguaje sencillo.',
+                    source: 'Feedback simulado de usuario',
+                    priority: 'media',
+                    area: 'Filtros'
+                },
+                {
+                    id: 'price-credit-card',
+                    selector: '#vehicle-kia-picanto .price-note',
+                    title: 'La condicion de tarjeta aparece demasiado tarde',
+                    summary: 'La nota de precio existe, pero puede pasar desapercibida y generar frustracion cuando el usuario ya esta comparando opciones.',
+                    evidence: 'Comentario simulado: "Yo ya iba a reservar y apenas ahi vi que ese valor dependia de tarjeta de credito."',
+                    opportunity: 'Convertir esa condicion en una etiqueta mas visible o explicarla antes de la comparacion.',
+                    source: 'Feedback simulado de usuario',
+                    priority: 'alta',
+                    area: 'Precio del vehiculo'
+                },
+                {
+                    id: 'call-widget-expectation',
+                    selector: '#callWidget',
+                    title: 'El widget de llamada no aclara la expectativa',
+                    summary: 'El acceso es visible, pero no comunica si la llamada es inmediata, en horario laboral o solo una solicitud de contacto.',
+                    evidence: 'Comentario simulado: "Le di en llamame, pero no supe si alguien me iba a marcar ya o despues."',
+                    opportunity: 'Aclarar tiempo de respuesta y que pasara despues de dejar el numero.',
+                    source: 'Feedback simulado de usuario',
+                    priority: 'media',
+                    area: 'Ayuda humana'
+                }
+            ];
+        }
+
+        return [
+            {
+                id: 'generic-cta-clarity',
+                selector: 'main, body',
+                title: 'La pagina necesita mas claridad en el siguiente paso',
+                summary: 'Un usuario nuevo podria no identificar de inmediato cual es la accion principal para continuar.',
+                evidence: 'Comentario simulado: "La pagina se ve bien, pero no supe cual era el siguiente paso recomendado."',
+                opportunity: 'Resaltar mejor la accion principal y reducir competencia visual.',
+                source: 'Feedback simulado de usuario',
+                priority: 'media',
+                area: 'Experiencia general'
+            }
+        ];
+    }
+
+    function resolveFeedbackAnchors(suggestions) {
+        return (suggestions || []).map((suggestion, index) => {
+            const element = document.querySelector(suggestion.selector) || document.body;
+            const rect = element.getBoundingClientRect();
+            const safeHeight = Math.max(rect.height, 24);
+            const safeWidth = Math.max(rect.width, 24);
+            const top = rect.top + window.scrollY + Math.min(safeHeight * 0.22, safeHeight - 12);
+            const left = rect.left + window.scrollX + Math.min(safeWidth * 0.12, safeWidth - 12);
+            const side = rect.left > window.innerWidth * 0.56 ? 'left' : 'right';
+
+            return {
+                ...suggestion,
+                order: index + 1,
+                top,
+                left,
+                side
+            };
+        });
+    }
+
+    function updateFeedbackOverlayButton() {
+        const toggle = document.getElementById('feedback-overlay-toggle');
+        const pitchButton = document.getElementById('pitch-generate');
+        if (toggle) {
+            toggle.textContent = feedbackOverlayVisible ? 'Ocultar puntos en la pagina' : 'Mostrar puntos en la pagina';
+        }
+        if (pitchButton) {
+            pitchButton.dataset.active = feedbackOverlayVisible ? 'true' : 'false';
+            pitchButton.title = feedbackOverlayVisible ? 'Ocultar feedback de usuarios' : 'Mostrar feedback de usuarios';
+            pitchButton.setAttribute('aria-label', pitchButton.title);
+        }
+    }
+
+    function renderFeedbackOverlay() {
+        const overlay = ensureFeedbackOverlay();
+        const suggestions = resolveFeedbackAnchors(getMockFeedbackSuggestions());
+        overlay.style.width = `${Math.max(document.body.scrollWidth, document.documentElement.scrollWidth)}px`;
+        overlay.style.height = `${Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)}px`;
+        overlay.innerHTML = '';
+
+        suggestions.forEach((suggestion) => {
+            const item = document.createElement('div');
+            item.className = 'feedback-pin';
+            item.dataset.side = suggestion.side;
+            item.style.top = `${suggestion.top}px`;
+            item.style.left = `${suggestion.left}px`;
+            item.innerHTML = `
+                <div class="feedback-dot">${suggestion.order}</div>
+                <div class="feedback-card">
+                    <strong>${escapeHtml(suggestion.area || suggestion.title || 'Feedback')}</strong>
+                    <span>${escapeHtml(suggestion.evidence || suggestion.summary || '')}</span>
+                    <small>${escapeHtml(suggestion.opportunity || '')}</small>
+                </div>
+            `;
+            overlay.appendChild(item);
+        });
+    }
+
+    function showFeedbackOverlay() {
+        feedbackOverlayVisible = true;
+        renderFeedbackOverlay();
+        ensureFeedbackOverlay().hidden = false;
+        updateFeedbackOverlayButton();
+    }
+
+    function hideFeedbackOverlay() {
+        feedbackOverlayVisible = false;
+        ensureFeedbackOverlay().hidden = true;
+        updateFeedbackOverlayButton();
+    }
+
+    function toggleFeedbackOverlay() {
+        if (feedbackOverlayVisible) {
+            hideFeedbackOverlay();
+            return;
+        }
+        showFeedbackOverlay();
     }
 
     function appendAgentMessage(role, text, meta, pushHistory = true) {
@@ -1058,6 +1352,7 @@
                     <div><strong>Oportunidad:</strong> ${suggestion.opportunity || 'Sin oportunidad descrita.'}</div>
                     <div><strong>Origen:</strong> ${suggestion.source || 'Plugin'}</div>
                 </div>
+                <div class="improvement-item-target">Anclado a: ${suggestion.selector || 'pagina actual'}</div>
             `;
             list.appendChild(item);
         });
@@ -1139,31 +1434,12 @@
 
         improvementPanelLoaded = true;
         setImprovementPanelLoadingState(true);
-        updateImprovementPanelStatus('Procesando quejas de voz y oportunidades de mejora de esta pagina...');
+        updateImprovementPanelStatus('Preparando feedback visible y oportunidades de mejora de esta pagina...');
 
         try {
-            const voiceResult = await processVoiceComplaints();
-            if ((voiceResult.complaintCount || 0) > 0) {
-                renderImprovementPanel(voiceResult.suggestions || []);
-                updateImprovementPanelStatus(`${voiceResult.complaintCount} queja(s) procesadas desde conversaciones de voz.`);
-                return;
-            }
-
-            const response = await fetch('/api/pitch/improvements', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...getPageContext(),
-                    workflowDescription: options.workflowDescription || ''
-                })
-            });
-
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(payload.error || 'No se pudieron cargar las sugerencias.');
-            }
-
-            renderImprovementPanel(payload.suggestions || []);
+            const suggestions = getMockFeedbackSuggestions();
+            renderImprovementPanel(suggestions);
+            updateImprovementPanelStatus(`${suggestions.length} comentario(s) simulados listos para revisar en la pagina.`);
         } catch (error) {
             improvementPanelLoaded = false;
             updateImprovementPanelStatus(error.message || 'No se pudo cargar el panel de mejoras.');
@@ -1176,6 +1452,48 @@
             }
         } finally {
             setImprovementPanelLoadingState(false);
+        }
+    }
+
+    async function runPitchGeneration() {
+        const button = document.getElementById('improvement-run-pitch');
+        const iconButton = document.getElementById('pitch-generate');
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Generando...';
+        }
+        if (iconButton) {
+            iconButton.disabled = true;
+        }
+
+        try {
+            const result = await generatePitchArtifacts();
+            improvementPanelLoaded = false;
+            openChatPanel();
+            const fileLines = (result.files || []).map((file) => `- ${file.name}: ${file.path}`);
+            appendAgentMessage(
+                'assistant',
+                `Genere artefactos de pitch para esta pagina usando ${result.workflowCount || 0} workflow(s).\n${fileLines.join('\n')}`,
+                'pitch generated',
+                false
+            );
+            updateWorkflowPanelStatus(`Pitch generado en ${result.outputDir}`);
+            updateImprovementPanelStatus('Artefactos regenerados. Mantener oprimido muestra el panel actualizado.');
+            startImprovementTour(result);
+        } catch (error) {
+            openChatPanel();
+            appendAgentMessage('assistant', error.message || 'No se pudieron generar los archivos de pitch.', null, false);
+            updateWorkflowPanelStatus(error.message || 'No se pudieron generar los archivos de pitch.');
+            updateImprovementPanelStatus(error.message || 'No se pudieron regenerar las sugerencias.');
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Generar pitch';
+            }
+            if (iconButton) {
+                iconButton.disabled = false;
+            }
         }
     }
 
@@ -1566,11 +1884,15 @@
         openChatPanel();
         updateVoiceStatus('Preparando QR para usar el telefono como microfono...');
         setPhonePairingVisible(true);
+        const requestedId = getStoredPhoneSessionId() || `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
 
         const response = await fetch('/api/voice/phone-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ context: getPageContext() })
+            body: JSON.stringify({
+                context: getPageContext(),
+                requestedId
+            })
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -1578,6 +1900,7 @@
         }
 
         voiceState.phoneSession = payload;
+        setStoredPhoneSessionId(payload.id);
         voiceLog('phone_session_created', {
             id: payload.id,
             phoneUrl: payload.phoneUrl
@@ -1686,31 +2009,7 @@
         });
 
         bindLongPressGesture('pitch-generate', toggleImprovementPanel, async () => {
-            const button = document.getElementById('pitch-generate');
-            button.disabled = true;
-
-            try {
-                const result = await generatePitchArtifacts();
-                improvementPanelLoaded = false;
-                openChatPanel();
-                const fileLines = (result.files || []).map((file) => `- ${file.name}: ${file.path}`);
-                appendAgentMessage(
-                    'assistant',
-                    `Genere artefactos de pitch para esta pagina usando ${result.workflowCount || 0} workflow(s).\n${fileLines.join('\n')}`,
-                    'pitch generated',
-                    false
-                );
-                updateWorkflowPanelStatus(`Pitch generado en ${result.outputDir}`);
-                updateImprovementPanelStatus('Artefactos regenerados. Mantener oprimido muestra las sugerencias actualizadas.');
-                startImprovementTour(result);
-            } catch (error) {
-                openChatPanel();
-                appendAgentMessage('assistant', error.message || 'No se pudieron generar los archivos de pitch.', null, false);
-                updateWorkflowPanelStatus(error.message || 'No se pudieron generar los archivos de pitch.');
-                updateImprovementPanelStatus(error.message || 'No se pudieron regenerar las sugerencias.');
-            } finally {
-                button.disabled = false;
-            }
+            toggleFeedbackOverlay();
         });
 
         bindLongPressGesture('voice-toggle', async () => {
@@ -1791,19 +2090,26 @@
         });
 
         document.getElementById('improvement-panel-refresh').addEventListener('click', () => {
-            processVoiceComplaints()
-                .then((payload) => {
-                    if ((payload.complaintCount || 0) > 0) {
-                        renderImprovementPanel(payload.suggestions || []);
-                        updateImprovementPanelStatus(`${payload.complaintCount} queja(s) procesadas desde conversaciones de voz.`);
-                        return;
-                    }
-                    loadImprovementPanel(true);
-                })
-                .catch((error) => {
-                    updateImprovementPanelStatus(error.message || 'No se pudieron procesar las quejas de voz.');
-                });
+            improvementPanelLoaded = false;
+            loadImprovementPanel(true);
         });
+        document.getElementById('feedback-overlay-toggle').addEventListener('click', () => {
+            toggleFeedbackOverlay();
+        });
+        document.getElementById('improvement-run-pitch').addEventListener('click', async () => {
+            await runPitchGeneration();
+        });
+        window.addEventListener('scroll', () => {
+            if (feedbackOverlayVisible) {
+                renderFeedbackOverlay();
+            }
+        }, { passive: true });
+        window.addEventListener('resize', () => {
+            if (feedbackOverlayVisible) {
+                renderFeedbackOverlay();
+            }
+        });
+        updateFeedbackOverlayButton();
 
         document.getElementById('workflow-panel-list').addEventListener('click', async (event) => {
             const button = event.target.closest('button[data-action]');
@@ -1860,6 +2166,13 @@
             options = { ...DEFAULTS, ...config };
             ensureStyles();
             ensureConsole();
+            if (!voiceState.phoneSession?.id) {
+                const storedPhoneSessionId = getStoredPhoneSessionId();
+                if (storedPhoneSessionId) {
+                    voiceState.phoneSession = { id: storedPhoneSessionId };
+                    voiceLog('restored_phone_session_id', storedPhoneSessionId);
+                }
+            }
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
             if (!runtimeTouchBound) {
                 runtime()?.subscribe?.('touched', () => {
@@ -1873,6 +2186,14 @@
                         return;
                     }
                     await startVoiceConversation();
+                });
+                runtime()?.subscribe?.('voice-button-long-press', async () => {
+                    try {
+                        await openPhoneMicPairing();
+                    } catch (error) {
+                        updateVoiceStatus(error.message || 'No pude preparar el microfono del telefono.');
+                        appendAgentMessage('assistant', error.message || 'No pude preparar el microfono del telefono.', null, false);
+                    }
                 });
                 runtimeTouchBound = true;
             }
