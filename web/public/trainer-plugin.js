@@ -602,6 +602,7 @@
         button.dataset.active = active ? 'true' : 'false';
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
         button.title = active ? 'Detener conversacion de voz' : 'Conversacion de voz';
+        runtime()?.setVoiceButtonActive?.(active);
     }
 
     function setPhonePairingVisible(visible) {
@@ -1428,18 +1429,21 @@
 
             if (payload.type === 'transcript_interim') {
                 updateVoiceStatus(payload.text);
+                runtime()?.showUserSpeech?.(payload.text);
                 return;
             }
 
             if (payload.type === 'user_turn') {
                 appendAgentMessage('user', payload.text);
                 updateVoiceStatus('Pensando y preparando la reserva...');
+                runtime()?.showUserSpeech?.(payload.text);
                 return;
             }
 
             if (payload.type === 'assistant_turn') {
                 appendAgentMessage('assistant', payload.text, null);
                 updateVoiceStatus('Respondiendo por voz...');
+                runtime()?.clearUserSpeech?.();
                 if (payload.executionPlan) {
                     executeWorkflowPlan(payload.executionPlan, 'voice').catch((error) => {
                         appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
@@ -1499,6 +1503,7 @@
         if (options.clearStatus !== false) {
             updateVoiceStatus('');
         }
+        runtime()?.clearUserSpeech?.();
         if (shouldAnnounce) {
             runtime()?.speak('Conversacion de voz detenida.', { mode: 'idle' });
         }
@@ -1804,6 +1809,13 @@
                     const greeting = 'Hola, puedo ayudarte a reservar un vehiculo. Solo dime que necesitas y yo me encargo.';
                     runtime()?.speak(greeting, { mode: 'listening' });
                     playAssistantGreeting(greeting).catch(() => {});
+                });
+                runtime()?.subscribe?.('voice-button', async () => {
+                    if (voiceState.active) {
+                        stopVoiceConversation();
+                        return;
+                    }
+                    await startVoiceConversation();
                 });
                 runtimeTouchBound = true;
             }

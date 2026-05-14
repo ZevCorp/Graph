@@ -358,7 +358,7 @@ class VoiceRealtimeGateway {
       }
 
       const params = new URLSearchParams({
-        model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-celeste-es',
+        model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-sirio-es',
         encoding: 'linear16',
         sample_rate: process.env.DEEPGRAM_TTS_SAMPLE_RATE || '24000'
       });

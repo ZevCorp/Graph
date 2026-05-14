@@ -258,6 +258,7 @@
                 z-index: calc(var(--graph-assistant-z, 2147483000) + 1);
                 max-width: min(320px, calc(100vw - 136px));
                 padding: 12px 14px;
+                padding-bottom: 22px;
                 border-radius: 18px;
                 background: rgba(20, 27, 34, 0.94);
                 color: #f8fbff;
@@ -276,6 +277,64 @@
             .graph-assistant-bubble[data-visible="true"] {
                 opacity: 1;
                 transform: translateY(0);
+            }
+            .graph-assistant-bubble-text {
+                display: block;
+                white-space: pre-wrap;
+            }
+            .graph-assistant-user-bubble {
+                position: fixed;
+                left: 16px;
+                top: 16px;
+                z-index: calc(var(--graph-assistant-z, 2147483000) + 2);
+                max-width: min(280px, calc(100vw - 152px));
+                padding: 10px 12px;
+                border-radius: 16px;
+                background: rgba(246, 250, 255, 0.97);
+                color: #102033;
+                font: 600 12px/1.4 "Inter", "Segoe UI", sans-serif;
+                box-shadow: 0 20px 44px rgba(5, 10, 20, 0.24);
+                opacity: 0;
+                transform: translateY(8px);
+                transition: opacity 140ms ease, transform 140ms ease;
+                pointer-events: none;
+            }
+            .graph-assistant-user-bubble[data-visible="true"] {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            .graph-assistant-bubble-mic {
+                position: fixed;
+                width: 42px;
+                height: 42px;
+                border: none;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.98);
+                color: #102033;
+                box-shadow:
+                    0 18px 36px rgba(4, 10, 20, 0.32),
+                    0 0 0 1px rgba(255, 255, 255, 0.78);
+                z-index: calc(var(--graph-assistant-z, 2147483000) + 3);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                pointer-events: auto;
+                transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+            }
+            .graph-assistant-bubble-mic:hover {
+                transform: translateY(-1px);
+                box-shadow:
+                    0 22px 42px rgba(4, 10, 20, 0.38),
+                    0 0 0 1px rgba(255, 255, 255, 0.88);
+            }
+            .graph-assistant-bubble-mic[data-active="true"] {
+                background: #0f5f8c;
+                color: #ffffff;
+            }
+            .graph-assistant-bubble-mic svg {
+                width: 18px;
+                height: 18px;
             }
             .graph-assistant-avatar {
                 width: var(--graph-assistant-glass-size);
@@ -418,7 +477,29 @@
             bubble.id = 'graph-assistant-bubble';
             bubble.className = 'graph-assistant-bubble';
             bubble.dataset.visible = 'true';
+            bubble.innerHTML = '<span class="graph-assistant-bubble-text" id="graph-assistant-bubble-text"></span>';
             document.body.appendChild(bubble);
+        }
+
+        let userBubble = document.getElementById('graph-assistant-user-bubble');
+        if (!userBubble) {
+            userBubble = document.createElement('div');
+            userBubble.id = 'graph-assistant-user-bubble';
+            userBubble.className = 'graph-assistant-user-bubble';
+            userBubble.dataset.visible = 'false';
+            document.body.appendChild(userBubble);
+        }
+
+        let micButton = document.getElementById('graph-assistant-bubble-mic');
+        if (!micButton) {
+            micButton = document.createElement('button');
+            micButton.id = 'graph-assistant-bubble-mic';
+            micButton.className = 'graph-assistant-bubble-mic';
+            micButton.type = 'button';
+            micButton.dataset.active = 'false';
+            micButton.setAttribute('aria-label', 'Hablar con el asistente');
+            micButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.08A7 7 0 0 1 5 12a1 1 0 1 1 2 0 5 5 0 1 0 10 0Z" fill="currentColor"/></svg>';
+            document.body.appendChild(micButton);
         }
 
         let spotlight = document.getElementById('graph-assistant-spotlight');
@@ -433,6 +514,9 @@
             shell,
             avatar: shell.querySelector('.graph-assistant-avatar'),
             bubble,
+            bubbleText: document.getElementById('graph-assistant-bubble-text'),
+            userBubble,
+            micButton,
             label: document.getElementById('graph-assistant-label'),
             spotlight
         };
@@ -573,10 +657,18 @@
     }
 
     function renderBubbleText(text) {
-        const { bubble } = ensureElements();
-        if (!bubble) return;
-        bubble.textContent = text || '';
+        const { bubble, bubbleText } = ensureElements();
+        if (!bubble || !bubbleText) return;
+        bubbleText.textContent = text || '';
         bubble.dataset.visible = text ? 'true' : 'false';
+        window.requestAnimationFrame(positionBubbleNearShell);
+    }
+
+    function renderUserBubbleText(text) {
+        const { userBubble } = ensureElements();
+        if (!userBubble) return;
+        userBubble.textContent = text || '';
+        userBubble.dataset.visible = text ? 'true' : 'false';
         window.requestAnimationFrame(positionBubbleNearShell);
     }
 
@@ -718,7 +810,9 @@
     function positionBubbleNearShell() {
         const shell = document.getElementById('graph-assistant-shell');
         const bubble = document.getElementById('graph-assistant-bubble');
-        if (!shell || !bubble || bubble.dataset.visible !== 'true') {
+        const userBubble = document.getElementById('graph-assistant-user-bubble');
+        const micButton = document.getElementById('graph-assistant-bubble-mic');
+        if (!shell || !bubble) {
             return;
         }
 
@@ -736,6 +830,22 @@
 
         bubble.style.left = `${clamp(rawLeft, padding, Math.max(padding, maxLeft))}px`;
         bubble.style.top = `${clamp(rawTop, padding, Math.max(padding, maxTop))}px`;
+
+        if (userBubble && userBubble.dataset.visible === 'true') {
+            const userRect = userBubble.getBoundingClientRect();
+            const userLeft = clamp(rawLeft, padding, Math.max(padding, window.innerWidth - userRect.width - padding));
+            const userTop = clamp(rawTop - userRect.height - 12, padding, Math.max(padding, window.innerHeight - userRect.height - padding));
+            userBubble.style.left = `${userLeft}px`;
+            userBubble.style.top = `${userTop}px`;
+        }
+
+        if (micButton) {
+            const buttonSize = 42;
+            const buttonLeft = clamp(rawLeft + (bubbleRect.width / 2) - (buttonSize / 2), padding, window.innerWidth - buttonSize - padding);
+            const buttonTop = clamp(rawTop + bubbleRect.height - 4, padding, window.innerHeight - buttonSize - padding);
+            micButton.style.left = `${buttonLeft}px`;
+            micButton.style.top = `${buttonTop}px`;
+        }
     }
 
     function setMode(mode) {
@@ -776,12 +886,16 @@
         mount(config = {}) {
             state.options = { ...DEFAULTS, ...config };
             ensureStyles();
-            const { label } = ensureElements();
+            const { label, micButton } = ensureElements();
             bindDragHandlers();
             document.documentElement.style.setProperty('--graph-assistant-accent', state.options.accentColor);
             document.documentElement.style.setProperty('--graph-assistant-z', `${state.options.zIndex}`);
             if (label) {
                 label.textContent = state.options.name || 'Graph';
+            }
+            if (micButton && micButton.dataset.bound !== 'true') {
+                micButton.dataset.bound = 'true';
+                micButton.addEventListener('click', () => emit('voice-button', {}));
             }
             showBubble(state.options.idleMessage || DEFAULTS.idleMessage);
             setShellPosition(window.innerWidth - 96, window.innerHeight - 164);
@@ -801,6 +915,17 @@
         },
         clearSpeech() {
             showBubble('');
+        },
+        showUserSpeech(text) {
+            renderUserBubbleText(text || '');
+        },
+        clearUserSpeech() {
+            renderUserBubbleText('');
+        },
+        setVoiceButtonActive(active) {
+            const { micButton } = ensureElements();
+            if (!micButton) return;
+            micButton.dataset.active = active ? 'true' : 'false';
         },
         moveToSelector(selector, options = {}) {
             if (!state.mounted) {
