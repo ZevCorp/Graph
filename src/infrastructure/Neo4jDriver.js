@@ -8,10 +8,21 @@ class Neo4jDriver {
     }
 
     this.uri = uri;
+    console.log(`[Neo4j] Configured URI: ${this.safeUriForLogs(this.uri)}`);
     this.database = (process.env.NEO4J_DATABASE || '').trim() || undefined;
+    console.log(`[Neo4j] Configured database: ${this.database || 'default'}`);
     this.auth = neo4j.auth.basic(process.env.NEO4J_USER, process.env.NEO4J_PASSWORD);
     this.driver = this.createDriver(this.uri);
     this.didDirectFallback = false;
+  }
+
+  safeUriForLogs(uri) {
+    try {
+      const parsed = new URL(uri);
+      return `${parsed.protocol}//${parsed.hostname}${parsed.port ? `:${parsed.port}` : ''}`;
+    } catch (error) {
+      return `${uri || ''}`.replace(/\/\/.*@/, '//***@');
+    }
   }
 
   createDriver(uri) {
