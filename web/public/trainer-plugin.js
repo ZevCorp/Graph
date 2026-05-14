@@ -22,7 +22,9 @@
     let longPressTimer = null;
     let longPressTriggered = false;
     let runtimeTouchBound = false;
+    let assistantPhonePairingBound = false;
     let feedbackOverlayVisible = false;
+    let assistantPhonePairingFrame = null;
     const voiceState = {
         active: false,
         socket: null,
@@ -258,6 +260,46 @@
                 min-width: 0;
             }
             .phone-mic-pairing-url {
+                overflow-wrap: anywhere;
+                color: #0f5f8c;
+                font-weight: 700;
+            }
+            .assistant-phone-mic-pairing {
+                position: fixed;
+                display: none;
+                width: min(320px, calc(100vw - 32px));
+                padding: 12px;
+                border-radius: 20px;
+                background: rgba(255, 255, 255, 0.97);
+                border: 1px solid rgba(15, 95, 140, 0.14);
+                box-shadow: 0 28px 60px rgba(12, 28, 43, 0.22);
+                backdrop-filter: blur(18px);
+                z-index: 2147483004;
+                grid-template-columns: 108px 1fr;
+                gap: 12px;
+                align-items: center;
+            }
+            .assistant-phone-mic-pairing.open {
+                display: grid;
+            }
+            .assistant-phone-mic-pairing img {
+                width: 108px;
+                height: 108px;
+                border-radius: 12px;
+                background: #fff;
+            }
+            .assistant-phone-mic-pairing-text {
+                display: grid;
+                gap: 7px;
+                min-width: 0;
+                color: #1d2a33;
+                font-size: 12px;
+                line-height: 1.45;
+            }
+            .assistant-phone-mic-pairing-text strong {
+                font-size: 13px;
+            }
+            .assistant-phone-mic-pairing-url {
                 overflow-wrap: anywhere;
                 color: #0f5f8c;
                 font-weight: 700;
@@ -660,6 +702,14 @@
                         <strong>Microfono del telefono</strong>
                         <span>Escanea el QR, activa el microfono en el telefono y deja esta pagina abierta.</span>
                         <span class="phone-mic-pairing-url" id="phone-mic-url"></span>
+                    </div>
+                </div>
+                <div class="assistant-phone-mic-pairing" id="assistant-phone-mic-pairing" aria-live="polite">
+                    <img id="assistant-phone-mic-qr" alt="QR para conectar el telefono como microfono">
+                    <div class="assistant-phone-mic-pairing-text">
+                        <strong>Usa tu telefono como microfono</strong>
+                        <span>Escanea este QR y activa el microfono desde el telefono sin salir de esta pagina.</span>
+                        <span class="assistant-phone-mic-pairing-url" id="assistant-phone-mic-url"></span>
                     </div>
                 </div>
                 <textarea id="agent-message" rows="1" placeholder=""></textarea>
@@ -1070,6 +1120,60 @@
         if (panel) {
             panel.classList.toggle('open', Boolean(visible));
         }
+        const floatingPanel = document.getElementById('assistant-phone-mic-pairing');
+        if (floatingPanel) {
+            floatingPanel.classList.toggle('open', Boolean(visible));
+        }
+        if (visible) {
+            positionAssistantPhonePairing();
+            scheduleAssistantPhonePairingPosition();
+            return;
+        }
+        if (assistantPhonePairingFrame) {
+            window.cancelAnimationFrame(assistantPhonePairingFrame);
+            assistantPhonePairingFrame = null;
+        }
+    }
+
+    function positionAssistantPhonePairing() {
+        const panel = document.getElementById('assistant-phone-mic-pairing');
+        const shell = document.getElementById('graph-assistant-shell');
+        if (!panel || !shell || !panel.classList.contains('open')) {
+            return;
+        }
+
+        const shellRect = shell.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const gap = 22;
+        const padding = 16;
+        const hasRoomOnLeft = shellRect.left - panelRect.width - gap >= padding;
+        const preferredLeft = hasRoomOnLeft
+            ? shellRect.left - panelRect.width - gap
+            : shellRect.right + gap;
+        const rawTop = shellRect.top + Math.max(-16, (shellRect.height - panelRect.height) / 2);
+        const maxLeft = Math.max(padding, window.innerWidth - panelRect.width - padding);
+        const maxTop = Math.max(padding, window.innerHeight - panelRect.height - padding);
+
+        panel.style.left = `${Math.min(maxLeft, Math.max(padding, preferredLeft))}px`;
+        panel.style.top = `${Math.min(maxTop, Math.max(padding, rawTop))}px`;
+    }
+
+    function scheduleAssistantPhonePairingPosition() {
+        if (assistantPhonePairingFrame) {
+            return;
+        }
+
+        const tick = () => {
+            assistantPhonePairingFrame = null;
+            const panel = document.getElementById('assistant-phone-mic-pairing');
+            if (!panel || !panel.classList.contains('open')) {
+                return;
+            }
+            positionAssistantPhonePairing();
+            assistantPhonePairingFrame = window.requestAnimationFrame(tick);
+        };
+
+        assistantPhonePairingFrame = window.requestAnimationFrame(tick);
     }
 
     function normalizePathname(value) {
@@ -2081,8 +2185,12 @@
         });
         const qr = document.getElementById('phone-mic-qr');
         const url = document.getElementById('phone-mic-url');
+        const floatingQr = document.getElementById('assistant-phone-mic-qr');
+        const floatingUrl = document.getElementById('assistant-phone-mic-url');
         if (qr) qr.src = payload.qrDataUrl;
         if (url) url.textContent = payload.phoneUrl;
+        if (floatingQr) floatingQr.src = payload.qrDataUrl;
+        if (floatingUrl) floatingUrl.textContent = payload.phoneUrl;
 
         updateVoiceStatus('Escanea el QR con el telefono. Luego toca "Activar microfono" en el telefono.');
         await startVoiceConversation({ phoneSessionId: payload.id });
@@ -2395,6 +2503,12 @@
                     updateWorkflowPanelStatus(error.message || 'No pude retomar la reserva pendiente.');
                 });
             }, 120);
+
+            if (!assistantPhonePairingBound) {
+                window.addEventListener('resize', positionAssistantPhonePairing, { passive: true });
+                window.addEventListener('scroll', positionAssistantPhonePairing, { passive: true });
+                assistantPhonePairingBound = true;
+            }
         },
         appendAgentMessage,
         resetWorkflow,

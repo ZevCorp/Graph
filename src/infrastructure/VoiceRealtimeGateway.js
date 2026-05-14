@@ -456,7 +456,7 @@ class VoiceRealtimeGateway {
         model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-javier-es',
         encoding: 'linear16',
         sample_rate: process.env.DEEPGRAM_TTS_SAMPLE_RATE || '24000',
-        speed: process.env.DEEPGRAM_TTS_SPEED || '1.05'
+        speed: process.env.DEEPGRAM_TTS_SPEED || '1.12'
       });
 
       const dgSpeak = new WebSocket(`wss://api.deepgram.com/v1/speak?${params.toString()}`, {
@@ -483,7 +483,7 @@ class VoiceRealtimeGateway {
       dgSpeak.on('open', () => {
         this.log('tts', 'Deepgram TTS socket open', {
           model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-javier-es',
-          speed: process.env.DEEPGRAM_TTS_SPEED || '1.05'
+          speed: process.env.DEEPGRAM_TTS_SPEED || '1.12'
         });
         this.sendJson(client, {
           type: 'audio_start',
