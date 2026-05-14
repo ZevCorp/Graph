@@ -150,8 +150,137 @@ window.addEventListener('load', function () {
   return `${html}\n${scripts}`;
 }
 
+function injectHomeCallWidget(html) {
+  const widget = `
+<style>
+  .home-call-widget {
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    z-index: 9999;
+    width: min(330px, calc(100vw - 36px));
+    font-family: inherit;
+  }
+  .home-call-card {
+    display: none;
+    margin-bottom: 10px;
+    padding: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+  }
+  .home-call-widget.is-open .home-call-card {
+    display: block;
+  }
+  .home-call-card h4 {
+    margin: 0 0 6px;
+    color: #12253e;
+    font-size: 1.05rem;
+    font-weight: 800;
+  }
+  .home-call-card p {
+    margin: 0 0 10px;
+    color: #4d5b70;
+    font-size: 0.92rem;
+    line-height: 1.35;
+  }
+  .home-call-row {
+    display: flex;
+    gap: 8px;
+  }
+  .home-call-row input {
+    min-width: 0;
+    flex: 1;
+    height: 42px;
+    border: 1px solid #d5dce5;
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #132238;
+    font-weight: 600;
+  }
+  .home-call-submit {
+    border: none;
+    border-radius: 6px;
+    background: #8bc53f;
+    color: #111;
+    font-size: 0.9rem;
+    font-weight: 800;
+    padding: 0 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .home-call-status {
+    min-height: 18px;
+    margin-top: 10px;
+    color: #d51717;
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+  .home-call-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    border-radius: 999px;
+    background: #d51717;
+    color: #fff;
+    box-shadow: 0 14px 30px rgba(213, 23, 23, 0.35);
+    padding: 13px 18px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+</style>
+<div class="home-call-widget" id="homeCallWidget" data-testid="home-call-widget">
+  <div class="home-call-card" id="homeCallCard" data-testid="home-call-card">
+    <h4>Te llamamos</h4>
+    <p>Dejanos tu numero y un asesor te contacta para ayudarte con la reserva.</p>
+    <p>Recuerda que te llamamos en los horarios de atencion.</p>
+    <div class="home-call-row">
+      <input id="homeCallPhone" data-testid="home-call-phone" type="tel" placeholder="+ Indicativo / numero">
+      <button class="home-call-submit" id="homeCallSubmit" data-testid="home-call-submit" type="button">Enviar</button>
+    </div>
+    <div class="home-call-status" id="homeCallStatus" data-testid="home-call-status" aria-live="polite"></div>
+  </div>
+  <button class="home-call-toggle" id="homeCallToggle" data-testid="home-call-toggle" type="button" aria-controls="homeCallCard" aria-expanded="false">
+    <i class="fa fa-phone" aria-hidden="true"></i>
+    <span>Llamame</span>
+  </button>
+</div>
+<script>
+window.addEventListener('load', function () {
+  var widget = document.getElementById('homeCallWidget');
+  var toggle = document.getElementById('homeCallToggle');
+  var phone = document.getElementById('homeCallPhone');
+  var submit = document.getElementById('homeCallSubmit');
+  var status = document.getElementById('homeCallStatus');
+  if (!widget || !toggle || !phone || !submit || !status) return;
+  toggle.addEventListener('click', function () {
+    var isOpen = widget.classList.toggle('is-open');
+    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    if (isOpen) phone.focus();
+  });
+  submit.addEventListener('click', function () {
+    if (!phone.value.trim()) {
+      status.textContent = 'Ingresa un numero para poder llamarte.';
+      phone.focus();
+      return;
+    }
+    status.textContent = 'Listo. Te contactaremos pronto a este numero.';
+  });
+});
+</script>
+`;
+
+  if (html.includes('</body>')) {
+    return html.replace('</body>', `${widget}\n</body>`);
+  }
+
+  return `${html}\n${widget}`;
+}
+
 function enhanceCarDemoHome(html) {
-  return html
+  const enhanced = html
     .replace('action="reservar.html"', 'action="/rentacar/reservar.html" data-testid="car-quote-form"')
     .replace(
       /<input type="text" class="form-control datetimepicker-input dateArrow hasDatepicker" id="desde" name="desde" data-target="#dateDel" autocomplete="off" value="\s*([^"]*)">/,
@@ -174,6 +303,8 @@ function enhanceCarDemoHome(html) {
     .replace('id="searchFormRangeDateTimePicker-endTime" class="form-control datetimepicker-input"', 'id="searchFormRangeDateTimePicker-endTime" data-testid="return-time" class="form-control datetimepicker-input"')
     .replace('id="lugDevId" required="required"', 'id="lugDevId" data-testid="return-location" required="required"')
     .replace('<input type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">', '<input id="quote-submit" data-testid="quote-submit" type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">');
+
+  return injectHomeCallWidget(enhanced);
 }
 
 app.get('/examples/car-demo', (req, res) => {
