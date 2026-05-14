@@ -124,94 +124,68 @@
 - 5. INPUT #hasta | value="sdfgsdfgsdfg" | label="hasta" | control=text | url=http://localhost:3000/examples/car-demo
 - 6. CLICK input | control=submit | url=http://localhost:3000/examples/car-demo
 
-## wf_1778736669657
+## wf_1778783393587
 
-- Purpose: **User navigation workflow –car‑rental quote & reservation**
-
-1. **Landing & date selection** – Open the “Alquiler de Carros en Medellín” page, click the pickup‑date field, type a start date, then click the return‑date field and enter a return date.  
-2. **Quote request** – Click the “COTIZAR” (quote‑submit) button; the system navigates to a reservation page pre‑filled with the selected dates.  
-3. **Reservation details** – Choose a vehicle (e.g., Kia Picanto), indicate that the user lives in Colombia, and fill in personal information: email, first/last name, ID number, birth date, city, nationality, and WhatsApp phone.  
-4. **Reference contacts** – Add three reference entries, each with a name and phone number.  
-5. **Travel information** – Provide a flight reservation code, airline, flight number, origin city, and lodging address in Medellín.  
-6. **Additional notes** – Enter any extra comments or requirements.  
-
-The workflow moves from the initial quote page, through date entry and submission, to a multi‑step reservation form that captures vehicle selection, personal and contact data, travel details, and optional remarks before final submission.
+- Purpose: Car rental quote workflow
 - Status: done
-- CLI: `node index.js "run wf_1778736669657" --input_3="..." --input_5="..." --input_10="..." --input_12="..." --input_14="..." --input_16="..." --input_18="..." --input_20="..." --input_22="..." --input_24="..." --input_26="..." --input_28="..." --input_30="..." --input_32="..." --input_34="..." --input_36="..." --input_38="..." --input_40="..." --input_42="..." --input_44="..." --input_46="..." --input_48="..." --input_50="..."`
+- CLI: `node index.js "run wf_1778783393587" --input_3="..." --input_5="..." --input_10="..." --input_12="..." --input_13="..." --input_15="..." --input_17="..." --input_19="..." --input_21="..." --input_25="..." --input_27="..." --input_29="..." --input_31="..." --input_33="..." --input_35="..." --input_37="..." --input_39="..."`
 
 ### Variables
-- `input_3`: field="desde" Value for desde (default: `heyheyh`)
-- `input_5`: field="hasta" Value for hasta (default: `rtyhrtyhythr`)
-- `input_10`: field="Si" Value for Si (default: `on`)
-- `input_12`: field="Email *" Value for Email * (default: `htryhrtyh`)
-- `input_14`: field="Nombres *" Value for Nombres * (default: `tyrhrtyh`)
-- `input_16`: field="Apellidos *" Value for Apellidos * (default: `rtyhrtyh`)
-- `input_18`: field="Numero de Documento *" Value for Numero de Documento * (default: `rtyhrtyhrt`)
-- `input_20`: field="Fecha de nacimiento *" Value for Fecha de nacimiento * (default: `hyrthrty`)
-- `input_22`: field="Ciudad *" Value for Ciudad * (default: `htryhrtyh`)
-- `input_24`: field="Nacionalidad" Value for Nacionalidad (default: `rtyhrtyhrt`)
-- `input_26`: field="Telefono con WhatsApp *" Value for Telefono con WhatsApp * (default: `yhrtyhrtyh`)
-- `input_28`: field="Nombre completo" Value for Nombre completo (default: `htryhrtyhr`)
-- `input_30`: field="Nombre completo" Value for Nombre completo (default: `tyhrtyhrtyhr`)
-- `input_32`: field="Nombre completo" Value for Nombre completo (default: `yrthrty`)
-- `input_34`: field="Telefono" Value for Telefono (default: `hrtyhrtyh`)
-- `input_36`: field="Telefono" Value for Telefono (default: `rtyhrtyhrtyhrt`)
-- `input_38`: field="Telefono" Value for Telefono (default: `yhrtyhrtyh`)
-- `input_40`: field="Codigo de Reserva aerea" Value for Codigo de Reserva aerea (default: `hrtyhrtyhrtyh`)
-- `input_42`: field="Aerolinea" Value for Aerolinea (default: `rtyhrtyhrtyh`)
-- `input_44`: field="Numero de vuelo" Value for Numero de vuelo (default: `rtyhrtyhrtyh`)
-- `input_46`: field="Ciudad de procedencia del vuelo" Value for Ciudad de procedencia del vuelo (default: `rtyhrtyh`)
-- `input_48`: field="Direccion hospedaje en Medellin" Value for Direccion hospedaje en Medellin (default: `hrtyhrtyhrtyhrtyhrtyh`)
-- `input_50`: field="Comentarios y requerimientos adicionales" Value for Comentarios y requerimientos adicionales (default: `rtyhrtyhrtyhrtyh`)
+- `input_3`: field="desde" Value for desde (default: `2026-05-18`)
+- `input_5`: field="hasta" Value for hasta (default: `2026-05-05`)
+- `input_10`: field="Email *" Value for Email * (default: `fivjnhsfivnfio@gmail.com`)
+- `input_12`: field="Nombres *" Value for Nombres * (default: `Felipe`)
+- `input_13`: field="Apellidos *" Value for Apellidos * (default: `Maldonado`)
+- `input_15`: field="Numero de Documento *" Value for Numero de Documento * (default: `cdcsdc`)
+- `input_17`: field="Fecha de nacimiento *" Value for Fecha de nacimiento * (default: `cdscsdcsdc`)
+- `input_19`: field="Nacionalidad" Value for Nacionalidad (default: `cdscsdc`)
+- `input_21`: field="Ciudad de residencia *" Value for Ciudad de residencia * (default: `tgrtgrtgrtgrtg`)
+- `input_25`: field="Ciudad de residencia *" Value for Ciudad de residencia * (default: `cdscsdcds`)
+- `input_27`: field="Telefono con WhatsApp *" Value for Telefono con WhatsApp * (default: `+573502678360`)
+- `input_29`: field="Codigo de Reserva aerea" Value for Codigo de Reserva aerea (default: `vsfvfv`)
+- `input_31`: field="Aerolinea" Value for Aerolinea (default: `vdfvdfv`)
+- `input_33`: field="Numero de vuelo" Value for Numero de vuelo (default: `vfdsvdfv`)
+- `input_35`: field="Ciudad de procedencia del vuelo" Value for Ciudad de procedencia del vuelo (default: `vdfvsdfv`)
+- `input_37`: field="Direccion hospedaje en Medellin" Value for Direccion hospedaje en Medellin (default: `fdvsdfv`)
+- `input_39`: field="Comentarios y requerimientos adicionales" Value for Comentarios y requerimientos adicionales (default: `vdfvdsfv`)
 
 ### Steps
 - 1. NAVIGATION document | label="Alquiler de Carros en Medellín | Rent a Car Medellín 24h" | url=http://localhost:3000/examples/car-demo
-- 2. CLICK [data-testid="pickup-date"] | label="desde" | control=text | url=http://localhost:3000/examples/car-demo
-- 3. INPUT [data-testid="pickup-date"] | value="heyheyh" | label="desde" | control=text | url=http://localhost:3000/examples/car-demo
-- 4. CLICK [data-testid="return-date"] | label="hasta" | control=text | url=http://localhost:3000/examples/car-demo
-- 5. INPUT [data-testid="return-date"] | value="rtyhrtyhythr" | label="hasta" | control=text | url=http://localhost:3000/examples/car-demo
+- 2. CLICK [data-testid="pickup-date"] | label="desde" | control=date | url=http://localhost:3000/examples/car-demo
+- 3. INPUT [data-testid="pickup-date"] | value="2026-05-18" | label="desde" | control=date | url=http://localhost:3000/examples/car-demo
+- 4. CLICK [data-testid="return-date"] | label="hasta" | control=date | url=http://localhost:3000/examples/car-demo
+- 5. INPUT [data-testid="return-date"] | value="2026-05-05" | label="hasta" | control=date | url=http://localhost:3000/examples/car-demo
 - 6. CLICK [data-testid="quote-submit"] | label="quote-submit" | control=submit | url=http://localhost:3000/examples/car-demo
-- 7. NAVIGATION document | label="Flota disponible | Rent a Car Medellin" | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 8. CLICK [data-testid="reserve-kia-picanto"] | label="reserve-kia-picanto" | control=button | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 9. CLICK [data-testid="lives-in-colombia-yes"] | label="Si" | control=radio | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 10. INPUT [data-testid="lives-in-colombia-yes"] | value="on" | label="Si" | control=radio | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 11. CLICK [data-testid="client-email"] | label="Email *" | control=email | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 12. INPUT [data-testid="client-email"] | value="htryhrtyh" | label="Email *" | control=email | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 13. CLICK [data-testid="client-first-name"] | label="Nombres *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 14. INPUT [data-testid="client-first-name"] | value="tyrhrtyh" | label="Nombres *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 15. CLICK [data-testid="client-last-name"] | label="Apellidos *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 16. INPUT [data-testid="client-last-name"] | value="rtyhrtyh" | label="Apellidos *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 17. CLICK [data-testid="client-document-number"] | label="Numero de Documento *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 18. INPUT [data-testid="client-document-number"] | value="rtyhrtyhrt" | label="Numero de Documento *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 19. CLICK [data-testid="client-birth-date"] | label="Fecha de nacimiento *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 20. INPUT [data-testid="client-birth-date"] | value="hyrthrty" | label="Fecha de nacimiento *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 21. CLICK [data-testid="client-city"] | label="Ciudad *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 22. INPUT [data-testid="client-city"] | value="htryhrtyh" | label="Ciudad *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 23. CLICK [data-testid="client-nationality"] | label="Nacionalidad" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 24. INPUT [data-testid="client-nationality"] | value="rtyhrtyhrt" | label="Nacionalidad" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 25. CLICK [data-testid="client-whatsapp"] | label="Telefono con WhatsApp *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 26. INPUT [data-testid="client-whatsapp"] | value="yhrtyhrtyh" | label="Telefono con WhatsApp *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 27. CLICK [data-testid="reference-one-name"] | label="Nombre completo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 28. INPUT [data-testid="reference-one-name"] | value="htryhrtyhr" | label="Nombre completo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 29. CLICK [data-testid="reference-two-name"] | label="Nombre completo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 30. INPUT [data-testid="reference-two-name"] | value="tyhrtyhrtyhr" | label="Nombre completo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 31. CLICK [data-testid="reference-three-name"] | label="Nombre completo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 32. INPUT [data-testid="reference-three-name"] | value="yrthrty" | label="Nombre completo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 33. CLICK [data-testid="reference-three-phone"] | label="Telefono" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 34. INPUT [data-testid="reference-three-phone"] | value="hrtyhrtyh" | label="Telefono" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 35. CLICK [data-testid="reference-two-phone"] | label="Telefono" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 36. INPUT [data-testid="reference-two-phone"] | value="rtyhrtyhrtyhrt" | label="Telefono" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 37. CLICK [data-testid="reference-one-phone"] | label="Telefono" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 38. INPUT [data-testid="reference-one-phone"] | value="yhrtyhrtyh" | label="Telefono" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 39. CLICK [data-testid="flight-reservation-code"] | label="Codigo de Reserva aerea" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 40. INPUT [data-testid="flight-reservation-code"] | value="hrtyhrtyhrtyh" | label="Codigo de Reserva aerea" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 41. CLICK [data-testid="flight-airline"] | label="Aerolinea" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 42. INPUT [data-testid="flight-airline"] | value="rtyhrtyhrtyh" | label="Aerolinea" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 43. CLICK [data-testid="flight-number"] | label="Numero de vuelo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 44. INPUT [data-testid="flight-number"] | value="rtyhrtyhrtyh" | label="Numero de vuelo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 45. CLICK [data-testid="flight-origin-city"] | label="Ciudad de procedencia del vuelo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 46. INPUT [data-testid="flight-origin-city"] | value="rtyhrtyh" | label="Ciudad de procedencia del vuelo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 47. CLICK [data-testid="lodging-address"] | label="Direccion hospedaje en Medellin" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 48. INPUT [data-testid="lodging-address"] | value="hrtyhrtyhrtyhrtyhrtyh" | label="Direccion hospedaje en Medellin" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 49. CLICK [data-testid="additional-comments"] | label="Comentarios y requerimientos adicionales" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
-- 50. INPUT [data-testid="additional-comments"] | value="rtyhrtyhrtyhrtyh" | label="Comentarios y requerimientos adicionales" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=heyheyh&desdeH=07%3A00&entrega=ofc&hasta=rtyhrtyhythr&hastaH=05%3A00&devuelve=ofc&source=
+- 7. NAVIGATION document | label="Flota disponible | Rent a Car Medellin" | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 8. CLICK [data-testid="reserve-renault-duster"] | label="reserve-renault-duster" | control=button | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 9. CLICK [data-testid="client-email"] | label="Email *" | control=email | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 10. INPUT [data-testid="client-email"] | value="fivjnhsfivnfio@gmail.com" | label="Email *" | control=email | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 11. CLICK [data-testid="client-first-name"] | label="Nombres *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 12. INPUT [data-testid="client-first-name"] | value="Felipe" | label="Nombres *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 13. INPUT [data-testid="client-last-name"] | value="Maldonado" | label="Apellidos *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 14. CLICK [data-testid="client-document-number"] | label="Numero de Documento *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 15. INPUT [data-testid="client-document-number"] | value="cdcsdc" | label="Numero de Documento *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 16. CLICK [data-testid="client-birth-date"] | label="Fecha de nacimiento *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 17. INPUT [data-testid="client-birth-date"] | value="cdscsdcsdc" | label="Fecha de nacimiento *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 18. CLICK [data-testid="client-nationality"] | label="Nacionalidad" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 19. INPUT [data-testid="client-nationality"] | value="cdscsdc" | label="Nacionalidad" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 20. CLICK [data-testid="client-city"] | label="Ciudad de residencia *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 21. INPUT [data-testid="client-city"] | value="tgrtgrtgrtgrtg" | label="Ciudad de residencia *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 22. CLICK [data-testid="client-city"] | label="Ciudad de residencia *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 23. CLICK [data-testid="client-city"] | label="Ciudad de residencia *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 24. CLICK [data-testid="client-city"] | label="Ciudad de residencia *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 25. INPUT [data-testid="client-city"] | value="cdscsdcds" | label="Ciudad de residencia *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 26. CLICK [data-testid="client-whatsapp"] | label="Telefono con WhatsApp *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 27. INPUT [data-testid="client-whatsapp"] | value="+573502678360" | label="Telefono con WhatsApp *" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 28. CLICK [data-testid="flight-reservation-code"] | label="Codigo de Reserva aerea" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 29. INPUT [data-testid="flight-reservation-code"] | value="vsfvfv" | label="Codigo de Reserva aerea" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 30. CLICK [data-testid="flight-airline"] | label="Aerolinea" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 31. INPUT [data-testid="flight-airline"] | value="vdfvdfv" | label="Aerolinea" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 32. CLICK [data-testid="flight-number"] | label="Numero de vuelo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 33. INPUT [data-testid="flight-number"] | value="vfdsvdfv" | label="Numero de vuelo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 34. CLICK [data-testid="flight-origin-city"] | label="Ciudad de procedencia del vuelo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 35. INPUT [data-testid="flight-origin-city"] | value="vdfvsdfv" | label="Ciudad de procedencia del vuelo" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 36. CLICK [data-testid="lodging-address"] | label="Direccion hospedaje en Medellin" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 37. INPUT [data-testid="lodging-address"] | value="fdvsdfv" | label="Direccion hospedaje en Medellin" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 38. CLICK [data-testid="additional-comments"] | label="Comentarios y requerimientos adicionales" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=
+- 39. INPUT [data-testid="additional-comments"] | value="vdfvdsfv" | label="Comentarios y requerimientos adicionales" | control=text | url=http://localhost:3000/rentacar/reservar.html?desde=2026-05-18&desdeH=01%3A00&entrega=ofc&hasta=2026-05-05&hastaH=01%3A00&devuelve=ofc&source=

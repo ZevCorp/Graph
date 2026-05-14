@@ -162,22 +162,16 @@
             [leftCornerHeight, rightCornerHeight] = [rightCornerHeight, leftCornerHeight];
         }
 
-        // The SVG group is already centered via its transform attribute.
-        // Applying another CSS translate here offsets the face outside the circle.
-        // We only apply a subtle rotation for liveliness/orientation.
-        faceGroup.style.transform = isLookingRight
-            ? 'rotate(2deg)'
-            : 'rotate(-2deg)';
-        faceGroup.style.transformOrigin = 'center';
-        faceGroup.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+        const faceRotation = isLookingRight ? 2 : -2;
+        faceGroup.setAttribute('transform', `rotate(${faceRotation})`);
 
-        leftEyebrow.setAttribute('d', generateEyebrowPath(-55, -55, 35, leftBrowHeight, leftBrowCurve, false));
-        rightEyebrow.setAttribute('d', generateEyebrowPath(55, -55, 35, rightBrowHeight, rightBrowCurve, true));
-        leftEye.setAttribute('d', generateEyePath(-55 + gazeOffset, -25, preset.eyeOpenness * blinkFactor, preset.eyeSquint));
-        rightEye.setAttribute('d', generateEyePath(55 + gazeOffset, -25, preset.eyeOpenness * blinkFactor, preset.eyeSquint));
+        leftEyebrow.setAttribute('d', generateEyebrowPath(-30, -34, 20, leftBrowHeight, leftBrowCurve, false));
+        rightEyebrow.setAttribute('d', generateEyebrowPath(30, -34, 20, rightBrowHeight, rightBrowCurve, true));
+        leftEye.setAttribute('d', generateEyePath(-30 + gazeOffset, -14, preset.eyeOpenness * blinkFactor, preset.eyeSquint));
+        rightEye.setAttribute('d', generateEyePath(30 + gazeOffset, -14, preset.eyeOpenness * blinkFactor, preset.eyeSquint));
         mouth.setAttribute(
             'd',
-            generateMouthPath(0, 50, 60 * preset.mouthWidth, preset.mouthCurve, leftCornerHeight, rightCornerHeight, preset.mouthOpenness)
+            generateMouthPath(0, 34, 34 * preset.mouthWidth, preset.mouthCurve, leftCornerHeight, rightCornerHeight, preset.mouthOpenness)
         );
     }
 
@@ -236,10 +230,9 @@
                 position: fixed;
                 left: calc(100vw - 96px);
                 top: calc(100vh - 164px);
+                width: var(--graph-assistant-glass-size);
+                height: var(--graph-assistant-glass-size);
                 z-index: var(--graph-assistant-z, 2147483000);
-                display: flex;
-                align-items: flex-end;
-                gap: 12px;
                 pointer-events: none;
                 transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1), top 320ms cubic-bezier(0.22, 1, 0.36, 1);
             }
@@ -251,6 +244,10 @@
                 transform: translateY(-2px) scale(1.02);
             }
             .graph-assistant-bubble {
+                position: fixed;
+                left: 16px;
+                top: 16px;
+                z-index: calc(var(--graph-assistant-z, 2147483000) + 1);
                 max-width: min(320px, calc(100vw - 136px));
                 padding: 12px 14px;
                 border-radius: 18px;
@@ -272,12 +269,18 @@
                 width: var(--graph-assistant-glass-size);
                 height: var(--graph-assistant-glass-size);
                 border-radius: var(--graph-assistant-glass-radius);
-                position: relative;
-                overflow: visible;
+                position: absolute;
+                inset: 0;
+                overflow: hidden;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background: transparent;
+                background:
+                    linear-gradient(135deg, var(--graph-assistant-glass-highlight) 0%, var(--graph-assistant-glass-mid) 50%, rgba(255, 255, 255, 0.08) 100%);
+                backdrop-filter: blur(60px) saturate(180%);
+                -webkit-backdrop-filter: blur(60px) saturate(180%);
+                border: 0.5px solid var(--graph-assistant-glass-border);
+                box-shadow: 0 15px 50px var(--graph-assistant-glass-shadow);
                 transition: transform 180ms ease;
                 pointer-events: auto;
                 cursor: grab;
@@ -288,41 +291,17 @@
             .graph-assistant-shell[data-dragging="true"] .graph-assistant-avatar {
                 cursor: grabbing;
             }
-            .graph-assistant-avatar::before {
-                content: "";
-                position: absolute;
-                width: var(--graph-assistant-glass-size);
-                height: var(--graph-assistant-glass-size);
-                border-radius: inherit;
-                background:
-                    linear-gradient(135deg, var(--graph-assistant-glass-highlight) 0%, var(--graph-assistant-glass-mid) 50%, rgba(255, 255, 255, 0.08) 100%);
-                backdrop-filter: blur(60px) saturate(180%);
-                -webkit-backdrop-filter: blur(60px) saturate(180%);
-                border: 0.5px solid var(--graph-assistant-glass-border);
-                box-shadow: 0 15px 50px var(--graph-assistant-glass-shadow);
-                left: 50%;
-                top: 50%;
-                transform: translate(-50%, -50%);
-                z-index: -1;
-                animation: graphAssistantGlassFloat 6s ease-in-out infinite;
-            }
             .graph-assistant-label {
+                display: none;
+            }
+            .graph-assistant-face-frame {
                 position: absolute;
-                bottom: -24px;
-                left: 50%;
-                transform: translateX(-50%);
-                font: 700 10px/1 "Inter", "Segoe UI", sans-serif;
-                letter-spacing: 0.08em;
-                text-transform: uppercase;
-                color: #eef6ff;
-                background: rgba(15, 24, 34, 0.72);
-                padding: 5px 8px;
-                border-radius: 999px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                box-shadow: 0 10px 22px rgba(12, 24, 35, 0.16);
-                white-space: nowrap;
-                backdrop-filter: blur(12px);
-                -webkit-backdrop-filter: blur(12px);
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                pointer-events: none;
             }
             .graph-assistant-face-slot {
                 position: absolute;
@@ -331,7 +310,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                overflow: visible;
+                overflow: hidden;
                 pointer-events: none;
             }
             .graph-assistant-face-core {
@@ -340,17 +319,18 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                overflow: visible;
+                overflow: hidden;
                 pointer-events: none;
             }
             .graph-assistant-face-svg {
-                position: relative;
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 112px;
+                height: 112px;
+                transform: translate(-50%, -50%);
                 z-index: 2;
-                width: 100%;
-                height: 100%;
-                max-width: 140px;
-                max-height: 140px;
-                overflow: visible;
+                overflow: hidden;
                 display: block;
                 margin: 0;
                 pointer-events: none;
@@ -398,25 +378,35 @@
             shell.className = 'graph-assistant-shell';
             shell.dataset.state = 'idle';
             shell.innerHTML = `
-                <div id="graph-assistant-bubble" class="graph-assistant-bubble" data-visible="true"></div>
                 <div class="graph-assistant-avatar" aria-hidden="true">
-                    <div class="graph-assistant-face-slot" data-face-slot="true">
-                        <div class="graph-assistant-face-core">
-                            <svg class="graph-assistant-face-svg" viewBox="50 80 300 340" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-                                <g id="graph-assistant-face-group" transform="translate(200, 250)">
-                                    <path id="graph-assistant-left-eyebrow" class="graph-assistant-face-stroke"></path>
-                                    <path id="graph-assistant-right-eyebrow" class="graph-assistant-face-stroke"></path>
-                                    <path id="graph-assistant-left-eye-line" class="graph-assistant-face-stroke"></path>
-                                    <path id="graph-assistant-right-eye-line" class="graph-assistant-face-stroke"></path>
-                                    <path id="graph-assistant-mouth" class="graph-assistant-face-stroke"></path>
-                                </g>
-                            </svg>
+                    <div class="graph-assistant-face-frame">
+                        <div class="graph-assistant-face-slot" data-face-slot="true">
+                            <div class="graph-assistant-face-core">
+                                <svg class="graph-assistant-face-svg" viewBox="-75 -75 150 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                                    <g id="graph-assistant-face-group" transform="rotate(-2)">
+                                        <path id="graph-assistant-left-eyebrow" class="graph-assistant-face-stroke"></path>
+                                        <path id="graph-assistant-right-eyebrow" class="graph-assistant-face-stroke"></path>
+                                        <path id="graph-assistant-left-eye-line" class="graph-assistant-face-stroke"></path>
+                                        <path id="graph-assistant-right-eye-line" class="graph-assistant-face-stroke"></path>
+                                        <path id="graph-assistant-mouth" class="graph-assistant-face-stroke"></path>
+                                    </g>
+                                </svg>
+                            </div>
                         </div>
                     </div>
                     <div class="graph-assistant-label" id="graph-assistant-label">Graph</div>
                 </div>
             `;
             document.body.appendChild(shell);
+        }
+
+        let bubble = document.getElementById('graph-assistant-bubble');
+        if (!bubble) {
+            bubble = document.createElement('div');
+            bubble.id = 'graph-assistant-bubble';
+            bubble.className = 'graph-assistant-bubble';
+            bubble.dataset.visible = 'true';
+            document.body.appendChild(bubble);
         }
 
         let spotlight = document.getElementById('graph-assistant-spotlight');
@@ -430,7 +420,7 @@
         return {
             shell,
             avatar: shell.querySelector('.graph-assistant-avatar'),
-            bubble: document.getElementById('graph-assistant-bubble'),
+            bubble,
             label: document.getElementById('graph-assistant-label'),
             spotlight
         };
@@ -451,6 +441,8 @@
         shell.style.left = `${left}px`;
         shell.style.top = `${top}px`;
         updateFaceDirectionFromShell();
+        positionBubbleNearShell();
+        window.setTimeout(positionBubbleNearShell, 360);
     }
 
     function setDragging(active) {
@@ -567,6 +559,30 @@
         if (!bubble) return;
         bubble.textContent = text || '';
         bubble.dataset.visible = text ? 'true' : 'false';
+        window.requestAnimationFrame(positionBubbleNearShell);
+    }
+
+    function positionBubbleNearShell() {
+        const shell = document.getElementById('graph-assistant-shell');
+        const bubble = document.getElementById('graph-assistant-bubble');
+        if (!shell || !bubble || bubble.dataset.visible !== 'true') {
+            return;
+        }
+
+        const shellRect = shell.getBoundingClientRect();
+        const bubbleRect = bubble.getBoundingClientRect();
+        const gap = 18;
+        const padding = 16;
+        const preferredLeft = shellRect.left - bubbleRect.width - gap;
+        const fallbackLeft = shellRect.right + gap;
+        const hasRoomOnLeft = preferredLeft >= padding;
+        const rawLeft = hasRoomOnLeft ? preferredLeft : fallbackLeft;
+        const rawTop = shellRect.top + (shellRect.height - bubbleRect.height) / 2;
+        const maxLeft = window.innerWidth - bubbleRect.width - padding;
+        const maxTop = window.innerHeight - bubbleRect.height - padding;
+
+        bubble.style.left = `${clamp(rawLeft, padding, Math.max(padding, maxLeft))}px`;
+        bubble.style.top = `${clamp(rawTop, padding, Math.max(padding, maxTop))}px`;
     }
 
     function setMode(mode) {
@@ -611,7 +627,9 @@
             bindDragHandlers();
             document.documentElement.style.setProperty('--graph-assistant-accent', state.options.accentColor);
             document.documentElement.style.setProperty('--graph-assistant-z', `${state.options.zIndex}`);
-            label.textContent = state.options.name || 'Graph';
+            if (label) {
+                label.textContent = state.options.name || 'Graph';
+            }
             showBubble(state.options.idleMessage || DEFAULTS.idleMessage);
             setShellPosition(window.innerWidth - 96, window.innerHeight - 164);
             state.mounted = true;

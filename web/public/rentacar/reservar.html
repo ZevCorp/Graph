@@ -24,7 +24,7 @@
       color: var(--text-main);
     }
     .results-hero {
-      padding: 48px 0 26px;
+      padding: 48px 0 46px;
       background:
         linear-gradient(115deg, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.48)),
         radial-gradient(circle at top left, rgba(213, 23, 23, 0.42), transparent 42%);
@@ -43,8 +43,8 @@
     }
     .results-shell {
       max-width: 1180px;
-      margin: -40px auto 0;
-      padding: 0 16px 64px;
+      margin: 0 auto;
+      padding: 24px 16px 64px;
       position: relative;
       z-index: 2;
     }
@@ -88,6 +88,25 @@
     .results-toolbar p {
       margin: 4px 0 0;
       color: var(--text-soft);
+    }
+    .results-intro {
+      margin-bottom: 18px;
+      padding: 18px 20px;
+      border: 1px solid #ececec;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #fffdfd 0%, #fff 100%);
+    }
+    .results-intro h3 {
+      margin: 0 0 6px;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #10233d;
+    }
+    .results-intro p {
+      margin: 0;
+      color: var(--text-soft);
+      max-width: 760px;
+      line-height: 1.5;
     }
     .trip-glance {
       display: grid;
@@ -499,23 +518,34 @@
     .client-field.span-3 {
       grid-column: 1 / -1;
     }
+    .client-field.is-hidden,
+    .flight-section.is-hidden,
+    .family-stage.is-hidden-by-residency {
+      display: none !important;
+    }
     .family-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: 1fr;
       gap: 18px 16px;
     }
     .family-card {
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 16px;
+      padding: 18px 20px;
       background: #fff;
     }
     .family-card h4 {
       margin: 0 0 14px;
-      text-align: center;
+      text-align: left;
       color: #1a2d46;
       font-size: 1.05rem;
       font-weight: 700;
+    }
+    .family-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px 16px;
+      align-items: end;
     }
     .flight-grid {
       display: grid;
@@ -560,13 +590,57 @@
       color: #12253e;
       font-weight: 800;
     }
-    .call-widget {
+    .contact-dock {
       position: fixed;
-      left: 18px;
+      right: 18px;
       bottom: 18px;
       z-index: 9999;
-      width: min(330px, calc(100vw - 36px));
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
       font-family: inherit;
+    }
+    .contact-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 56px;
+    }
+    .contact-link,
+    .call-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      padding: 0;
+      border-radius: 999px;
+      font-weight: 800;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
+      text-decoration: none;
+      transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+    .contact-link:hover,
+    .call-toggle:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);
+    }
+    .contact-link img {
+      width: 22px;
+      height: 22px;
+      object-fit: contain;
+    }
+    .contact-link.whatsapp {
+      background: #1f9d55;
+      color: #fff;
+    }
+    .contact-link span,
+    .call-toggle span {
+      display: none;
+    }
+    .call-widget {
+      width: min(320px, calc(100vw - 36px));
     }
     .call-card {
       display: none;
@@ -625,16 +699,9 @@
       font-weight: 700;
     }
     .call-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
       border: none;
-      border-radius: 999px;
       background: var(--brand-red);
       color: #fff;
-      box-shadow: 0 14px 30px rgba(213, 23, 23, 0.35);
-      padding: 13px 18px;
-      font-weight: 800;
       cursor: pointer;
     }
     .call-toggle .fa {
@@ -647,6 +714,7 @@
       .selection-grid,
       .client-grid,
       .family-grid,
+      .family-fields,
       .flight-grid,
       .reviews-grid {
         grid-template-columns: 1fr;
@@ -679,6 +747,10 @@
       .client-body {
         padding-left: 16px;
         padding-right: 16px;
+      }
+      .contact-dock {
+        right: 12px;
+        bottom: 12px;
       }
     }
   </style>
@@ -717,6 +789,10 @@
           </div>
           <a class="btn btn-dark btn-sm" href="/examples/car-demo">Editar busqueda</a>
         </div>
+        <div class="results-intro">
+          <h3>Explora la flota lista para reservar</h3>
+          <p>Compara capacidad, comodidad y precio total segun las fechas seleccionadas antes de afinar los filtros.</p>
+        </div>
         <div class="trip-glance">
           <div class="summary-item"><span>Recogida</span><strong id="pickupDate" data-testid="pickup-date-summary">Hoy</strong></div>
           <div class="summary-item"><span>Hora de recogida</span><strong id="pickupTime" data-testid="pickup-time-summary">Por confirmar</strong></div>
@@ -734,7 +810,7 @@
             </select>
           </div>
           <div class="filter-chip compact">
-            <label for="filterLuggage">Espacio para el equipaje</label>
+            <label for="filterLuggage">Tamano del baul</label>
             <select id="filterLuggage" data-testid="filter-luggage" autocomplete="off">
               <option value="0">Cualquiera</option>
               <option value="1">Maleta pequena</option>
@@ -751,13 +827,12 @@
             </select>
           </div>
           <div class="filter-chip compact">
-            <label for="filterDrivingStyle">Tipo de conduccion</label>
+            <label for="filterDrivingStyle">Tipo de vehiculo</label>
             <select id="filterDrivingStyle" data-testid="filter-driving-style" autocomplete="off">
               <option value="all">Todos</option>
-              <option value="urbano">Urbano</option>
-              <option value="balanceado">Balanceado</option>
-              <option value="viajero">Viajero</option>
-              <option value="ejecutivo">Ejecutivo</option>
+              <option value="suv">SUV</option>
+              <option value="sedan">Sedan</option>
+              <option value="luxury">Luxury</option>
             </select>
           </div>
           <div class="filter-chip wide">
@@ -765,7 +840,7 @@
               <label for="filterPrice">Precio maximo por dia</label>
               <strong id="priceValue" data-testid="filter-price-value">$ 450.000</strong>
             </div>
-            <input id="filterPrice" data-testid="filter-price" type="range" min="200000" max="450000" step="10000" value="450000">
+            <input id="filterPrice" data-testid="filter-price" type="range" min="80000" max="450000" step="10000" value="450000">
           </div>
           <div class="filter-chip compact">
             <label for="filterPicoPlaca">Exentos del pico y placa</label>
@@ -789,7 +864,7 @@
           <div class="fleet-count" id="fleetCount" data-testid="fleet-count">4 vehiculos disponibles</div>
         </div>
         <div class="car-grid">
-          <article id="vehicle-kia-picanto" class="vehicle-card" data-testid="vehicle-card-kia-picanto" data-daily-price="219000" data-passengers="4" data-luggage="1" data-driving-style="urbano" data-pico-placa-exempt="false" data-transmission="automatico">
+          <article id="vehicle-kia-picanto" class="vehicle-card" data-testid="vehicle-card-kia-picanto" data-daily-price="219000" data-passengers="4" data-luggage="1" data-driving-style="sedan" data-pico-placa-exempt="false" data-transmission="automatico">
             <div class="vehicle-media"><img src="./assets/home-car-1-compressed.webp" alt="Kia Picanto gris"></div>
             <div class="vehicle-body">
               <h4>Kia Picanto Emotion - Gris - Economico y agil en ciudad</h4>
@@ -799,7 +874,7 @@
                 <div><span>Pasajeros</span><strong>4 pasajeros</strong></div>
                 <div><span>Equipaje</span><strong>Maleta pequena</strong></div>
                 <div><span>Transmision</span><strong>Automatica</strong></div>
-                <div><span>Conduccion</span><strong>Urbano agil</strong></div>
+                <div><span>Categoria</span><strong>Sedan</strong></div>
                 <div><span>Pico y placa</span><strong>No exento</strong></div>
               </div>
               <div class="vehicle-footer">
@@ -810,7 +885,7 @@
               </div>
             </div>
           </article>
-          <article id="vehicle-renault-duster" class="vehicle-card" data-testid="vehicle-card-renault-duster" data-daily-price="289000" data-passengers="5" data-luggage="2" data-driving-style="balanceado" data-pico-placa-exempt="false" data-transmission="automatico">
+          <article id="vehicle-renault-duster" class="vehicle-card" data-testid="vehicle-card-renault-duster" data-daily-price="289000" data-passengers="5" data-luggage="2" data-driving-style="suv" data-pico-placa-exempt="false" data-transmission="automatico">
             <div class="vehicle-media"><img src="./assets/home-car-2-compressed.webp" alt="Renault Duster roja"></div>
             <div class="vehicle-body">
               <h4>Renault Duster Zen - Roja - Mayor altura y confort</h4>
@@ -820,7 +895,7 @@
                 <div><span>Pasajeros</span><strong>5 pasajeros</strong></div>
                 <div><span>Equipaje</span><strong>Equipaje mediano</strong></div>
                 <div><span>Transmision</span><strong>Automatica</strong></div>
-                <div><span>Conduccion</span><strong>Balanceado</strong></div>
+                <div><span>Categoria</span><strong>SUV</strong></div>
                 <div><span>Pico y placa</span><strong>No exento</strong></div>
               </div>
               <div class="vehicle-footer">
@@ -831,7 +906,7 @@
               </div>
             </div>
           </article>
-          <article id="vehicle-mercedes-c250" class="vehicle-card" data-testid="vehicle-card-mercedes-c250" data-daily-price="449000" data-passengers="4" data-luggage="1" data-driving-style="ejecutivo" data-pico-placa-exempt="true" data-transmission="automatico">
+          <article id="vehicle-mercedes-c250" class="vehicle-card" data-testid="vehicle-card-mercedes-c250" data-daily-price="449000" data-passengers="4" data-luggage="1" data-driving-style="luxury" data-pico-placa-exempt="true" data-transmission="automatico">
             <div class="vehicle-media"><img src="./assets/home-car-3-compressed.webp" alt="Mercedes Benz C 250"></div>
             <div class="vehicle-body">
               <h4>Mercedes Benz C 250 - SIN PICO Y PLACA</h4>
@@ -841,7 +916,7 @@
                 <div><span>Pasajeros</span><strong>4 pasajeros</strong></div>
                 <div><span>Equipaje</span><strong>Maleta pequena</strong></div>
                 <div><span>Transmision</span><strong>Automatica</strong></div>
-                <div><span>Conduccion</span><strong>Ejecutivo / premium</strong></div>
+                <div><span>Categoria</span><strong>Luxury</strong></div>
                 <div><span>Pico y placa</span><strong>Exento</strong></div>
               </div>
               <div class="vehicle-footer">
@@ -852,7 +927,7 @@
               </div>
             </div>
           </article>
-          <article id="vehicle-captiva-premier" class="vehicle-card" data-testid="vehicle-card-captiva-premier" data-daily-price="449900" data-passengers="7" data-luggage="3" data-driving-style="viajero" data-pico-placa-exempt="false" data-transmission="automatico">
+          <article id="vehicle-captiva-premier" class="vehicle-card" data-testid="vehicle-card-captiva-premier" data-daily-price="449900" data-passengers="7" data-luggage="3" data-driving-style="suv" data-pico-placa-exempt="false" data-transmission="automatico">
             <div class="vehicle-media"><img src="./assets/white-car-compressed2.webp" alt="New Captiva Premier blanca"></div>
             <div class="vehicle-body">
               <h4>New Captiva Premier - Blanca - Hasta 7 pasajeros</h4>
@@ -862,7 +937,7 @@
                 <div><span>Pasajeros</span><strong>7 pasajeros</strong></div>
                 <div><span>Equipaje</span><strong>Equipaje amplio</strong></div>
                 <div><span>Transmision</span><strong>Automatica</strong></div>
-                <div><span>Conduccion</span><strong>Viajero / carretera</strong></div>
+                <div><span>Categoria</span><strong>SUV</strong></div>
                 <div><span>Pico y placa</span><strong>No exento</strong></div>
               </div>
               <div class="vehicle-footer">
@@ -876,7 +951,7 @@
         </div>
         <div class="empty-state" id="emptyState" data-testid="empty-results">
           <h4>No encontramos carros con esa combinacion de filtros.</h4>
-          <p class="mb-0">Prueba ajustando pasajeros, equipaje, transmision, conduccion, precio o pico y placa.</p>
+          <p class="mb-0">Prueba ajustando pasajeros, equipaje, transmision, categoria, precio o pico y placa.</p>
         </div>
       </section>
 
@@ -917,15 +992,15 @@
         <div class="client-body">
           <div class="client-inline">Vive en colombia <label for="livesInColombiaYes"><input id="livesInColombiaYes" data-testid="lives-in-colombia-yes" type="radio" name="vive-colombia"> Si</label> <label for="livesInColombiaNo"><input id="livesInColombiaNo" data-testid="lives-in-colombia-no" type="radio" name="vive-colombia" checked> No</label></div>
           <div class="client-grid">
-            <div class="client-field"><label for="clientEmail">Email *</label><input id="clientEmail" data-testid="client-email" type="email" placeholder=""></div>
+            <div class="client-field"><label for="clientEmail">Email *</label><input id="clientEmail" data-testid="client-email" type="email" inputmode="email" autocomplete="email" required pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$" placeholder="nombre@correo.com"></div>
             <div class="client-field"><label for="clientFirstName">Nombres *</label><input id="clientFirstName" data-testid="client-first-name" type="text" placeholder=""></div>
             <div class="client-field"><label for="clientLastName">Apellidos *</label><input id="clientLastName" data-testid="client-last-name" type="text" placeholder=""></div>
             <div class="client-field"><label for="clientDocumentType">Tipo Documento *</label><select id="clientDocumentType" data-testid="client-document-type"><option value="">* Tipo documento</option><option value="Pasaporte">Pasaporte</option><option value="CC">CC</option><option value="CE">CE</option></select></div>
             <div class="client-field"><label for="clientDocumentNumber">Numero de Documento *</label><input id="clientDocumentNumber" data-testid="client-document-number" type="text" placeholder="# ID"></div>
             <div class="client-field"><label for="clientBirthDate">Fecha de nacimiento *</label><input id="clientBirthDate" data-testid="client-birth-date" type="text" placeholder="dd/mm/aaaa"></div>
-            <div class="client-field"><label for="clientNationality">Nacionalidad</label><input id="clientNationality" data-testid="client-nationality" type="text" placeholder=""></div>
-            <div class="client-field"><label for="clientResidenceCountry">Pais de Residencia *</label><select id="clientResidenceCountry" data-testid="client-residence-country"><option value="">Seleccione pais de residencia</option><option value="Colombia">Colombia</option><option value="Estados Unidos">Estados Unidos</option><option value="Mexico">Mexico</option></select></div>
-            <div class="client-field"><label for="clientCity">Ciudad *</label><input id="clientCity" data-testid="client-city" type="text" placeholder="Ciudad de residencia"></div>
+            <div class="client-field" id="clientNationalityField"><label for="clientNationality">Nacionalidad</label><input id="clientNationality" data-testid="client-nationality" type="text" placeholder=""></div>
+            <div class="client-field" id="clientResidenceCountryField"><label for="clientResidenceCountry">Pais de Residencia *</label><select id="clientResidenceCountry" data-testid="client-residence-country"><option value="">Seleccione pais de residencia</option><option value="Colombia">Colombia</option><option value="Estados Unidos">Estados Unidos</option><option value="Mexico">Mexico</option></select></div>
+            <div class="client-field"><label for="clientCity" id="clientCityLabel">Ciudad *</label><input id="clientCity" data-testid="client-city" type="text" placeholder="Ciudad de residencia"></div>
             <div class="client-field span-3"><label for="clientWhatsapp">Telefono con WhatsApp *</label><input id="clientWhatsapp" data-testid="client-whatsapp" type="text" placeholder="+ Indicativo Internacional / numero"></div>
           </div>
         </div>
@@ -939,8 +1014,10 @@
           <div class="family-grid">
             <div class="family-card">
               <h4>Referencia 1 *</h4>
-              <div class="client-field"><label for="referenceOneName">Nombre completo</label><input id="referenceOneName" data-testid="reference-one-name" type="text" placeholder="Nombre de la referencia"></div>
-              <div class="client-field"><label for="referenceOnePhone">Telefono</label><input id="referenceOnePhone" data-testid="reference-one-phone" type="text" placeholder="234567890"></div>
+              <div class="family-fields">
+                <div class="client-field"><label for="referenceOneName">Nombre completo</label><input id="referenceOneName" data-testid="reference-one-name" type="text" placeholder="Nombre de la referencia"></div>
+                <div class="client-field"><label for="referenceOnePhone">Telefono</label><input id="referenceOnePhone" data-testid="reference-one-phone" type="text" placeholder="234567890"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -958,10 +1035,10 @@
             <div class="client-field"><label for="flightOriginCity">Ciudad de procedencia del vuelo</label><input id="flightOriginCity" data-testid="flight-origin-city" type="text" placeholder="Ciudad de origen"></div>
           </div>
         </div>
-        <div class="flight-head">
+        <div class="flight-head flight-section" id="foreignResidentHeading">
           <h3>Datos adicionales para reservas de clientes que residen fuera de Colombia</h3>
         </div>
-        <div class="flight-body">
+        <div class="flight-body flight-section" id="foreignResidentFields">
           <div class="flight-grid">
             <div class="client-field span-3" style="grid-column: 1 / -1;"><label for="lodgingAddress">Direccion hospedaje en Medellin</label><input id="lodgingAddress" data-testid="lodging-address" type="text" placeholder="Direccion del hospedaje"></div>
             <div class="client-field span-3" style="grid-column: 1 / -1;"><label for="additionalComments">Comentarios y requerimientos adicionales</label><input id="additionalComments" data-testid="additional-comments" type="text" placeholder="Comentarios y requerimientos adicionales"></div>
@@ -995,21 +1072,29 @@
         </div>
       </section>
     </main>
-    <div class="call-widget" id="callWidget" data-testid="call-widget">
-      <div class="call-card" id="callCard" data-testid="call-card">
-        <h4>Te llamamos</h4>
-        <p>Dejanos tu numero y un asesor te contacta para ayudarte con la reserva.</p>
-        <p>Recuerda que te llamamos en los horarios de atencion.</p>
-        <div class="call-input-row">
-          <input id="callPhone" data-testid="call-phone" type="tel" placeholder="+ Indicativo / numero">
-          <button class="call-submit" id="callSubmit" data-testid="call-submit" type="button">Enviar</button>
+    <div class="contact-dock" data-testid="contact-dock">
+      <div class="call-widget" id="callWidget" data-testid="call-widget">
+        <div class="call-card" id="callCard" data-testid="call-card">
+          <h4>Te llamamos</h4>
+          <p>Dejanos tu numero y un asesor te contacta para ayudarte con la reserva.</p>
+          <p>Horario de atencion: 8:00 a.m. a 5:00 p.m., todos los dias.</p>
+          <div class="call-input-row">
+            <input id="callPhone" data-testid="call-phone" type="tel" placeholder="+ Indicativo / numero">
+            <button class="call-submit" id="callSubmit" data-testid="call-submit" type="button">Enviar</button>
+          </div>
+          <div class="call-status" id="callStatus" data-testid="call-status" aria-live="polite"></div>
         </div>
-        <div class="call-status" id="callStatus" data-testid="call-status" aria-live="polite"></div>
       </div>
-      <button class="call-toggle" id="callToggle" data-testid="call-toggle" type="button" aria-controls="callCard" aria-expanded="false">
-        <i class="fa fa-phone" aria-hidden="true"></i>
-        <span>Llamame</span>
-      </button>
+      <div class="contact-actions">
+        <button class="call-toggle" id="callToggle" data-testid="call-toggle" type="button" aria-controls="callCard" aria-expanded="false" aria-label="Llamame" title="Llamame">
+          <i class="fa fa-phone" aria-hidden="true"></i>
+          <span>Llamame</span>
+        </button>
+        <a class="contact-link whatsapp" href="https://api.whatsapp.com/send?phone=573045459999" target="_blank" rel="noreferrer" data-testid="reservation-whatsapp-link" aria-label="WhatsApp" title="WhatsApp">
+          <img src="./assets/whatsapp_icon2.png" alt="WhatsApp">
+          <span>WhatsApp</span>
+        </a>
+      </div>
     </div>
     <script>
       function formatDateLabel(value) {
@@ -1070,6 +1155,18 @@
       const clientStage = document.getElementById('clientStage');
       const familyStage = document.getElementById('familyStage');
       const flightStage = document.getElementById('flightStage');
+      const livesInColombiaYes = document.getElementById('livesInColombiaYes');
+      const livesInColombiaNo = document.getElementById('livesInColombiaNo');
+      const clientEmail = document.getElementById('clientEmail');
+      const clientDocumentType = document.getElementById('clientDocumentType');
+      const clientNationalityField = document.getElementById('clientNationalityField');
+      const clientNationality = document.getElementById('clientNationality');
+      const clientResidenceCountryField = document.getElementById('clientResidenceCountryField');
+      const clientResidenceCountry = document.getElementById('clientResidenceCountry');
+      const clientCity = document.getElementById('clientCity');
+      const clientCityLabel = document.getElementById('clientCityLabel');
+      const foreignResidentHeading = document.getElementById('foreignResidentHeading');
+      const foreignResidentFields = document.getElementById('foreignResidentFields');
       const clientWhatsapp = document.getElementById('clientWhatsapp');
       const callWidget = document.getElementById('callWidget');
       const callToggle = document.getElementById('callToggle');
@@ -1088,6 +1185,61 @@
         filterDrivingStyle.selectedIndex = 0;
         filterPrice.value = '450000';
         filterPicoPlaca.selectedIndex = 0;
+      }
+
+      function setDocumentTypeOptions(options) {
+        const currentValue = clientDocumentType.value;
+        const optionMarkup = ['<option value="">* Tipo documento</option>']
+          .concat(options.map((option) => '<option value="' + option + '">' + option + '</option>'))
+          .join('');
+        clientDocumentType.innerHTML = optionMarkup;
+        if (options.includes(currentValue)) {
+          clientDocumentType.value = currentValue;
+        }
+      }
+
+      function updateResidencyFields() {
+        const livesInColombia = livesInColombiaYes.checked;
+
+        clientNationalityField.classList.toggle('is-hidden', livesInColombia);
+        clientResidenceCountryField.classList.toggle('is-hidden', livesInColombia);
+        foreignResidentHeading.classList.toggle('is-hidden', livesInColombia);
+        foreignResidentFields.classList.toggle('is-hidden', livesInColombia);
+        familyStage.classList.toggle('is-hidden-by-residency', !livesInColombia);
+
+        clientNationality.required = !livesInColombia;
+        clientResidenceCountry.required = !livesInColombia;
+
+        if (livesInColombia) {
+          clientResidenceCountry.value = 'Colombia';
+          clientCity.placeholder = 'Ciudad en Colombia';
+          clientCityLabel.textContent = 'Ciudad en Colombia *';
+          setDocumentTypeOptions(['CC', 'CE']);
+        } else {
+          clientCity.placeholder = 'Ciudad de residencia';
+          clientCityLabel.textContent = 'Ciudad de residencia *';
+          setDocumentTypeOptions(['Pasaporte', 'CC', 'CE']);
+        }
+      }
+
+      function validateEmailField(showMessage) {
+        const value = clientEmail.value.trim();
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (clientEmail.value !== value) {
+          clientEmail.value = value;
+        }
+
+        clientEmail.setCustomValidity('');
+        if (!value) {
+          clientEmail.setCustomValidity('Ingresa un email obligatorio.');
+        } else if (!emailPattern.test(value)) {
+          clientEmail.setCustomValidity('Ingresa un email valido, por ejemplo nombre@correo.com.');
+        }
+
+        if (showMessage) {
+          clientEmail.reportValidity();
+        }
       }
 
       function applyFilters() {
@@ -1171,6 +1323,11 @@
 
       callToggle.addEventListener('click', toggleCallWidget);
       clientWhatsapp.addEventListener('input', () => syncCallPhoneFromJourney(false));
+      [livesInColombiaYes, livesInColombiaNo].forEach((control) => {
+        control.addEventListener('change', updateResidencyFields);
+      });
+      clientEmail.addEventListener('input', () => validateEmailField(false));
+      clientEmail.addEventListener('blur', () => validateEmailField(true));
       callSubmit.addEventListener('click', () => {
         const phone = callPhone.value.trim();
         if (!phone) {
@@ -1182,7 +1339,9 @@
       });
 
       resetFilterValues();
+      updateResidencyFields();
       updateRangeLabels();
+      validateEmailField(false);
       applyFilters();
       syncCallPhoneFromJourney(false);
 

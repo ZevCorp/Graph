@@ -153,13 +153,48 @@ window.addEventListener('load', function () {
 function injectHomeCallWidget(html) {
   const widget = `
 <style>
-  .home-call-widget {
+  .service-hours-banner {
+    margin: 10px auto 20px;
+    max-width: 760px;
+    padding: 14px 18px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(18, 37, 62, 0.96), rgba(34, 51, 76, 0.92));
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+  }
+  .service-hours-banner strong,
+  .service-hours-banner span {
+    display: block;
+  }
+  .service-hours-banner strong {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.8;
+    margin-bottom: 4px;
+  }
+  .service-hours-banner span {
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.35;
+  }
+  .social-mov {
+    display: none !important;
+  }
+  .home-contact-dock {
     position: fixed;
-    left: 18px;
+    right: 18px;
     bottom: 18px;
     z-index: 9999;
-    width: min(330px, calc(100vw - 36px));
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
     font-family: inherit;
+  }
+  .home-call-widget {
+    width: min(320px, calc(100vw - 36px));
   }
   .home-call-card {
     display: none;
@@ -220,32 +255,83 @@ function injectHomeCallWidget(html) {
   .home-call-toggle {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     border: none;
-    border-radius: 999px;
     background: #d51717;
     color: #fff;
     box-shadow: 0 14px 30px rgba(213, 23, 23, 0.35);
-    padding: 13px 18px;
-    font-weight: 800;
     cursor: pointer;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 999px;
+    font-weight: 800;
+  }
+  .home-contact-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 56px;
+  }
+  .home-contact-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 999px;
+    color: #fff !important;
+    text-decoration: none !important;
+    font-weight: 800;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
+  }
+  .home-contact-link img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+  }
+  .home-contact-link.whatsapp {
+    background: #1f9d55;
+  }
+  .home-contact-link span,
+  .home-call-toggle span {
+    display: none;
+  }
+  @media (max-width: 767px) {
+    .service-hours-banner {
+      margin-bottom: 16px;
+      padding: 12px 14px;
+    }
+    .service-hours-banner span {
+      font-size: 0.92rem;
+    }
   }
 </style>
-<div class="home-call-widget" id="homeCallWidget" data-testid="home-call-widget">
-  <div class="home-call-card" id="homeCallCard" data-testid="home-call-card">
-    <h4>Te llamamos</h4>
-    <p>Dejanos tu numero y un asesor te contacta para ayudarte con la reserva.</p>
-    <p>Recuerda que te llamamos en los horarios de atencion.</p>
-    <div class="home-call-row">
-      <input id="homeCallPhone" data-testid="home-call-phone" type="tel" placeholder="+ Indicativo / numero">
-      <button class="home-call-submit" id="homeCallSubmit" data-testid="home-call-submit" type="button">Enviar</button>
+<div class="home-contact-dock" data-testid="home-contact-dock">
+  <div class="home-call-widget" id="homeCallWidget" data-testid="home-call-widget">
+    <div class="home-call-card" id="homeCallCard" data-testid="home-call-card">
+      <h4>Te llamamos</h4>
+      <p>Dejanos tu numero y un asesor te contacta para ayudarte con la reserva.</p>
+      <p>Horario de atencion: 8:00 a.m. a 5:00 p.m., todos los dias.</p>
+      <div class="home-call-row">
+        <input id="homeCallPhone" data-testid="home-call-phone" type="tel" placeholder="+ Indicativo / numero">
+        <button class="home-call-submit" id="homeCallSubmit" data-testid="home-call-submit" type="button">Enviar</button>
+      </div>
+      <div class="home-call-status" id="homeCallStatus" data-testid="home-call-status" aria-live="polite"></div>
     </div>
-    <div class="home-call-status" id="homeCallStatus" data-testid="home-call-status" aria-live="polite"></div>
   </div>
-  <button class="home-call-toggle" id="homeCallToggle" data-testid="home-call-toggle" type="button" aria-controls="homeCallCard" aria-expanded="false">
-    <i class="fa fa-phone" aria-hidden="true"></i>
-    <span>Llamame</span>
-  </button>
+  <div class="home-contact-actions">
+    <button class="home-call-toggle" id="homeCallToggle" data-testid="home-call-toggle" type="button" aria-controls="homeCallCard" aria-expanded="false" aria-label="Llamame" title="Llamame">
+      <i class="fa fa-phone" aria-hidden="true"></i>
+      <span>Llamame</span>
+    </button>
+    <a class="home-contact-link whatsapp" href="https://api.whatsapp.com/send?phone=573045459999" target="_blank" rel="noreferrer" data-testid="home-whatsapp-link" aria-label="WhatsApp" title="WhatsApp">
+      <img src="/rentacar/assets/whatsapp_icon2.png" alt="WhatsApp">
+      <span>WhatsApp</span>
+    </a>
+  </div>
 </div>
 <script>
 window.addEventListener('load', function () {
@@ -292,16 +378,12 @@ function enhanceCarDemoHome(html) {
       /<input type="text" class="form-control datetimepicker-input dateArrow hasDatepicker" id="hasta" name="hasta" data-target="#dateDev" autocomplete="off" value="\s*([^"]*)">/,
       '<input type="date" class="form-control datetimepicker-input dateArrow" id="hasta" data-testid="return-date" name="hasta" data-target="#dateDev" autocomplete="off" value="$1">'
     )
-    .replace(
-      /\s*<li class="has-children"><span class="arrow-collapse collapsed" data-toggle="collapse" data-target="#collapseItem2"><\/span>[\s\S]*?<li><a href="https:\/\/rentacarmedellin\.co\/contacto" class="nav-link">CONTACTO<\/a><\/li>/,
-      '\n                        <li><span class="nav-link">HORARIOS DE ATENCION: 8AM A 5PM DOMINGO A DOMINGO</span></li>'
-    )
-    .replace(
-      /\s*<li class="has-children">\s*<a href="https:\/\/rentacarmedellin\.co\/#" class="nav-link">REQUISITOS<\/a>[\s\S]*?<li><a href="https:\/\/rentacarmedellin\.co\/contacto" class="nav-link">CONTACTO<\/a><\/li>/,
-      '\n                        <li><span class="nav-link">HORARIOS DE ATENCION: 8AM A 5PM DOMINGO A DOMINGO</span></li>'
-    )
     .replace('id="searchFormRangeDateTimePicker-endTime" class="form-control datetimepicker-input"', 'id="searchFormRangeDateTimePicker-endTime" data-testid="return-time" class="form-control datetimepicker-input"')
     .replace('id="lugDevId" required="required"', 'id="lugDevId" data-testid="return-location" required="required"')
+    .replace(
+      '<span class="text-black booking-form2-text2">Ingresa las fechas y horarios para ver disponibilidad y precios</span>',
+      '<span class="text-black booking-form2-text2">Ingresa las fechas y horarios para ver disponibilidad y precios</span><div class="service-hours-banner" data-testid="service-hours-banner"><strong>Horario de atencion</strong><span>8:00 a.m. a 5:00 p.m. todos los dias</span></div>'
+    )
     .replace('<input type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">', '<input id="quote-submit" data-testid="quote-submit" type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">');
 
   return injectHomeCallWidget(enhanced);

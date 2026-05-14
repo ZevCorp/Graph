@@ -17,6 +17,7 @@ out/
 
 # Env
 .env
+render.env
 .env.local
 .env.development.local
 .env.test.local
