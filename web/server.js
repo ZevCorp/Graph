@@ -50,6 +50,11 @@ const conversationInsights = new ConversationInsights(
 const getGraphVisualization = new GetGraphVisualization(repository);
 
 app.use(bodyParser.json());
+
+app.get('/', (req, res) => {
+  res.redirect('/examples/car-demo');
+});
+
 app.use(express.static('web/public'));
 app.use('/rentacar/assets', express.static(path.join(process.cwd(), 'web/public', 'rentacar', 'assets')));
 
@@ -148,10 +153,16 @@ window.addEventListener('load', function () {
 function enhanceCarDemoHome(html) {
   return html
     .replace('action="reservar.html"', 'action="/rentacar/reservar.html" data-testid="car-quote-form"')
-    .replace('id="desde" name="desde"', 'id="desde" data-testid="pickup-date" name="desde"')
+    .replace(
+      /<input type="text" class="form-control datetimepicker-input dateArrow hasDatepicker" id="desde" name="desde" data-target="#dateDel" autocomplete="off" value="\s*([^"]*)">/,
+      '<input type="date" class="form-control datetimepicker-input dateArrow" id="desde" data-testid="pickup-date" name="desde" data-target="#dateDel" autocomplete="off" value="$1">'
+    )
     .replace('id="searchFormRangeDateTimePicker-starTime" class="form-control datetimepicker-input"', 'id="searchFormRangeDateTimePicker-starTime" data-testid="pickup-time" class="form-control datetimepicker-input"')
     .replace('id="lugEntId" required="required"', 'id="lugEntId" data-testid="pickup-location" required="required"')
-    .replace('id="hasta" name="hasta"', 'id="hasta" data-testid="return-date" name="hasta"')
+    .replace(
+      /<input type="text" class="form-control datetimepicker-input dateArrow hasDatepicker" id="hasta" name="hasta" data-target="#dateDev" autocomplete="off" value="\s*([^"]*)">/,
+      '<input type="date" class="form-control datetimepicker-input dateArrow" id="hasta" data-testid="return-date" name="hasta" data-target="#dateDev" autocomplete="off" value="$1">'
+    )
     .replace('id="searchFormRangeDateTimePicker-endTime" class="form-control datetimepicker-input"', 'id="searchFormRangeDateTimePicker-endTime" data-testid="return-time" class="form-control datetimepicker-input"')
     .replace('id="lugDevId" required="required"', 'id="lugDevId" data-testid="return-location" required="required"')
     .replace('<input type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">', '<input id="quote-submit" data-testid="quote-submit" type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">');

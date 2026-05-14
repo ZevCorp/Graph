@@ -52,7 +52,8 @@
     .selection-stage,
     .client-stage,
     .family-stage,
-    .flight-stage {
+    .flight-stage,
+    .reviews-stage {
       background: var(--surface);
       border-radius: 18px;
       box-shadow: var(--shadow);
@@ -446,20 +447,23 @@
     }
     .client-head,
     .family-head,
-    .flight-head {
+    .flight-head,
+    .reviews-head {
       padding: 18px 24px 14px;
       border-bottom: 1px solid var(--line);
       text-align: center;
     }
     .client-head h3,
     .family-head h3,
-    .flight-head h3 {
+    .flight-head h3,
+    .reviews-head h3 {
       font-size: 1.3rem;
       margin-bottom: 8px;
     }
     .client-head p,
     .family-head p,
-    .flight-head p {
+    .flight-head p,
+    .reviews-head p {
       margin: 0;
       color: #334155;
       font-size: 0.98rem;
@@ -521,6 +525,121 @@
     .flight-grid + .flight-grid {
       margin-top: 18px;
     }
+    .reviews-stage {
+      margin-top: 28px;
+      overflow: hidden;
+    }
+    .reviews-body {
+      padding: 24px;
+    }
+    .reviews-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .review-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      background: #fff;
+    }
+    .review-stars {
+      color: var(--brand-red);
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+    .review-card p {
+      margin: 0;
+      color: #263a52;
+      line-height: 1.45;
+    }
+    .review-card strong {
+      display: block;
+      margin-top: 14px;
+      color: #12253e;
+      font-weight: 800;
+    }
+    .call-widget {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      z-index: 9999;
+      width: min(330px, calc(100vw - 36px));
+      font-family: inherit;
+    }
+    .call-card {
+      display: none;
+      margin-bottom: 10px;
+      padding: 16px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+    }
+    .call-widget.is-open .call-card {
+      display: block;
+    }
+    .call-card h4 {
+      margin: 0 0 6px;
+      color: #12253e;
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+    .call-card p {
+      margin: 0 0 12px;
+      color: #4d5b70;
+      font-size: 0.92rem;
+      line-height: 1.35;
+    }
+    .call-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .call-input-row input {
+      min-width: 0;
+      flex: 1;
+      height: 42px;
+      border: 1px solid #d5dce5;
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: #132238;
+      font-weight: 600;
+    }
+    .call-submit {
+      border: none;
+      border-radius: 6px;
+      background: var(--brand-green);
+      color: #111;
+      font-size: 0.9rem;
+      font-weight: 800;
+      padding: 0 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .call-status {
+      min-height: 18px;
+      margin-top: 10px;
+      color: var(--brand-red);
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+    .call-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: none;
+      border-radius: 999px;
+      background: var(--brand-red);
+      color: #fff;
+      box-shadow: 0 14px 30px rgba(213, 23, 23, 0.35);
+      padding: 13px 18px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .call-toggle .fa {
+      font-size: 1rem;
+    }
     @media (max-width: 991px) {
       .trip-glance,
       .car-grid,
@@ -528,7 +647,8 @@
       .selection-grid,
       .client-grid,
       .family-grid,
-      .flight-grid {
+      .flight-grid,
+      .reviews-grid {
         grid-template-columns: 1fr;
       }
       .results-toolbar,
@@ -605,8 +725,8 @@
         </div>
         <div class="filters-bar">
           <div class="filter-chip compact">
-            <label for="filterPassengers">Pasajeros</label>
-            <select id="filterPassengers" data-testid="filter-passengers">
+            <label for="filterPassengers">Cantidad de pasajeros</label>
+            <select id="filterPassengers" data-testid="filter-passengers" autocomplete="off">
               <option value="0">Cualquiera</option>
               <option value="4">4+</option>
               <option value="5">5+</option>
@@ -614,44 +734,44 @@
             </select>
           </div>
           <div class="filter-chip compact">
-            <label for="filterVehicleType">Tipo</label>
-            <select id="filterVehicleType" data-testid="filter-vehicle-type">
-              <option value="all">Todos</option>
-              <option value="economico">Economico</option>
-              <option value="suv">SUV</option>
-              <option value="premium">Premium</option>
+            <label for="filterLuggage">Espacio para el equipaje</label>
+            <select id="filterLuggage" data-testid="filter-luggage" autocomplete="off">
+              <option value="0">Cualquiera</option>
+              <option value="1">Maleta pequena</option>
+              <option value="2">Equipaje mediano</option>
+              <option value="3">Equipaje amplio</option>
             </select>
           </div>
-          <div class="filter-chip wide">
-            <div class="range-meta">
-              <label for="filterAutonomy">Autonomia</label>
-              <strong id="autonomyValue" data-testid="filter-autonomy-value">300 km</strong>
-            </div>
-            <input id="filterAutonomy" data-testid="filter-autonomy" type="range" min="300" max="700" step="50" value="300">
-          </div>
-          <div class="filter-chip wide">
-            <div class="range-meta">
-              <label for="filterGasCost">Gasolina / galon</label>
-              <strong id="gasValue" data-testid="filter-gas-value">$ 18.000</strong>
-            </div>
-            <input id="filterGasCost" data-testid="filter-gas-cost" type="range" min="14000" max="18000" step="500" value="18000">
+          <div class="filter-chip compact">
+            <label for="filterTransmission">Transmision</label>
+            <select id="filterTransmission" data-testid="filter-transmission" autocomplete="off">
+              <option value="all">Todas</option>
+              <option value="automatico">Automatica</option>
+              <option value="manual">Manual</option>
+            </select>
           </div>
           <div class="filter-chip compact">
-            <label for="filterDrivingStyle">Conduccion</label>
-            <select id="filterDrivingStyle" data-testid="filter-driving-style">
-              <option value="all">Todas</option>
+            <label for="filterDrivingStyle">Tipo de conduccion</label>
+            <select id="filterDrivingStyle" data-testid="filter-driving-style" autocomplete="off">
+              <option value="all">Todos</option>
               <option value="urbano">Urbano</option>
               <option value="balanceado">Balanceado</option>
               <option value="viajero">Viajero</option>
               <option value="ejecutivo">Ejecutivo</option>
             </select>
           </div>
+          <div class="filter-chip wide">
+            <div class="range-meta">
+              <label for="filterPrice">Precio maximo por dia</label>
+              <strong id="priceValue" data-testid="filter-price-value">$ 450.000</strong>
+            </div>
+            <input id="filterPrice" data-testid="filter-price" type="range" min="200000" max="450000" step="10000" value="450000">
+          </div>
           <div class="filter-chip compact">
-            <label for="filterTransmission">Transmision</label>
-            <select id="filterTransmission" data-testid="filter-transmission">
-              <option value="all">Todas</option>
-              <option value="automatico">Automatica</option>
-              <option value="manual">Manual</option>
+            <label for="filterPicoPlaca">Exentos del pico y placa</label>
+            <select id="filterPicoPlaca" data-testid="filter-pico-placa" autocomplete="off">
+              <option value="all">Todos</option>
+              <option value="yes">Solo exentos</option>
             </select>
           </div>
           <div class="filters-actions">
@@ -669,17 +789,18 @@
           <div class="fleet-count" id="fleetCount" data-testid="fleet-count">4 vehiculos disponibles</div>
         </div>
         <div class="car-grid">
-          <article id="vehicle-kia-picanto" class="vehicle-card" data-testid="vehicle-card-kia-picanto" data-daily-price="219000" data-passengers="4" data-autonomy="420" data-gas-cost="15200" data-driving-style="urbano" data-vehicle-type="economico" data-transmission="automatico">
+          <article id="vehicle-kia-picanto" class="vehicle-card" data-testid="vehicle-card-kia-picanto" data-daily-price="219000" data-passengers="4" data-luggage="1" data-driving-style="urbano" data-pico-placa-exempt="false" data-transmission="automatico">
             <div class="vehicle-media"><img src="./assets/home-car-1-compressed.webp" alt="Kia Picanto gris"></div>
             <div class="vehicle-body">
               <h4>Kia Picanto Emotion - Gris - Economico y agil en ciudad</h4>
               <div class="vehicle-specs"><span>4 pasajeros</span><span>Aire acondicionado</span><span>Automatico</span></div>
               <p>Ideal para moverse por Medellin con facilidad. Compacto, de bajo consumo y perfecto para recorridos urbanos, reuniones de trabajo o escapadas cortas.</p>
               <div class="vehicle-meta">
-                <div><span>Autonomia</span><strong>420 km aprox.</strong></div>
-                <div><span>Gasolina / galon</span><strong>$ 15.200</strong></div>
+                <div><span>Pasajeros</span><strong>4 pasajeros</strong></div>
+                <div><span>Equipaje</span><strong>Maleta pequena</strong></div>
+                <div><span>Transmision</span><strong>Automatica</strong></div>
                 <div><span>Conduccion</span><strong>Urbano agil</strong></div>
-                <div><span>Tipo</span><strong>Economico</strong></div>
+                <div><span>Pico y placa</span><strong>No exento</strong></div>
               </div>
               <div class="vehicle-footer">
                 <p class="price-day">$ 219.000 / Dia</p>
@@ -689,17 +810,18 @@
               </div>
             </div>
           </article>
-          <article id="vehicle-renault-duster" class="vehicle-card" data-testid="vehicle-card-renault-duster" data-daily-price="289000" data-passengers="5" data-autonomy="560" data-gas-cost="16900" data-driving-style="balanceado" data-vehicle-type="suv" data-transmission="automatico">
+          <article id="vehicle-renault-duster" class="vehicle-card" data-testid="vehicle-card-renault-duster" data-daily-price="289000" data-passengers="5" data-luggage="2" data-driving-style="balanceado" data-pico-placa-exempt="false" data-transmission="automatico">
             <div class="vehicle-media"><img src="./assets/home-car-2-compressed.webp" alt="Renault Duster roja"></div>
             <div class="vehicle-body">
               <h4>Renault Duster Zen - Roja - Mayor altura y confort</h4>
               <div class="vehicle-specs"><span>5 pasajeros</span><span>Baul amplio</span><span>Ideal para carretera</span></div>
               <p>SUV versatil para planes familiares y viajes por Antioquia. Entrega una conduccion estable, posicion elevada y espacio suficiente para equipaje mediano.</p>
               <div class="vehicle-meta">
-                <div><span>Autonomia</span><strong>560 km aprox.</strong></div>
-                <div><span>Gasolina / galon</span><strong>$ 16.900</strong></div>
+                <div><span>Pasajeros</span><strong>5 pasajeros</strong></div>
+                <div><span>Equipaje</span><strong>Equipaje mediano</strong></div>
+                <div><span>Transmision</span><strong>Automatica</strong></div>
                 <div><span>Conduccion</span><strong>Balanceado</strong></div>
-                <div><span>Tipo</span><strong>SUV</strong></div>
+                <div><span>Pico y placa</span><strong>No exento</strong></div>
               </div>
               <div class="vehicle-footer">
                 <p class="price-day">$ 289.000 / Dia</p>
@@ -709,17 +831,18 @@
               </div>
             </div>
           </article>
-          <article id="vehicle-mercedes-c250" class="vehicle-card" data-testid="vehicle-card-mercedes-c250" data-daily-price="449000" data-passengers="4" data-autonomy="510" data-gas-cost="17800" data-driving-style="ejecutivo" data-vehicle-type="premium" data-transmission="automatico">
+          <article id="vehicle-mercedes-c250" class="vehicle-card" data-testid="vehicle-card-mercedes-c250" data-daily-price="449000" data-passengers="4" data-luggage="1" data-driving-style="ejecutivo" data-pico-placa-exempt="true" data-transmission="automatico">
             <div class="vehicle-media"><img src="./assets/home-car-3-compressed.webp" alt="Mercedes Benz C 250"></div>
             <div class="vehicle-body">
               <h4>Mercedes Benz C 250 - SIN PICO Y PLACA</h4>
               <div class="vehicle-specs"><span>4 pasajeros</span><span>Coupe premium</span><span>Techo panoramico</span></div>
               <p>Hermosa coupe deportiva con motor 2000cc turbo, caja automatica y acabados premium. Una opcion ideal para una experiencia mas ejecutiva o especial.</p>
               <div class="vehicle-meta">
-                <div><span>Autonomia</span><strong>510 km aprox.</strong></div>
-                <div><span>Gasolina / galon</span><strong>$ 17.800</strong></div>
+                <div><span>Pasajeros</span><strong>4 pasajeros</strong></div>
+                <div><span>Equipaje</span><strong>Maleta pequena</strong></div>
+                <div><span>Transmision</span><strong>Automatica</strong></div>
                 <div><span>Conduccion</span><strong>Ejecutivo / premium</strong></div>
-                <div><span>Tipo</span><strong>Premium</strong></div>
+                <div><span>Pico y placa</span><strong>Exento</strong></div>
               </div>
               <div class="vehicle-footer">
                 <p class="price-day">$ 449.000 / Dia</p>
@@ -729,17 +852,18 @@
               </div>
             </div>
           </article>
-          <article id="vehicle-captiva-premier" class="vehicle-card" data-testid="vehicle-card-captiva-premier" data-daily-price="449900" data-passengers="7" data-autonomy="640" data-gas-cost="17500" data-driving-style="viajero" data-vehicle-type="suv" data-transmission="automatico">
+          <article id="vehicle-captiva-premier" class="vehicle-card" data-testid="vehicle-card-captiva-premier" data-daily-price="449900" data-passengers="7" data-luggage="3" data-driving-style="viajero" data-pico-placa-exempt="false" data-transmission="automatico">
             <div class="vehicle-media"><img src="./assets/white-car-compressed2.webp" alt="New Captiva Premier blanca"></div>
             <div class="vehicle-body">
               <h4>New Captiva Premier - Blanca - Hasta 7 pasajeros</h4>
               <div class="vehicle-specs"><span>7 pasajeros</span><span>Pantalla de 8"</span><span>Asientos en cuero</span></div>
               <p>Camioneta familiar espaciosa con excelente presencia y comodidad. Perfecta para grupos, traslados al aeropuerto o viajes con mas equipaje y acompanantes.</p>
               <div class="vehicle-meta">
-                <div><span>Autonomia</span><strong>640 km aprox.</strong></div>
-                <div><span>Gasolina / galon</span><strong>$ 17.500</strong></div>
+                <div><span>Pasajeros</span><strong>7 pasajeros</strong></div>
+                <div><span>Equipaje</span><strong>Equipaje amplio</strong></div>
+                <div><span>Transmision</span><strong>Automatica</strong></div>
                 <div><span>Conduccion</span><strong>Viajero / carretera</strong></div>
-                <div><span>Tipo</span><strong>SUV</strong></div>
+                <div><span>Pico y placa</span><strong>No exento</strong></div>
               </div>
               <div class="vehicle-footer">
                 <p class="price-day">$ 449.900 / Dia</p>
@@ -752,7 +876,7 @@
         </div>
         <div class="empty-state" id="emptyState" data-testid="empty-results">
           <h4>No encontramos carros con esa combinacion de filtros.</h4>
-          <p class="mb-0">Prueba bajando la autonomia minima, subiendo el tope de gasolina o cambiando el tipo de vehiculo.</p>
+          <p class="mb-0">Prueba ajustando pasajeros, equipaje, transmision, conduccion, precio o pico y placa.</p>
         </div>
       </section>
 
@@ -818,16 +942,6 @@
               <div class="client-field"><label for="referenceOneName">Nombre completo</label><input id="referenceOneName" data-testid="reference-one-name" type="text" placeholder="Nombre de la referencia"></div>
               <div class="client-field"><label for="referenceOnePhone">Telefono</label><input id="referenceOnePhone" data-testid="reference-one-phone" type="text" placeholder="234567890"></div>
             </div>
-            <div class="family-card">
-              <h4>Referencia 2 *</h4>
-              <div class="client-field"><label for="referenceTwoName">Nombre completo</label><input id="referenceTwoName" data-testid="reference-two-name" type="text" placeholder="Nombre de la referencia"></div>
-              <div class="client-field"><label for="referenceTwoPhone">Telefono</label><input id="referenceTwoPhone" data-testid="reference-two-phone" type="text" placeholder="234567890"></div>
-            </div>
-            <div class="family-card">
-              <h4>Referencia 3 *</h4>
-              <div class="client-field"><label for="referenceThreeName">Nombre completo</label><input id="referenceThreeName" data-testid="reference-three-name" type="text" placeholder="Nombre de la referencia"></div>
-              <div class="client-field"><label for="referenceThreePhone">Telefono</label><input id="referenceThreePhone" data-testid="reference-three-phone" type="text" placeholder="234567890"></div>
-            </div>
           </div>
         </div>
       </section>
@@ -854,7 +968,48 @@
           </div>
         </div>
       </section>
+
+      <section class="reviews-stage" id="reviewsStage" data-testid="reviews-stage">
+        <div class="reviews-head">
+          <h3>Resenas de clientes</h3>
+          <p>Experiencias recientes de viajeros que reservaron con nuestra flota en Medellin.</p>
+        </div>
+        <div class="reviews-body">
+          <div class="reviews-grid">
+            <article class="review-card">
+              <div class="review-stars">★★★★★</div>
+              <p>El proceso fue rapido y el carro estaba impecable. Nos explicaron todo antes de salir y la entrega fue muy puntual.</p>
+              <strong>Laura M.</strong>
+            </article>
+            <article class="review-card">
+              <div class="review-stars">★★★★★</div>
+              <p>La camioneta fue perfecta para viajar con la familia. Buen espacio para maletas y excelente atencion por WhatsApp.</p>
+              <strong>Andres R.</strong>
+            </article>
+            <article class="review-card">
+              <div class="review-stars">★★★★★</div>
+              <p>Reserve para una visita de trabajo y todo salio muy claro: precio, horarios y documentos. Muy recomendados.</p>
+              <strong>Camila V.</strong>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
+    <div class="call-widget" id="callWidget" data-testid="call-widget">
+      <div class="call-card" id="callCard" data-testid="call-card">
+        <h4>Te llamamos</h4>
+        <p>Dejanos tu numero y un asesor te contacta para ayudarte con la reserva.</p>
+        <div class="call-input-row">
+          <input id="callPhone" data-testid="call-phone" type="tel" placeholder="+ Indicativo / numero">
+          <button class="call-submit" id="callSubmit" data-testid="call-submit" type="button">Enviar</button>
+        </div>
+        <div class="call-status" id="callStatus" data-testid="call-status" aria-live="polite"></div>
+      </div>
+      <button class="call-toggle" id="callToggle" data-testid="call-toggle" type="button" aria-controls="callCard" aria-expanded="false">
+        <i class="fa fa-phone" aria-hidden="true"></i>
+        <span>Llamame</span>
+      </button>
+    </div>
     <script>
       function formatDateLabel(value) {
         if (!value) return 'Por confirmar';
@@ -901,13 +1056,12 @@
       });
 
       const filterPassengers = document.getElementById('filterPassengers');
-      const filterVehicleType = document.getElementById('filterVehicleType');
-      const filterAutonomy = document.getElementById('filterAutonomy');
-      const filterGasCost = document.getElementById('filterGasCost');
-      const filterDrivingStyle = document.getElementById('filterDrivingStyle');
+      const filterLuggage = document.getElementById('filterLuggage');
       const filterTransmission = document.getElementById('filterTransmission');
-      const autonomyValue = document.getElementById('autonomyValue');
-      const gasValue = document.getElementById('gasValue');
+      const filterDrivingStyle = document.getElementById('filterDrivingStyle');
+      const filterPrice = document.getElementById('filterPrice');
+      const filterPicoPlaca = document.getElementById('filterPicoPlaca');
+      const priceValue = document.getElementById('priceValue');
       const fleetCount = document.getElementById('fleetCount');
       const filtersCount = document.getElementById('filtersCount');
       const emptyState = document.getElementById('emptyState');
@@ -915,29 +1069,43 @@
       const clientStage = document.getElementById('clientStage');
       const familyStage = document.getElementById('familyStage');
       const flightStage = document.getElementById('flightStage');
+      const clientWhatsapp = document.getElementById('clientWhatsapp');
+      const callWidget = document.getElementById('callWidget');
+      const callToggle = document.getElementById('callToggle');
+      const callPhone = document.getElementById('callPhone');
+      const callSubmit = document.getElementById('callSubmit');
+      const callStatus = document.getElementById('callStatus');
 
       function updateRangeLabels() {
-        autonomyValue.textContent = filterAutonomy.value + ' km';
-        gasValue.textContent = formatMoney(Number(filterGasCost.value));
+        priceValue.textContent = formatMoney(Number(filterPrice.value));
+      }
+
+      function resetFilterValues() {
+        filterPassengers.selectedIndex = 0;
+        filterLuggage.selectedIndex = 0;
+        filterTransmission.selectedIndex = 0;
+        filterDrivingStyle.selectedIndex = 0;
+        filterPrice.value = '450000';
+        filterPicoPlaca.selectedIndex = 0;
       }
 
       function applyFilters() {
         const passengers = Number(filterPassengers.value || 0);
-        const vehicleType = filterVehicleType.value;
-        const autonomy = Number(filterAutonomy.value || 300);
-        const gasCost = Number(filterGasCost.value || 18000);
-        const drivingStyle = filterDrivingStyle.value;
-        const transmission = filterTransmission.value;
+        const luggage = Number(filterLuggage.value || 0);
+        const transmission = filterTransmission.value || 'all';
+        const drivingStyle = filterDrivingStyle.value || 'all';
+        const maxPrice = Number(filterPrice.value || 450000);
+        const picoPlaca = filterPicoPlaca.value || 'all';
         let visibleCount = 0;
 
         cards.forEach((card) => {
           const matches =
             Number(card.dataset.passengers || 0) >= passengers &&
-            Number(card.dataset.autonomy || 0) >= autonomy &&
-            Number(card.dataset.gasCost || 0) <= gasCost &&
-            (vehicleType === 'all' || card.dataset.vehicleType === vehicleType) &&
-            (drivingStyle === 'all' || card.dataset.drivingStyle === drivingStyle) &&
-            (transmission === 'all' || card.dataset.transmission === transmission);
+            Number(card.dataset.luggage || 0) >= luggage &&
+            Number(card.dataset.dailyPrice || 0) <= maxPrice &&
+            (transmission === 'all' || card.dataset.transmission === transmission) &&
+            (drivingStyle === 'all' || card.getAttribute('data-driving-style') === drivingStyle) &&
+            (picoPlaca === 'all' || card.getAttribute('data-pico-placa-exempt') === 'true');
           card.style.display = matches ? '' : 'none';
           if (matches) visibleCount += 1;
         });
@@ -945,6 +1113,20 @@
         fleetCount.textContent = visibleCount + (visibleCount === 1 ? ' vehiculo disponible' : ' vehiculos disponibles');
         filtersCount.textContent = visibleCount + (visibleCount === 1 ? ' visible' : ' visibles');
         emptyState.style.display = visibleCount === 0 ? 'block' : 'none';
+      }
+
+      function syncCallPhoneFromJourney(force) {
+        const journeyPhone = (clientWhatsapp.value || '').trim();
+        if (journeyPhone && (force || !callPhone.value.trim())) {
+          callPhone.value = journeyPhone;
+        }
+      }
+
+      function toggleCallWidget() {
+        syncCallPhoneFromJourney(true);
+        const isOpen = callWidget.classList.toggle('is-open');
+        callToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (isOpen) callPhone.focus();
       }
 
       function selectVehicle(card) {
@@ -972,7 +1154,7 @@
         selectionStage.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
-      [filterPassengers, filterVehicleType, filterAutonomy, filterGasCost, filterDrivingStyle, filterTransmission].forEach((control) => {
+      [filterPassengers, filterLuggage, filterTransmission, filterDrivingStyle, filterPrice, filterPicoPlaca].forEach((control) => {
         control.addEventListener('input', () => {
           updateRangeLabels();
           applyFilters();
@@ -981,18 +1163,27 @@
       });
 
       document.getElementById('resetFilters').addEventListener('click', () => {
-        filterPassengers.value = '0';
-        filterVehicleType.value = 'all';
-        filterAutonomy.value = '300';
-        filterGasCost.value = '18000';
-        filterDrivingStyle.value = 'all';
-        filterTransmission.value = 'all';
+        resetFilterValues();
         updateRangeLabels();
         applyFilters();
       });
 
+      callToggle.addEventListener('click', toggleCallWidget);
+      clientWhatsapp.addEventListener('input', () => syncCallPhoneFromJourney(false));
+      callSubmit.addEventListener('click', () => {
+        const phone = callPhone.value.trim();
+        if (!phone) {
+          callStatus.textContent = 'Ingresa un numero para poder llamarte.';
+          callPhone.focus();
+          return;
+        }
+        callStatus.textContent = 'Listo. Te contactaremos pronto a este numero.';
+      });
+
+      resetFilterValues();
       updateRangeLabels();
       applyFilters();
+      syncCallPhoneFromJourney(false);
 
       document.querySelectorAll('.reserve-btn').forEach((button) => {
         button.addEventListener('click', () => {
