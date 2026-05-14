@@ -7,13 +7,15 @@ class Neo4jDriver {
       throw new Error('NEO4J_URI is required');
     }
 
-    const config = this.buildDriverConfig(uri);
+    this.uri = uri;
     this.database = (process.env.NEO4J_DATABASE || '').trim() || undefined;
-    this.driver = neo4j.driver(
-      uri,
-      neo4j.auth.basic(process.env.NEO4J_USER, process.env.NEO4J_PASSWORD),
-      config
-    );
+    this.auth = neo4j.auth.basic(process.env.NEO4J_USER, process.env.NEO4J_PASSWORD);
+    this.driver = this.createDriver(this.uri);
+    this.didDirectFallback = false;
+  }
+
+  createDriver(uri) {
+    return neo4j.driver(uri, this.auth, this.buildDriverConfig(uri));
   }
 
   buildDriverConfig(uri) {
@@ -32,8 +34,54 @@ class Neo4jDriver {
     return {};
   }
 
+  directUriFromRoutingUri(uri) {
+    if (uri.startsWith('neo4j+s://')) {
+      return uri.replace(/^neo4j\+s:\/\//, 'bolt+s://');
+    }
+
+    if (uri.startsWith('neo4j+ssc://')) {
+      return uri.replace(/^neo4j\+ssc:\/\//, 'bolt+ssc://');
+    }
+
+    if (uri.startsWith('neo4j://')) {
+      return uri.replace(/^neo4j:\/\//, 'bolt://');
+    }
+
+    return null;
+  }
+
+  isDiscoveryError(error) {
+    const message = `${error?.message || ''}`;
+    return message.includes('Could not perform discovery')
+      || message.includes('No routing servers available')
+      || message.includes('Unable to retrieve routing information')
+      || message.includes('Failed to update routing table');
+  }
+
+  async switchToDirectFallback(error) {
+    if (this.didDirectFallback || !this.isDiscoveryError(error)) {
+      return false;
+    }
+
+    const directUri = this.directUriFromRoutingUri(this.uri);
+    if (!directUri) {
+      return false;
+    }
+
+    console.warn(`[Neo4j] Routing discovery failed; retrying with direct URI ${directUri}`);
+    await this.driver.close().catch(() => {});
+    this.uri = directUri;
+    this.driver = this.createDriver(this.uri);
+    this.didDirectFallback = true;
+    return true;
+  }
+
   async run(cypher, params = {}) {
     console.log(`[Neo4j] Executing: ${cypher}`);
+    return this.runWithDriver(cypher, params, true);
+  }
+
+  async runWithDriver(cypher, params = {}, allowDirectFallback = true) {
     const session = this.driver.session(this.database ? { database: this.database } : undefined);
     try {
       const result = await session.run(cypher, params);
@@ -41,6 +89,9 @@ class Neo4jDriver {
       return result.records.map(r => r.toObject());
     } catch (error) {
       console.error(`[Neo4j] ERROR: ${error.message}`);
+      if (allowDirectFallback && await this.switchToDirectFallback(error)) {
+        return this.runWithDriver(cypher, params, false);
+      }
       throw error;
     } finally {
       await session.close();
