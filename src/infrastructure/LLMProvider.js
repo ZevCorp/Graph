@@ -10,7 +10,7 @@ class LLMProvider {
       ? 'https://openrouter.ai/api/v1'
       : 'https://api.openai.com/v1';
     this.model = this.provider === 'openrouter'
-      ? (process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free')
+      ? (process.env.OPENROUTER_MODEL || 'openai/gpt-4o')
       : (process.env.OPENAI_MODEL || 'gpt-4o');
   }
 
