@@ -34,6 +34,7 @@
         source: null,
         silenceGain: null,
         playbackContext: null,
+        playbackSources: new Set(),
         nextPlaybackTime: 0,
         ttsSampleRate: 24000,
         phoneSession: null
@@ -1518,6 +1519,81 @@
         return payload.executionPlan || null;
     }
 
+    async function respondToVoiceFunctionCall(call, content) {
+        if (!voiceState.socket || voiceState.socket.readyState !== WebSocket.OPEN) {
+            throw new Error('La sesion de voz ya no esta conectada.');
+        }
+
+        voiceState.socket.send(JSON.stringify({
+            type: 'function_call_response',
+            id: call.id || '',
+            name: call.name || '',
+            thought_signature: call.thought_signature || undefined,
+            content
+        }));
+    }
+
+    async function executeVoiceFunctionCall(call) {
+        const functionName = `${call?.name || ''}`.trim();
+        if (functionName !== 'execute_reservation_on_page') {
+            await respondToVoiceFunctionCall(call, JSON.stringify({
+                ok: false,
+                error: `Funcion no soportada en cliente: ${functionName || 'unknown'}`
+            }));
+            return;
+        }
+
+        let args = {};
+        try {
+            args = JSON.parse(call.arguments || '{}');
+        } catch (error) {
+            await respondToVoiceFunctionCall(call, JSON.stringify({
+                ok: false,
+                error: 'No pude interpretar los argumentos de la accion.'
+            }));
+            return;
+        }
+
+        const workflowId = `${args.workflowId || ''}`.trim();
+        const variables = args.variables && typeof args.variables === 'object' ? args.variables : {};
+
+        if (!workflowId) {
+            await respondToVoiceFunctionCall(call, JSON.stringify({
+                ok: false,
+                error: 'Falto workflowId para ejecutar la reserva.'
+            }));
+            return;
+        }
+
+        updateVoiceStatus('Ejecutando la reserva en esta pagina...');
+        runtime()?.speak('Voy a resolverlo aqui mismo en la pagina.', { mode: 'executing' });
+
+        try {
+            const executionPlan = await fetchExecutionPlan(workflowId, variables);
+            await executeWorkflowPlan(executionPlan, 'voice');
+            await respondToVoiceFunctionCall(call, JSON.stringify({
+                ok: true,
+                workflowId,
+                executed: true,
+                variables
+            }));
+        } catch (error) {
+            voiceLog('browser_execution_error', error.message || 'plan execution failed');
+            await respondToVoiceFunctionCall(call, JSON.stringify({
+                ok: false,
+                workflowId,
+                error: error.message || 'No pude completar la reserva en esta pagina.'
+            }));
+            throw error;
+        }
+    }
+
+    async function handleVoiceFunctionRequests(functionsList = []) {
+        for (const call of functionsList) {
+            await executeVoiceFunctionCall(call);
+        }
+    }
+
     async function resumePendingExecution() {
         const pending = readPendingExecution();
         if (!pending || executionState.running) {
@@ -1813,6 +1889,26 @@
         return buffer;
     }
 
+    function clearVoicePlayback() {
+        if (voiceState.playbackSources?.size) {
+            voiceState.playbackSources.forEach((source) => {
+                try {
+                    source.onended = null;
+                    source.stop(0);
+                } catch (error) {
+                    // Ignore sources that already ended.
+                }
+            });
+            voiceState.playbackSources.clear();
+        }
+
+        if (voiceState.playbackContext) {
+            voiceState.nextPlaybackTime = voiceState.playbackContext.currentTime;
+        } else {
+            voiceState.nextPlaybackTime = 0;
+        }
+    }
+
     async function playLinear16Audio(arrayBuffer) {
         if (!voiceState.playbackContext) {
             voiceState.playbackContext = new (window.AudioContext || window.webkitAudioContext)({
@@ -1837,6 +1933,10 @@
         const source = audioContext.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioContext.destination);
+        voiceState.playbackSources.add(source);
+        source.onended = () => {
+            voiceState.playbackSources.delete(source);
+        };
 
         const startAt = Math.max(audioContext.currentTime + 0.02, voiceState.nextPlaybackTime);
         source.start(startAt);
@@ -2057,10 +2157,10 @@
                 return;
             }
 
-            if (payload.type === 'transcript_interim') {
-                voiceLog('server_event_transcript_interim', payload.text);
-                updateVoiceStatus(payload.text);
-                runtime()?.showUserSpeech?.(payload.text);
+            if (payload.type === 'user_started_speaking') {
+                voiceLog('server_event_user_started_speaking');
+                clearVoicePlayback();
+                updateVoiceStatus('Te escucho...');
                 return;
             }
 
@@ -2069,6 +2169,12 @@
                 appendAgentMessage('user', payload.text);
                 updateVoiceStatus('Pensando y preparando la reserva...');
                 runtime()?.showUserSpeech?.(payload.text);
+                return;
+            }
+
+            if (payload.type === 'thinking') {
+                voiceLog('server_event_thinking');
+                updateVoiceStatus('Pensando y preparando la reserva...');
                 return;
             }
 
@@ -2090,9 +2196,32 @@
                 return;
             }
 
+            if (payload.type === 'assistant_audio_start') {
+                voiceLog('server_event_assistant_audio_start');
+                updateVoiceStatus('Hablando...');
+                runtime()?.clearUserSpeech?.();
+                return;
+            }
+
+            if (payload.type === 'function_call_request') {
+                voiceLog('server_event_function_call_request', payload.functions || []);
+                try {
+                    await handleVoiceFunctionRequests(payload.functions || []);
+                } catch (error) {
+                    appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
+                    updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                }
+                return;
+            }
+
             if (payload.type === 'audio_end') {
                 voiceLog('server_event_audio_end');
                 updateVoiceStatus('Escuchando...');
+                return;
+            }
+
+            if (payload.type === 'voice_session_closed') {
+                voiceLog('server_event_voice_session_closed');
                 return;
             }
 
@@ -2119,6 +2248,7 @@
             active: voiceState.active,
             usingPhoneSession: Boolean(voiceState.phoneSession?.id)
         });
+        clearVoicePlayback();
         const shouldAnnounce = options.announce !== false && voiceState.active;
         if (voiceState.socket && voiceState.socket.readyState === WebSocket.OPEN) {
             voiceState.socket.send(JSON.stringify({ type: 'stop' }));

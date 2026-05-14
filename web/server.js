@@ -919,6 +919,8 @@ app.set('port', PORT);
 const server = http.createServer(app);
 const voiceGateway = new VoiceRealtimeGateway({
   deepgramApiKey: process.env.DEEPGRAM_API_KEY,
+  llmProvider,
+  catalogService,
   agentChat,
   conversationInsights
 });
