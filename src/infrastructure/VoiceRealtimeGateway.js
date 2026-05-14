@@ -61,7 +61,7 @@ class VoiceRealtimeGateway {
   }
 
   getVoiceAgentUrl() {
-    return process.env.DEEPGRAM_VOICE_AGENT_URL || 'wss://agent.deepgram.com/v1/agent/converse';
+    return process.env.DEEPGRAM_VOICE_AGENT_URL || 'wss://api.deepgram.com/v1/agent/converse';
   }
 
   filterWorkflowsForContext(workflows, context = {}) {
@@ -416,7 +416,10 @@ class VoiceRealtimeGateway {
       if (type === 'Error') {
         this.log(session.id, 'Voice Agent error', payload.description || payload.message || '');
         this.sendJson(client, { type: 'error', error: payload.description || payload.message || 'Voice error.' });
+        return;
       }
+
+      this.log(session.id, 'Unhandled Voice Agent message', payload);
     });
 
     agentSocket.on('error', (error) => {
@@ -424,8 +427,13 @@ class VoiceRealtimeGateway {
       this.sendJson(client, { type: 'error', error: `Deepgram Voice Agent error: ${error.message}` });
     });
 
-    agentSocket.on('close', () => {
-      this.log(session.id, 'Deepgram Voice Agent socket closed');
+    agentSocket.on('close', (code, reasonBuffer) => {
+      const reason = Buffer.isBuffer(reasonBuffer) ? reasonBuffer.toString('utf8') : `${reasonBuffer || ''}`;
+      this.log(session.id, 'Deepgram Voice Agent socket closed', {
+        code,
+        reason: reason || '',
+        settingsApplied: session.settingsApplied
+      });
       this.stopKeepAlive(session);
       this.sendJson(client, { type: 'voice_session_closed' });
     });
