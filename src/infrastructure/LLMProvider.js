@@ -2,35 +2,46 @@ const axios = require('axios');
 
 class LLMProvider {
   constructor() {
-    this.apiKey = process.env.OPENROUTER_API_KEY;
-    this.baseUrl = 'https://openrouter.ai/api/v1';
-    this.model = 'nvidia/nemotron-3-nano-30b-a3b';
+    this.openRouterApiKey = (process.env.OPENROUTER_API_KEY || '').trim();
+    this.openAiApiKey = (process.env.OPENAI_API_KEY || '').trim();
+    this.provider = this.openRouterApiKey ? 'openrouter' : (this.openAiApiKey ? 'openai' : null);
+    this.apiKey = this.provider === 'openrouter' ? this.openRouterApiKey : this.openAiApiKey;
+    this.baseUrl = this.provider === 'openrouter'
+      ? 'https://openrouter.ai/api/v1'
+      : 'https://api.openai.com/v1';
+    this.model = this.provider === 'openrouter'
+      ? (process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free')
+      : (process.env.OPENAI_MODEL || 'gpt-4o');
   }
 
   hasApiKey() {
     return Boolean(this.apiKey);
   }
 
-  async chat(messages, responseFormat) {
-    if (!this.apiKey) {
-      throw new Error('OPENROUTER_API_KEY is required for conversational LLM mode.');
+  getHeaders() {
+    if (!this.hasApiKey()) {
+      throw new Error('No LLM API key is configured');
     }
 
-    const payload = {
-      model: this.model,
-      messages
+    const headers = {
+      Authorization: `Bearer ${this.apiKey}`,
+      'Content-Type': 'application/json'
     };
 
-    if (responseFormat) {
-      payload.response_format = responseFormat;
+    if (this.provider === 'openrouter') {
+      headers['HTTP-Referer'] = process.env.OPENROUTER_SITE_URL || 'http://localhost:3000';
+      headers['X-Title'] = process.env.OPENROUTER_APP_NAME || 'Graph Workflow Trainer';
     }
 
+    return headers;
+  }
+
+  async postChatCompletions(payload) {
     try {
       const response = await axios.post(`${this.baseUrl}/chat/completions`, payload, {
-        headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' }
+        headers: this.getHeaders()
       });
-
-      return response.data.choices[0].message.content.trim();
+      return response.data;
     } catch (error) {
       const status = error.response?.status;
       const details = typeof error.response?.data === 'string'
@@ -40,28 +51,71 @@ class LLMProvider {
     }
   }
 
-  parseJsonObject(content) {
-    try {
-      return JSON.parse(content);
-    } catch (error) {
-      const fencedMatch = content.match(/```json\s*([\s\S]*?)```/i) || content.match(/```([\s\S]*?)```/);
-      if (fencedMatch) {
-        return JSON.parse(fencedMatch[1].trim());
-      }
-      throw new Error(`Could not parse LLM JSON response: ${content}`);
-    }
+  async translateToCypher(prompt, schema) {
+    const content = await this.chat([
+      { role: 'system', content: `Translate natural language to Neo4j Cypher. Schema: ${schema}. Return ONLY the Cypher query.` },
+      { role: 'user', content: prompt }
+    ]);
+
+    return content.replace(/```cypher|```/gi, '').trim();
   }
 
-  async chatExpectingJson(messages, preferredResponseFormat) {
+  async chat(messages, options = {}) {
+    const data = await this.postChatCompletions({
+      model: options.model || this.model,
+      messages
+    });
+
+    return data.choices?.[0]?.message?.content?.trim() || '';
+  }
+
+  async chatExpectingJson(messages, responseFormat = { type: 'json_object' }, options = {}) {
     try {
-      return await this.chat(messages, preferredResponseFormat);
+      const data = await this.postChatCompletions({
+        model: options.model || this.model,
+        messages,
+        response_format: responseFormat
+      });
+
+      return data.choices?.[0]?.message?.content?.trim() || '{}';
     } catch (error) {
       const message = `${error.message || ''}`;
-      if (!preferredResponseFormat || !message.includes('response format is not supported')) {
+      const formatUnsupported =
+        message.includes('response format is not supported')
+        || message.includes('response_format')
+        || message.includes('Invalid request');
+
+      if (!responseFormat || !formatUnsupported) {
         throw error;
       }
 
-      return this.chat(messages);
+      return this.chat(messages, options);
+    }
+  }
+
+  parseJsonObject(content) {
+    if (typeof content !== 'string') {
+      throw new Error('LLM content must be a string');
+    }
+
+    const cleaned = content
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
+    if (!cleaned) {
+      throw new Error('LLM returned empty content');
+    }
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (error) {
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (firstBrace >= 0 && lastBrace > firstBrace) {
+        return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+      }
+      throw new Error(`Could not parse LLM JSON response: ${cleaned}`);
     }
   }
 }

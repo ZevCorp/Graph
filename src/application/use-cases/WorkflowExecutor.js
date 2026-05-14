@@ -5,6 +5,13 @@ class WorkflowExecutor {
     this.llmProvider = llmProvider;
   }
 
+  defaultSelectChoices(selects) {
+    return selects.map((select) => ({
+      field: select.testid || select.id || select.name || 'select',
+      value: select.options.find((option) => option.value)?.value || ''
+    }));
+  }
+
   isExecutableStep(step) {
     if (!step || !step.actionType) return false;
     if (step.actionType === 'navigation') return Boolean(step.url);
@@ -19,11 +26,8 @@ class WorkflowExecutor {
       return [];
     }
 
-    if (!this.llmProvider || !this.llmProvider.hasApiKey()) {
-      return selects.map((select) => ({
-        field: select.testid || select.id || select.name || 'select',
-        value: select.options.find((option) => option.value)?.value || ''
-      }));
+    if (!this.llmProvider || typeof this.llmProvider.hasApiKey !== 'function' || !this.llmProvider.hasApiKey()) {
+      return this.defaultSelectChoices(selects);
     }
 
     const messages = [
@@ -60,15 +64,21 @@ class WorkflowExecutor {
       }
     ];
 
-    const content = await this.llmProvider.chatExpectingJson(messages, { type: 'json_object' });
-    console.log('[DEBUG] LLM dynamic options raw response:', content);
+    let content;
+    try {
+      content = await this.llmProvider.chatExpectingJson(messages, { type: 'json_object' });
+      console.log('[DEBUG] LLM dynamic options raw response:', content);
+    } catch (error) {
+      console.warn(`[DEBUG] LLM select choice fallback to defaults: ${error.message}`);
+      return this.defaultSelectChoices(selects);
+    }
     
     let parsed;
     try {
       parsed = this.llmProvider.parseJsonObject(content);
     } catch (e) {
       console.warn(`[DEBUG] Failed to parse JSON: ${e.message}`);
-      return [];
+      return this.defaultSelectChoices(selects);
     }
 
     let rawChoices = Array.isArray(parsed) ? parsed : (parsed.choices || parsed.fields || parsed.selects);
@@ -80,7 +90,7 @@ class WorkflowExecutor {
         rawChoices = keys.map(key => ({ field: key, value: parsed[key] }));
       } else {
         console.warn(`[DEBUG] Parsed JSON does not contain an array of choices. Parsed:`, parsed);
-        return [];
+        return this.defaultSelectChoices(selects);
       }
     }
 

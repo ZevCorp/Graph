@@ -3,6 +3,8 @@ window.WorkflowRecorder = (() => {
   let statusId = null;
   let stepOrder = 0;
   let recordQueue = Promise.resolve();
+  let lastFieldSignature = '';
+  const focusedSelectValues = new Map();
 
   function explanationField() {
     return document.getElementById('step-explanation');
@@ -107,8 +109,49 @@ window.WorkflowRecorder = (() => {
     return explanation;
   }
 
+  function isRecorderControl(element) {
+    return Boolean(
+      element
+      && ['btn-start', 'btn-stop', 'btn-record-toggle', 'step-explanation', 'wf-desc'].includes(element.id)
+    );
+  }
+
+  function shouldSkipFieldEvent(element, actionType) {
+    if (!element || isRecorderControl(element)) return true;
+    const signature = [
+      actionType,
+      selectorForElement(element),
+      element.value,
+      element instanceof HTMLSelectElement ? getAllowedOptions(element).map((option) => option.value).join('|') : ''
+    ].join('::');
+
+    if (signature === lastFieldSignature) {
+      return true;
+    }
+
+    lastFieldSignature = signature;
+    return false;
+  }
+
+  function rememberFocusedSelect(element) {
+    if (!(element instanceof HTMLSelectElement)) return;
+    focusedSelectValues.set(selectorForElement(element), element.value || '');
+  }
+
+  function forgetFocusedSelect(element) {
+    if (!(element instanceof HTMLSelectElement)) return;
+    focusedSelectValues.delete(selectorForElement(element));
+  }
+
+  function didSelectValueChange(element) {
+    if (!(element instanceof HTMLSelectElement)) return false;
+    const key = selectorForElement(element);
+    return focusedSelectValues.get(key) !== (element.value || '');
+  }
+
   async function recordFieldState(element) {
     const actionType = element instanceof HTMLSelectElement ? 'select' : 'input';
+    if (shouldSkipFieldEvent(element, actionType)) return;
 
     await recordStep({
       actionType,
@@ -123,7 +166,10 @@ window.WorkflowRecorder = (() => {
     const list = document.getElementById('activity-log');
     if (!list) return;
     const item = document.createElement('li');
-    item.textContent = `${step.stepOrder}. ${step.actionType} ${step.selector || step.url}${step.value ? ` = ${step.value}` : ''}`;
+    const renderedValue = step.actionType === 'select'
+      ? (step.selectedLabel || step.selectedValue || step.value || '')
+      : (step.value || '');
+    item.textContent = `${step.stepOrder}. ${step.actionType} ${step.selector || step.url}${renderedValue ? ` = ${renderedValue}` : ''}`;
     list.appendChild(item);
   }
 
@@ -164,6 +210,8 @@ window.WorkflowRecorder = (() => {
     isRecording = status.recording;
     statusId = status.id;
     stepOrder = 0;
+    lastFieldSignature = '';
+    focusedSelectValues.clear();
 
     if (status.recording) {
       if (startButton()) startButton().disabled = true;
@@ -186,7 +234,8 @@ window.WorkflowRecorder = (() => {
       const target = event.target.closest('a, button, input, textarea, select, option');
       if (!target) return;
       if (target.closest('.console')) return;
-      if (['btn-start', 'btn-stop', 'btn-record-toggle', 'step-explanation', 'wf-desc'].includes(target.id)) return;
+      if (isRecorderControl(target)) return;
+      if (target instanceof HTMLSelectElement || target instanceof HTMLOptionElement) return;
 
       await recordStep({
         actionType: 'click',
@@ -202,7 +251,7 @@ window.WorkflowRecorder = (() => {
       const target = event.target;
       const isField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
       if (!isField) return;
-      if (['step-explanation', 'wf-desc'].includes(target.id)) return;
+      if (isRecorderControl(target)) return;
       await recordFieldState(target);
     }, true);
 
@@ -210,8 +259,28 @@ window.WorkflowRecorder = (() => {
       if (!isRecording) return;
       const target = event.target;
       if (!(target instanceof HTMLSelectElement)) return;
-      if (['step-explanation', 'wf-desc'].includes(target.id)) return;
+      if (isRecorderControl(target)) return;
       await recordFieldState(target);
+    }, true);
+
+    document.addEventListener('focusin', (event) => {
+      if (!isRecording) return;
+      const target = event.target;
+      if (!(target instanceof HTMLSelectElement)) return;
+      if (isRecorderControl(target)) return;
+      rememberFocusedSelect(target);
+    }, true);
+
+    document.addEventListener('focusout', async (event) => {
+      if (!isRecording) return;
+      const target = event.target;
+      if (!(target instanceof HTMLSelectElement)) return;
+      if (isRecorderControl(target)) return;
+      const changed = didSelectValueChange(target);
+      if (target.value && changed) {
+        await recordFieldState(target);
+      }
+      forgetFocusedSelect(target);
     }, true);
   }
 
@@ -232,6 +301,8 @@ window.WorkflowRecorder = (() => {
 
       isRecording = true;
       stepOrder = 0;
+      lastFieldSignature = '';
+      focusedSelectValues.clear();
       recordQueue = Promise.resolve();
       if (startButton()) startButton().disabled = true;
       if (stopButton()) stopButton().disabled = false;
@@ -245,6 +316,8 @@ window.WorkflowRecorder = (() => {
     async stopWorkflow(redirectTo) {
       await fetch('/api/workflow/stop', { method: 'POST' });
       isRecording = false;
+      lastFieldSignature = '';
+      focusedSelectValues.clear();
       if (statusField()) statusField().innerText = 'Saved';
       updateRecordingUI(false);
       if (redirectTo) {
@@ -258,6 +331,8 @@ window.WorkflowRecorder = (() => {
       await fetch('/api/reset', { method: 'POST' });
       isRecording = false;
       stepOrder = 0;
+      lastFieldSignature = '';
+      focusedSelectValues.clear();
       if (statusField()) statusField().innerText = 'Idle';
       if (startButton()) startButton().disabled = false;
       if (stopButton()) stopButton().disabled = true;
