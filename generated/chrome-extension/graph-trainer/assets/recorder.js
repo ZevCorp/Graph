@@ -3,7 +3,7 @@ window.WorkflowRecorder = (() => {
   let statusId = null;
   let stepOrder = 0;
   let recordQueue = Promise.resolve();
-  let lastFieldSignature = '';
+  const lastFieldEvents = new Map();
   const focusedSelectValues = new Map();
 
   function emitExtensionLog(level, message, details = null) {
@@ -167,18 +167,32 @@ window.WorkflowRecorder = (() => {
 
   function shouldSkipFieldEvent(element, actionType) {
     if (!element || isRecorderControl(element)) return true;
+    const selector = selectorForElement(element);
     const signature = [
       actionType,
-      selectorForElement(element),
+      selector,
       element.value,
       element instanceof HTMLSelectElement ? getAllowedOptions(element).map((option) => option.value).join('|') : ''
     ].join('::');
+    const now = Date.now();
+    const previous = lastFieldEvents.get(selector);
 
-    if (signature === lastFieldSignature) {
+    if (previous && previous.signature === signature && now - previous.recordedAt < 900) {
+      if (element instanceof HTMLSelectElement) {
+        emitExtensionLog('info', 'Skipped duplicate select field event.', {
+          selector,
+          label: labelForElement(element),
+          value: element.value || '',
+          actionType
+        });
+      }
       return true;
     }
 
-    lastFieldSignature = signature;
+    lastFieldEvents.set(selector, {
+      signature,
+      recordedAt: now
+    });
     return false;
   }
 
@@ -266,6 +280,11 @@ window.WorkflowRecorder = (() => {
       .then(() => postStep(step))
       .catch((error) => {
         console.error('Failed to record step', error);
+        emitExtensionLog('error', 'Failed to record step.', {
+          selector: step?.selector || '',
+          actionType: step?.actionType || '',
+          message: error?.message || 'Unknown recorder error'
+        });
       });
 
     return recordQueue;
@@ -277,7 +296,7 @@ window.WorkflowRecorder = (() => {
     isRecording = status.recording;
     statusId = status.id;
     stepOrder = 0;
-    lastFieldSignature = '';
+    lastFieldEvents.clear();
     focusedSelectValues.clear();
 
     if (status.recording) {
@@ -389,7 +408,7 @@ window.WorkflowRecorder = (() => {
 
       isRecording = true;
       stepOrder = 0;
-      lastFieldSignature = '';
+      lastFieldEvents.clear();
       focusedSelectValues.clear();
       recordQueue = Promise.resolve();
       if (startButton()) startButton().disabled = true;
@@ -408,7 +427,7 @@ window.WorkflowRecorder = (() => {
     async stopWorkflow(redirectTo) {
       await requireApiClient().stopWorkflow();
       isRecording = false;
-      lastFieldSignature = '';
+      lastFieldEvents.clear();
       focusedSelectValues.clear();
       if (statusField()) statusField().innerText = 'Saved';
       updateRecordingUI(false);
@@ -426,7 +445,7 @@ window.WorkflowRecorder = (() => {
       await requireApiClient().resetWorkflow();
       isRecording = false;
       stepOrder = 0;
-      lastFieldSignature = '';
+      lastFieldEvents.clear();
       focusedSelectValues.clear();
       if (statusField()) statusField().innerText = 'Idle';
       if (startButton()) startButton().disabled = false;
