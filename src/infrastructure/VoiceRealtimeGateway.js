@@ -1,8 +1,9 @@
 const WebSocket = require('ws');
 
 class VoiceRealtimeGateway {
-  constructor({ deepgramApiKey, llmProvider, catalogService, conversationInsights }) {
+  constructor({ deepgramApiKey, openAiApiKey, llmProvider, catalogService, conversationInsights }) {
     this.deepgramApiKey = `${deepgramApiKey || ''}`.trim();
+    this.openAiApiKey = `${openAiApiKey || ''}`.trim();
     this.llmProvider = llmProvider || null;
     this.catalogService = catalogService || null;
     this.conversationInsights = conversationInsights || null;
@@ -61,19 +62,12 @@ class VoiceRealtimeGateway {
   }
 
   getVoiceAgentUrl() {
-    return process.env.DEEPGRAM_VOICE_AGENT_URL || 'wss://agent.deepgram.com/v1/agent/converse';
+    const model = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime';
+    return `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
   }
 
   getVoiceAgentUrlCandidates() {
-    const configured = `${process.env.DEEPGRAM_VOICE_AGENT_URL || ''}`.trim();
-    if (configured) {
-      return [configured];
-    }
-
-    return [
-      'wss://agent.deepgram.com/v1/agent/converse',
-      'wss://api.deepgram.com/v1/agent/converse'
-    ];
+    return [this.getVoiceAgentUrl()];
   }
 
   filterWorkflowsForContext(workflows, context = {}) {
@@ -235,61 +229,57 @@ class VoiceRealtimeGateway {
     session.availableWorkflows = workflows;
 
     return {
-      type: 'Settings',
-      audio: {
-        input: {
-          encoding: 'linear16',
-          sample_rate: 16000
-        },
-        output: {
-          encoding: 'linear16',
-          sample_rate: Number(process.env.DEEPGRAM_TTS_SAMPLE_RATE || 24000),
-          container: 'none'
-        }
-      },
-      agent: {
-        listen: {
-          provider: {
-            type: 'deepgram',
-            model: process.env.DEEPGRAM_VOICE_STT_MODEL || process.env.DEEPGRAM_STT_MODEL || 'nova-3',
-            language: process.env.DEEPGRAM_VOICE_STT_LANGUAGE || process.env.DEEPGRAM_STT_LANGUAGE || 'es'
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        instructions: this.buildVoiceAgentPrompt(session.context || {}, workflows),
+        audio: {
+          input: {
+            format: {
+              type: 'audio/pcm',
+              rate: 24000
+            },
+            noise_reduction: {
+              type: 'near_field'
+            },
+            transcription: {
+              model: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
+              language: 'es'
+            },
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 450,
+              create_response: true,
+              interrupt_response: true
+            }
+          },
+          output: {
+            format: {
+              type: 'audio/pcm',
+              rate: 24000
+            },
+            voice: process.env.OPENAI_REALTIME_VOICE || 'marin',
+            speed: Number(process.env.OPENAI_REALTIME_SPEED || 1)
           }
         },
-        think: this.buildThinkSettings(session.context || {}, workflows),
-        speak: {
-          provider: {
-            type: 'deepgram',
-            model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-javier-es',
-            speed: process.env.DEEPGRAM_TTS_SPEED || '1.12'
-          }
-        },
-        greeting: 'Hola, puedo ayudarte a reservar un vehiculo. Dime que necesitas y yo me encargo.',
-        context: {
-          messages: this.buildHistoryContext(session.history)
-        }
+        tools: this.buildFunctionDefinitions(workflows).map((tool) => ({
+          type: 'function',
+          ...tool
+        })),
+        tool_choice: 'auto',
+        modalities: ['audio', 'text']
       }
     };
   }
 
   startKeepAlive(session) {
-    this.stopKeepAlive(session);
-    session.keepAliveTimer = setInterval(() => {
-      if (!session.agentSocket || session.agentSocket.readyState !== WebSocket.OPEN || !session.settingsApplied) {
-        return;
-      }
-      const idleMs = Date.now() - (session.lastAudioAt || 0);
-      if (idleMs >= 8000) {
-        session.agentSocket.send(JSON.stringify({ type: 'KeepAlive' }));
-        this.log(session.id, 'KeepAlive sent to Deepgram Voice Agent');
-      }
-    }, 4000);
+    return;
   }
 
   stopKeepAlive(session) {
-    if (session.keepAliveTimer) {
-      clearInterval(session.keepAliveTimer);
-      session.keepAliveTimer = null;
-    }
+    return;
   }
 
   closeAgentSocket(session) {
@@ -317,8 +307,8 @@ class VoiceRealtimeGateway {
     session.settingsSent = true;
     this.log(session.id, 'Sending Voice Agent settings', {
       workflowCount: session.availableWorkflows?.length || 0,
-      llmModel: settings.agent?.think?.provider?.model || '',
-      ttsModel: settings.agent?.speak?.provider?.model || ''
+      llmModel: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime',
+      ttsVoice: settings.session?.audio?.output?.voice || process.env.OPENAI_REALTIME_VOICE || 'marin'
     });
     agentSocket.send(JSON.stringify(settings));
   }
@@ -330,7 +320,7 @@ class VoiceRealtimeGateway {
 
     const agentSocket = new WebSocket(targetUrl, {
       headers: {
-        Authorization: `Token ${this.deepgramApiKey}`
+        Authorization: `Bearer ${this.openAiApiKey}`
       }
     });
 
@@ -338,27 +328,17 @@ class VoiceRealtimeGateway {
     session.lastAudioAt = Date.now();
 
     agentSocket.on('open', () => {
-      this.log(session.id, 'Deepgram Voice Agent socket opened', targetUrl);
+      this.log(session.id, 'OpenAI Realtime socket opened', targetUrl);
       this.startKeepAlive(session);
-      session.settingsSendTimer = setTimeout(() => {
-        this.log(session.id, 'Welcome timeout reached, sending settings proactively');
-        this.sendVoiceAgentSettings(agentSocket, session).catch((error) => {
-          this.log(session.id, 'Failed to send settings after timeout', error.message);
-        });
-      }, 350);
+      this.sendVoiceAgentSettings(agentSocket, session).catch((error) => {
+        this.log(session.id, 'Failed to send session.update', error.message);
+      });
       if (session.phoneSessionId) {
         this.sendJson(client, { type: 'phone_waiting', sessionId: session.phoneSessionId });
       }
     });
 
     agentSocket.on('message', async (data, isBinary) => {
-      if (isBinary || Buffer.isBuffer(data)) {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(data, { binary: true });
-        }
-        return;
-      }
-
       let payload;
       try {
         payload = JSON.parse(data.toString());
@@ -368,23 +348,9 @@ class VoiceRealtimeGateway {
 
       const type = `${payload.type || ''}`.trim();
 
-      if (type === 'Welcome') {
-        this.log(session.id, 'Deepgram Voice Agent welcome received');
-        if (session.settingsSendTimer) {
-          clearTimeout(session.settingsSendTimer);
-          session.settingsSendTimer = null;
-        }
-        await this.sendVoiceAgentSettings(agentSocket, session);
-        return;
-      }
-
-      if (type === 'SettingsApplied') {
-        if (session.settingsSendTimer) {
-          clearTimeout(session.settingsSendTimer);
-          session.settingsSendTimer = null;
-        }
+      if (type === 'session.created' || type === 'session.updated') {
         session.settingsApplied = true;
-        this.log(session.id, 'Voice Agent settings applied');
+        this.log(session.id, 'OpenAI Realtime session ready');
         this.sendJson(client, { type: 'ready' });
         if (session.phoneSessionId) {
           const phoneSession = this.phoneSessions.get(session.phoneSessionId);
@@ -396,21 +362,54 @@ class VoiceRealtimeGateway {
         return;
       }
 
-      if (type === 'ConversationText') {
-        const role = payload.role === 'assistant' ? 'assistant' : 'user';
-        const content = `${payload.content || ''}`.trim();
+      if (type === 'conversation.item.input_audio_transcription.completed') {
+        const content = `${payload.transcript || ''}`.trim();
         if (!content) {
           return;
         }
-        this.log(session.id, `ConversationText:${role}`, this.summarizeText(content));
+        this.log(session.id, 'User transcription received', this.summarizeText(content));
         this.sendJson(client, {
-          type: role === 'assistant' ? 'assistant_turn' : 'user_turn',
+          type: 'user_turn',
           text: content
         });
+        session.pendingUserText = content;
+        return;
+      }
 
-        if (role === 'user') {
-          session.pendingUserText = content;
-        } else if (session.pendingUserText) {
+      if (type === 'input_audio_buffer.speech_started') {
+        this.log(session.id, 'Speech started received');
+        this.sendJson(client, { type: 'user_started_speaking' });
+        return;
+      }
+
+      if (type === 'response.created') {
+        this.log(session.id, 'Response created received');
+        this.sendJson(client, { type: 'thinking' });
+        return;
+      }
+
+      if (type === 'response.output_audio.delta') {
+        const chunk = `${payload.delta || ''}`.trim();
+        if (!chunk) {
+          return;
+        }
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(Buffer.from(chunk, 'base64'), { binary: true });
+        }
+        return;
+      }
+
+      if (type === 'response.output_audio_transcript.done') {
+        const content = `${payload.transcript || ''}`.trim();
+        if (!content) {
+          return;
+        }
+        this.log(session.id, 'Assistant transcript received', this.summarizeText(content));
+        this.sendJson(client, {
+          type: 'assistant_turn',
+          text: content
+        });
+        if (session.pendingUserText) {
           await this.conversationInsights?.captureTurn({
             userText: session.pendingUserText,
             assistantReply: content,
@@ -421,53 +420,55 @@ class VoiceRealtimeGateway {
         return;
       }
 
-      if (type === 'UserStartedSpeaking') {
-        this.log(session.id, 'UserStartedSpeaking received');
-        this.sendJson(client, { type: 'user_started_speaking' });
-        return;
-      }
-
-      if (type === 'AgentThinking') {
-        this.log(session.id, 'AgentThinking received');
-        this.sendJson(client, { type: 'thinking' });
-        return;
-      }
-
-      if (type === 'AgentStartedSpeaking') {
-        this.log(session.id, 'AgentStartedSpeaking received');
+      if (type === 'response.output_audio.started') {
+        this.log(session.id, 'Assistant audio started received');
         this.sendJson(client, { type: 'assistant_audio_start' });
         return;
       }
 
-      if (type === 'AgentAudioDone') {
-        this.log(session.id, 'AgentAudioDone received');
+      if (type === 'response.output_audio.done') {
+        this.log(session.id, 'Assistant audio done received');
         this.sendJson(client, { type: 'audio_end' });
         return;
       }
 
-      if (type === 'FunctionCallRequest') {
-        this.log(session.id, 'FunctionCallRequest received', payload.functions || []);
+      if (type === 'response.output_item.done' && payload.item?.type === 'function_call') {
+        const functions = [{
+          id: payload.item.call_id || '',
+          name: payload.item.name || '',
+          arguments: payload.item.arguments || '{}'
+        }];
+        this.log(session.id, 'Function call request received', functions);
         this.sendJson(client, {
           type: 'function_call_request',
-          functions: Array.isArray(payload.functions) ? payload.functions : []
+          functions
         });
         return;
       }
 
-      if (type === 'FunctionCallResponse') {
-        this.log(session.id, 'FunctionCallResponse received', payload.name || '');
+      if (type === 'response.done' && Array.isArray(payload.response?.output)) {
+        const functions = payload.response.output
+          .filter((item) => item?.type === 'function_call')
+          .map((item) => ({
+            id: item.call_id || '',
+            name: item.name || '',
+            arguments: item.arguments || '{}'
+          }));
+
+        if (functions.length > 0) {
+          this.log(session.id, 'Function call request received from response.done', functions);
+          this.sendJson(client, {
+            type: 'function_call_request',
+            functions
+          });
+        }
         return;
       }
 
-      if (type === 'Warning') {
-        this.log(session.id, 'Voice Agent warning', payload.description || payload.message || '');
-        this.sendJson(client, { type: 'warning', warning: payload.description || payload.message || 'Voice warning.' });
-        return;
-      }
-
-      if (type === 'Error') {
-        this.log(session.id, 'Voice Agent error', payload.description || payload.message || '');
-        this.sendJson(client, { type: 'error', error: payload.description || payload.message || 'Voice error.' });
+      if (type === 'error') {
+        const message = payload.error?.message || payload.message || 'Voice error.';
+        this.log(session.id, 'OpenAI Realtime error', message);
+        this.sendJson(client, { type: 'error', error: message });
         return;
       }
 
@@ -476,36 +477,16 @@ class VoiceRealtimeGateway {
 
     agentSocket.on('error', async (error) => {
       const message = error.message || 'Unknown Voice Agent socket error';
-      this.log(session.id, 'Deepgram Voice Agent socket error', {
+      this.log(session.id, 'OpenAI Realtime socket error', {
         url: targetUrl,
         message
       });
-
-      const shouldRetry =
-        message.includes('404')
-        && attemptIndex + 1 < candidates.length
-        && !session.settingsApplied;
-
-      if (shouldRetry) {
-        this.log(session.id, 'Retrying Voice Agent endpoint after 404', {
-          from: targetUrl,
-          to: candidates[attemptIndex + 1]
-        });
-        try {
-          agentSocket.close();
-        } catch (closeError) {
-          // Ignore close races before retry.
-        }
-        await this.openVoiceAgentSession(client, session, attemptIndex + 1);
-        return;
-      }
-
-      this.sendJson(client, { type: 'error', error: `Deepgram Voice Agent error: ${message}` });
+      this.sendJson(client, { type: 'error', error: `OpenAI Realtime error: ${message}` });
     });
 
     agentSocket.on('close', (code, reasonBuffer) => {
       const reason = Buffer.isBuffer(reasonBuffer) ? reasonBuffer.toString('utf8') : `${reasonBuffer || ''}`;
-      this.log(session.id, 'Deepgram Voice Agent socket closed', {
+      this.log(session.id, 'OpenAI Realtime socket closed', {
         code,
         reason: reason || '',
         settingsApplied: session.settingsApplied,
@@ -521,12 +502,15 @@ class VoiceRealtimeGateway {
       return;
     }
     session.lastAudioAt = Date.now();
-    session.agentSocket.send(data, { binary: true });
+    session.agentSocket.send(JSON.stringify({
+      type: 'input_audio_buffer.append',
+      audio: Buffer.from(data).toString('base64')
+    }));
   }
 
   handleClient(client) {
-    if (!this.deepgramApiKey) {
-      this.sendJson(client, { type: 'error', error: 'DEEPGRAM_API_KEY is not configured.' });
+    if (!this.openAiApiKey) {
+      this.sendJson(client, { type: 'error', error: 'OPENAI_API_KEY is not configured.' });
       client.close();
       return;
     }
@@ -584,32 +568,30 @@ class VoiceRealtimeGateway {
       }
 
       if (payload.type === 'preview_tts') {
-        const previewText = `${payload.text || ''}`.trim();
-        this.log(session.id, 'Preview TTS requested', this.summarizeText(previewText));
-        this.previewSpeak(client, previewText).finally(() => {
-          try {
-            client.close();
-          } catch (error) {
-            // Ignore close races after preview playback.
-          }
-        });
+        this.sendJson(client, { type: 'audio_end' });
+        client.close();
         return;
       }
 
       if (payload.type === 'function_call_response') {
         if (session.agentSocket?.readyState === WebSocket.OPEN) {
-          const response = {
-            type: 'FunctionCallResponse',
-            id: payload.id || undefined,
-            name: payload.name || '',
-            content: typeof payload.content === 'string' ? payload.content : JSON.stringify(payload.content || {}),
-            thought_signature: payload.thought_signature || undefined
-          };
-          this.log(session.id, 'Forwarding FunctionCallResponse', {
-            id: response.id || '',
-            name: response.name
+          const output = typeof payload.content === 'string'
+            ? payload.content
+            : JSON.stringify(payload.content || {});
+          const callId = payload.id || '';
+          this.log(session.id, 'Forwarding function_call_output', {
+            id: callId,
+            name: payload.name || ''
           });
-          session.agentSocket.send(JSON.stringify(response));
+          session.agentSocket.send(JSON.stringify({
+            type: 'conversation.item.create',
+            item: {
+              type: 'function_call_output',
+              call_id: callId,
+              output
+            }
+          }));
+          session.agentSocket.send(JSON.stringify({ type: 'response.create' }));
         }
         return;
       }
@@ -617,6 +599,9 @@ class VoiceRealtimeGateway {
       if (payload.type === 'stop') {
         session.stoppedByUser = true;
         this.log(session.id, 'Stop requested by client');
+        if (session.agentSocket?.readyState === WebSocket.OPEN) {
+          session.agentSocket.send(JSON.stringify({ type: 'response.cancel' }));
+        }
         this.closeAgentSocket(session);
         client.close();
       }
@@ -722,89 +707,9 @@ class VoiceRealtimeGateway {
     });
   }
 
-  previewSpeak(client, text) {
-    return new Promise((resolve) => {
-      const cleanText = `${text || ''}`.trim().slice(0, 1900);
-      if (!cleanText) {
-        resolve();
-        return;
-      }
-
-      this.log('tts', 'Starting preview TTS', this.summarizeText(cleanText));
-      const params = new URLSearchParams({
-        model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-javier-es',
-        encoding: 'linear16',
-        sample_rate: process.env.DEEPGRAM_TTS_SAMPLE_RATE || '24000',
-        speed: process.env.DEEPGRAM_TTS_SPEED || '1.12'
-      });
-
-      const dgSpeak = new WebSocket(`wss://api.deepgram.com/v1/speak?${params.toString()}`, {
-        headers: {
-          Authorization: `Token ${this.deepgramApiKey}`
-        }
-      });
-
-      let resolved = false;
-      const finish = () => {
-        if (resolved) {
-          return;
-        }
-        resolved = true;
-        this.sendJson(client, { type: 'audio_end' });
-        try {
-          dgSpeak.close();
-        } catch (error) {
-          // Ignore close races.
-        }
-        resolve();
-      };
-
-      dgSpeak.on('open', () => {
-        this.log('tts', 'Preview TTS socket open', {
-          model: process.env.DEEPGRAM_TTS_MODEL || 'aura-2-javier-es',
-          speed: process.env.DEEPGRAM_TTS_SPEED || '1.12'
-        });
-        this.sendJson(client, {
-          type: 'audio_start',
-          encoding: 'linear16',
-          sampleRate: Number(process.env.DEEPGRAM_TTS_SAMPLE_RATE || 24000)
-        });
-        dgSpeak.send(JSON.stringify({ type: 'Speak', text: cleanText }));
-        dgSpeak.send(JSON.stringify({ type: 'Flush' }));
-      });
-
-      dgSpeak.on('message', (data, isBinary) => {
-        if (isBinary || Buffer.isBuffer(data)) {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(data, { binary: true });
-          }
-          return;
-        }
-
-        let event;
-        try {
-          event = JSON.parse(data.toString());
-        } catch (error) {
-          return;
-        }
-
-        if (event.type === 'Flushed') {
-          this.log('tts', 'Preview TTS flushed');
-          finish();
-        }
-      });
-
-      dgSpeak.on('error', (error) => {
-        this.log('tts', 'Preview TTS error', error.message);
-        this.sendJson(client, { type: 'error', error: `Deepgram TTS error: ${error.message}` });
-        finish();
-      });
-
-      dgSpeak.on('close', () => {
-        this.log('tts', 'Preview TTS socket closed');
-        finish();
-      });
-    });
+  previewSpeak(client) {
+    this.sendJson(client, { type: 'audio_end' });
+    return Promise.resolve();
   }
 }
 

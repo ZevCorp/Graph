@@ -1476,6 +1476,49 @@
         return '/rentacar/confirmacion.html?' + params.toString();
       }
 
+      function buildHubSpotPayload() {
+        return {
+          email: clientEmail.value.trim(),
+          firstName: clientFirstName.value.trim(),
+          lastName: clientLastName.value.trim(),
+          phone: clientWhatsapp.value.trim(),
+          documentType: clientDocumentType.value.trim(),
+          documentNumber: clientDocumentNumber.value.trim(),
+          birthDate: clientBirthDate.value.trim(),
+          nationality: clientNationality.value.trim(),
+          residenceCountry: clientResidenceCountry.value.trim(),
+          city: clientCity.value.trim(),
+          vehicle: document.getElementById('selectedVehicleTitle').textContent.trim(),
+          pickupDate: pickupDate || '',
+          pickupTime: pickupTime || '',
+          returnDate: returnDate || '',
+          returnTime: returnTime || '',
+          pickupLocation: pickupLocation || '',
+          returnLocation: returnLocation || '',
+          flightReservationCode: flightReservationCode.value.trim(),
+          flightAirline: flightAirline.value.trim(),
+          flightNumber: flightNumber.value.trim(),
+          flightOriginCity: flightOriginCity.value.trim(),
+          lodgingAddress: lodgingAddress.value.trim(),
+          additionalComments: additionalComments.value.trim()
+        };
+      }
+
+      async function syncReservationToHubSpot() {
+        const response = await fetch('/api/hubspot/reservation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildHubSpotPayload())
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error || 'No se pudo enviar la reserva a HubSpot.');
+        }
+
+        return payload;
+      }
+
       function applyFilters() {
         const passengers = Number(filterPassengers.value || 0);
         const luggage = Number(filterLuggage.value || 0);
@@ -1584,13 +1627,22 @@
         resetCallingState();
         callPhone.focus();
       });
-      confirmationSubmit.addEventListener('click', () => {
+      confirmationSubmit.addEventListener('click', async () => {
         if (!validateConfirmationFields(true)) {
           return;
         }
         confirmationSubmit.disabled = true;
         confirmationStatus.textContent = 'Enviando solicitud...';
-        window.location.href = buildConfirmationUrl();
+        try {
+          const syncResult = await syncReservationToHubSpot();
+          if (syncResult.warning) {
+            console.warn('[HubSpot] Warning:', syncResult.warning);
+          }
+          window.location.href = buildConfirmationUrl();
+        } catch (error) {
+          confirmationSubmit.disabled = false;
+          confirmationStatus.textContent = error.message || 'No se pudo sincronizar la reserva con HubSpot.';
+        }
       });
 
       resetFilterValues();

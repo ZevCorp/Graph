@@ -1,5 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const axios = require('axios');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
@@ -987,8 +988,8 @@ app.get('/phone-mic/:id', (req, res) => {
     const state = { active: false, socket: null, stream: null, audioContext: null, processor: null, source: null, silenceGain: null };
 
     function setStatus(text) { statusEl.textContent = text || ''; }
-    function downsampleTo16k(floatSamples, inputSampleRate) {
-      const targetSampleRate = 16000;
+    function downsampleForRealtime(floatSamples, inputSampleRate) {
+      const targetSampleRate = 24000;
       if (inputSampleRate === targetSampleRate) return floatSamples;
       const ratio = inputSampleRate / targetSampleRate;
       const outputLength = Math.floor(floatSamples.length / ratio);
@@ -1039,7 +1040,7 @@ app.get('/phone-mic/:id', (req, res) => {
           processor.onaudioprocess = (event) => {
             if (!state.active || socket.readyState !== WebSocket.OPEN) return;
             const input = event.inputBuffer.getChannelData(0);
-            socket.send(floatTo16BitPcm(downsampleTo16k(input, audioContext.sampleRate)));
+            socket.send(floatTo16BitPcm(downsampleForRealtime(input, audioContext.sampleRate)));
           };
           source.connect(processor);
           processor.connect(silenceGain);
@@ -1094,6 +1095,162 @@ app.post('/api/agent/chat', async (req, res) => {
   }
 });
 
+app.post('/api/hubspot/reservation', async (req, res) => {
+  const token = `${process.env.HUBSPOT_PRIVATE_APP_TOKEN || ''}`.trim();
+  if (!token) {
+    return res.status(500).json({ error: 'HubSpot no esta configurado en el servidor.' });
+  }
+
+  const reservation = req.body || {};
+  const contactPayload = {
+    email: `${reservation.email || ''}`.trim(),
+    firstname: `${reservation.firstName || ''}`.trim(),
+    lastname: `${reservation.lastName || ''}`.trim(),
+    phone: `${reservation.phone || ''}`.trim()
+  };
+
+  if (!contactPayload.email) {
+    return res.status(400).json({ error: 'Falta el email del contacto.' });
+  }
+
+  const hubspotHeaders = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+
+  function buildReservationNoteBody(payload) {
+    const lines = [
+      'Nueva reserva demo de carros',
+      '',
+      `Vehiculo: ${payload.vehicle || 'No especificado'}`,
+      `Recogida: ${payload.pickupDate || 'Por confirmar'} ${payload.pickupTime || ''}`.trim(),
+      `Entrega: ${payload.returnDate || 'Por confirmar'} ${payload.returnTime || ''}`.trim(),
+      `Lugar de recogida: ${payload.pickupLocation || 'Por confirmar'}`,
+      `Lugar de entrega: ${payload.returnLocation || 'Por confirmar'}`,
+      '',
+      `Nombre: ${payload.firstName || ''} ${payload.lastName || ''}`.trim(),
+      `Email: ${payload.email || 'No especificado'}`,
+      `Telefono: ${payload.phone || 'No especificado'}`,
+      `Documento: ${payload.documentType || 'No especificado'} ${payload.documentNumber || ''}`.trim(),
+      `Fecha de nacimiento: ${payload.birthDate || 'No especificada'}`,
+      `Nacionalidad: ${payload.nationality || 'No especificada'}`,
+      `Pais de residencia: ${payload.residenceCountry || 'No especificado'}`,
+      `Ciudad: ${payload.city || 'No especificada'}`,
+      '',
+      `Codigo de reserva aerea: ${payload.flightReservationCode || 'No especificado'}`,
+      `Aerolinea: ${payload.flightAirline || 'No especificada'}`,
+      `Numero de vuelo: ${payload.flightNumber || 'No especificado'}`,
+      `Ciudad de origen del vuelo: ${payload.flightOriginCity || 'No especificada'}`,
+      '',
+      `Hospedaje en Medellin: ${payload.lodgingAddress || 'No especificado'}`,
+      `Comentarios: ${payload.additionalComments || 'Sin comentarios adicionales'}`
+    ];
+
+    return lines.join('\n');
+  }
+
+  async function findContactByEmail(email) {
+    const response = await axios.post(
+      'https://api.hubapi.com/crm/v3/objects/contacts/search',
+      {
+        filterGroups: [
+          {
+            filters: [
+              {
+                propertyName: 'email',
+                operator: 'EQ',
+                value: email
+              }
+            ]
+          }
+        ],
+        limit: 1,
+        properties: ['email', 'firstname', 'lastname', 'phone']
+      },
+      { headers: hubspotHeaders }
+    );
+
+    return response.data?.results?.[0] || null;
+  }
+
+  async function createContact(properties) {
+    const response = await axios.post(
+      'https://api.hubapi.com/crm/v3/objects/contacts',
+      { properties },
+      { headers: hubspotHeaders }
+    );
+
+    return response.data;
+  }
+
+  async function updateContact(contactId, properties) {
+    const response = await axios.patch(
+      `https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(contactId)}`,
+      { properties },
+      { headers: hubspotHeaders }
+    );
+
+    return response.data;
+  }
+
+  async function createNote(noteBody) {
+    const response = await axios.post(
+      'https://api.hubapi.com/crm/v3/objects/notes',
+      {
+        properties: {
+          hs_timestamp: new Date().toISOString(),
+          hs_note_body: noteBody
+        }
+      },
+      { headers: hubspotHeaders }
+    );
+
+    return response.data;
+  }
+
+  async function associateNoteToContact(noteId, contactId) {
+    await axios.put(
+      `https://api.hubapi.com/crm/v3/objects/notes/${encodeURIComponent(noteId)}/associations/contact/${encodeURIComponent(contactId)}/note_to_contact`,
+      {},
+      { headers: hubspotHeaders }
+    );
+  }
+
+  try {
+    const existingContact = await findContactByEmail(contactPayload.email);
+    const filteredProperties = Object.fromEntries(
+      Object.entries(contactPayload).filter(([, value]) => value)
+    );
+
+    const contact = existingContact
+      ? await updateContact(existingContact.id, filteredProperties)
+      : await createContact(filteredProperties);
+
+    let noteCreated = false;
+    let warning = null;
+
+    try {
+      const note = await createNote(buildReservationNoteBody(reservation));
+      await associateNoteToContact(note.id, contact.id);
+      noteCreated = true;
+    } catch (noteError) {
+      console.warn('[HubSpot] Note sync warning:', noteError.response?.data || noteError.message);
+      warning = 'El contacto se creo en HubSpot, pero la nota no pudo guardarse con los permisos actuales.';
+    }
+
+    res.json({
+      ok: true,
+      contactId: contact.id,
+      noteCreated,
+      warning
+    });
+  } catch (error) {
+    const hubspotMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+    console.error('[HubSpot] Reservation sync error:', error.response?.data || error.message);
+    res.status(500).json({ error: `No se pudo sincronizar con HubSpot: ${hubspotMessage}` });
+  }
+});
+
 app.get('/api/visualize', async (req, res) => {
   try {
     const data = await getGraphVisualization.execute();
@@ -1116,6 +1273,7 @@ app.set('port', PORT);
 const server = http.createServer(app);
 const voiceGateway = new VoiceRealtimeGateway({
   deepgramApiKey: process.env.DEEPGRAM_API_KEY,
+  openAiApiKey: process.env.OPENAI_API_KEY,
   llmProvider,
   catalogService,
   agentChat,
