@@ -2557,7 +2557,6 @@
 
         if (payload.type === 'input_audio_buffer.speech_started') {
             voiceLog('openai_event_speech_started');
-            runtime()?.stopAudibleSpeech?.();
             updateVoiceStatus('Te escucho...');
             runtime()?.clearUserSpeech?.();
             return;
@@ -2574,6 +2573,7 @@
             if (!transcript || shouldIgnoreVoiceUserTranscript(transcript)) {
                 return;
             }
+            runtime()?.stopAudibleSpeech?.();
             voiceState.lastUserTranscript = normalizeVoiceTranscript(transcript);
             voiceState.lastUserTranscriptAt = Date.now();
             voiceLog('openai_event_user_turn', transcript);
@@ -2720,13 +2720,13 @@
 
         if (payload.type === 'user_started_speaking') {
             voiceLog('server_event_user_started_speaking');
-            runtime()?.stopAudibleSpeech?.();
             clearVoicePlayback();
             updateVoiceStatus('Te escucho...');
             return;
         }
 
         if (payload.type === 'user_turn') {
+            runtime()?.stopAudibleSpeech?.();
             voiceLog('server_event_user_turn', payload.text);
             appendAgentMessage('user', payload.text);
             updateVoiceStatus('Pensando y preparando la reserva...');

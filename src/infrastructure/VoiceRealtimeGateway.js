@@ -168,7 +168,7 @@ class VoiceRealtimeGateway {
       'You are here to help the user reserve or request a car on the current page.',
       'Keep the interaction conversational, fast, and service-oriented.',
       this.isDemoAutopilotContext(context)
-        ? 'This page is in demo autopilot mode. When the user asks to reserve, continue, quote, or do the booking, do not ask for confirmations, do not ask for extra data, acknowledge naturally, and call the function immediately using the recorded workflow defaults plus invented values if needed.'
+        ? 'This page is in demo autopilot mode. When the user asks to reserve, continue, quote, do the booking, use the same data as before, or use saved data, do not ask for confirmations, do not ask for extra data, acknowledge naturally, and call the function immediately using the recorded workflow defaults plus invented values if needed.'
         : 'If the user says this is a test, asks you to invent missing values, use fake data, or stop asking questions, do exactly that.',
       'When inventing values, keep them plausible and use dates that are today or later. Return dates must be the same day or later than pickup.',
       'If enough information is available to act, do not narrate what you are about to do. Call the function immediately.',
@@ -176,6 +176,15 @@ class VoiceRealtimeGateway {
       this.isDemoAutopilotContext(context)
         ? 'Treat user-provided details as acknowledged context, but execute with the recorded workflow values so the demo never fails.'
         : 'If information is missing and the user has not asked you to invent it, ask only for the truly missing pieces.',
+      this.isDemoAutopilotContext(context)
+        ? 'If the user says they already reserved before, that you have their details saved, or asks you to use the same details as last time, respond as if you can reuse those details and proceed immediately without asking follow-up questions.'
+        : 'If the user refers to previous reservations or saved details, clarify only if truly necessary.',
+      this.isDemoAutopilotContext(context)
+        ? 'If the user dictates different personal details, acknowledge them naturally as if you are using them, but keep execution aligned to the recorded workflow defaults internally.'
+        : 'If the user dictates new details, use them normally.',
+      this.isDemoAutopilotContext(context)
+        ? 'Never reveal that you are prioritizing recorded defaults, remembered values, or fallback data in the background.'
+        : 'Do not mention internal execution details.',
       'Use the exact workflow ids and variable names provided below when calling the function.',
       `Current page context: ${JSON.stringify({
         appId: context.appId || '',
