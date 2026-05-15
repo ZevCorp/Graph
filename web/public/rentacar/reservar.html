@@ -593,7 +593,7 @@
     .contact-dock {
       position: fixed;
       right: 18px;
-      bottom: 18px;
+      bottom: 126px;
       z-index: 9999;
       display: flex;
       flex-direction: column;
@@ -605,39 +605,37 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      width: 56px;
+      width: 156px;
     }
     .contact-link,
     .call-toggle {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      width: 56px;
+      justify-content: flex-start;
+      gap: 10px;
+      width: 156px;
       height: 56px;
-      padding: 0;
+      padding: 0 18px;
       border-radius: 999px;
       font-weight: 800;
       box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
-      text-decoration: none;
-      transition: transform 160ms ease, box-shadow 160ms ease;
-    }
-    .contact-link:hover,
-    .call-toggle:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);
+      text-decoration: none !important;
+      transition: none;
     }
     .contact-link img {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
       object-fit: contain;
+      flex: 0 0 auto;
     }
     .contact-link.whatsapp {
       background: #1f9d55;
-      color: #fff;
+      color: #fff !important;
     }
     .contact-link span,
     .call-toggle span {
-      display: none;
+      display: inline;
+      line-height: 1;
     }
     .call-widget {
       width: min(320px, calc(100vw - 36px));
@@ -661,7 +659,7 @@
       font-weight: 800;
     }
     .call-card p {
-      margin: 0 0 12px;
+      margin: 0 0 10px;
       color: #4d5b70;
       font-size: 0.92rem;
       line-height: 1.35;
@@ -669,6 +667,9 @@
     .call-input-row {
       display: flex;
       gap: 8px;
+    }
+    .call-widget.is-calling .call-input-row {
+      display: none;
     }
     .call-input-row input {
       min-width: 0;
@@ -698,14 +699,108 @@
       font-size: 0.86rem;
       font-weight: 700;
     }
+    .call-widget.is-calling .call-status {
+      display: none;
+    }
+    .call-live {
+      display: none;
+      margin-top: 12px;
+      padding: 18px 16px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #fff6f6, #ffe1e1);
+      border: 1px solid rgba(213, 23, 23, 0.14);
+      text-align: center;
+    }
+    .call-widget.is-calling .call-live {
+      display: block;
+    }
+    .call-pulse {
+      position: relative;
+      width: 74px;
+      height: 74px;
+      margin: 0 auto 12px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ff4d4d, #d51717);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      box-shadow: 0 14px 30px rgba(213, 23, 23, 0.24);
+    }
+    .call-pulse::before,
+    .call-pulse::after {
+      content: "";
+      position: absolute;
+      inset: -8px;
+      border-radius: inherit;
+      border: 2px solid rgba(213, 23, 23, 0.25);
+      animation: homeCallRing 1.8s ease-out infinite;
+    }
+    .call-pulse::after {
+      animation-delay: 0.6s;
+    }
+    .call-pulse svg {
+      width: 28px;
+      height: 28px;
+    }
+    .call-live strong,
+    .call-live span,
+    .call-live small {
+      display: block;
+    }
+    .call-live strong {
+      color: #8e0f0f;
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .call-live span {
+      margin-top: 6px;
+      color: #18263d;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+    .call-live small {
+      margin-top: 6px;
+      color: #5f6775;
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+    .call-live-actions {
+      margin-top: 14px;
+      display: flex;
+      justify-content: center;
+    }
+    .call-reset {
+      border: none;
+      border-radius: 999px;
+      background: #12253e;
+      color: #fff;
+      height: 40px;
+      padding: 0 18px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    @keyframes homeCallRing {
+      0% {
+        transform: scale(0.92);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(1.38);
+        opacity: 0;
+      }
+    }
     .call-toggle {
       border: none;
       background: var(--brand-red);
       color: #fff;
       cursor: pointer;
     }
-    .call-toggle .fa {
-      font-size: 1rem;
+    .call-toggle svg {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 auto;
     }
     @media (max-width: 991px) {
       .trip-glance,
@@ -749,8 +844,15 @@
         padding-right: 16px;
       }
       .contact-dock {
-        right: 12px;
-        bottom: 12px;
+        bottom: 112px;
+      }
+    }
+    @media (max-width: 767px) {
+      .call-widget,
+      .contact-actions,
+      .call-toggle,
+      .contact-link {
+        width: min(156px, calc(100vw - 36px));
       }
     }
   </style>
@@ -1083,15 +1185,30 @@
             <button class="call-submit" id="callSubmit" data-testid="call-submit" type="button">Enviar</button>
           </div>
           <div class="call-status" id="callStatus" data-testid="call-status" aria-live="polite"></div>
+          <div class="call-live" id="callLive" data-testid="call-live" aria-live="polite">
+            <div class="call-pulse" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.11.37 2.3.56 3.58.56a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.28.19 2.47.56 3.58a1 1 0 0 1-.24 1.01l-2.2 2.2Z"></path>
+              </svg>
+            </div>
+            <strong>Llamando...</strong>
+            <span id="callLivePhone">Conectando con un asesor</span>
+            <small>Estamos simulando la llamada en este momento para que el usuario sienta respuesta inmediata.</small>
+            <div class="call-live-actions">
+              <button class="call-reset" id="callReset" data-testid="call-reset" type="button">Volver</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="contact-actions">
         <button class="call-toggle" id="callToggle" data-testid="call-toggle" type="button" aria-controls="callCard" aria-expanded="false" aria-label="Llamame" title="Llamame">
-          <i class="fa fa-phone" aria-hidden="true"></i>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.11.37 2.3.56 3.58.56a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.28.19 2.47.56 3.58a1 1 0 0 1-.24 1.01l-2.2 2.2Z"></path>
+          </svg>
           <span>Llamame</span>
         </button>
         <a class="contact-link whatsapp" href="https://api.whatsapp.com/send?phone=573045459999" target="_blank" rel="noreferrer" data-testid="reservation-whatsapp-link" aria-label="WhatsApp" title="WhatsApp">
-          <img src="./assets/whatsapp_icon2.png" alt="WhatsApp">
+          <img src="/rentacar/assets/whatsapp_icon2.png" alt="WhatsApp">
           <span>WhatsApp</span>
         </a>
       </div>
@@ -1173,6 +1290,8 @@
       const callPhone = document.getElementById('callPhone');
       const callSubmit = document.getElementById('callSubmit');
       const callStatus = document.getElementById('callStatus');
+      const callLivePhone = document.getElementById('callLivePhone');
+      const callReset = document.getElementById('callReset');
 
       function updateRangeLabels() {
         priceValue.textContent = formatMoney(Number(filterPrice.value));
@@ -1275,11 +1394,17 @@
         }
       }
 
+      function resetCallingState() {
+        callWidget.classList.remove('is-calling');
+        callStatus.textContent = '';
+        callSubmit.disabled = false;
+      }
+
       function toggleCallWidget() {
         syncCallPhoneFromJourney(true);
         const isOpen = callWidget.classList.toggle('is-open');
         callToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        if (isOpen) callPhone.focus();
+        if (isOpen && !callWidget.classList.contains('is-calling')) callPhone.focus();
       }
 
       function selectVehicle(card) {
@@ -1335,7 +1460,14 @@
           callPhone.focus();
           return;
         }
-        callStatus.textContent = 'Listo. Te contactaremos pronto a este numero.';
+        callLivePhone.textContent = 'Llamando ahora al ' + phone;
+        callWidget.classList.add('is-calling');
+        callStatus.textContent = '';
+        callSubmit.disabled = true;
+      });
+      callReset.addEventListener('click', () => {
+        resetCallingState();
+        callPhone.focus();
       });
 
       resetFilterValues();

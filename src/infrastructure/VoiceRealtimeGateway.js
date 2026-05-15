@@ -284,13 +284,33 @@ class VoiceRealtimeGateway {
 
   closeAgentSocket(session) {
     this.stopKeepAlive(session);
+    if (session.settingsSendTimer) {
+      clearTimeout(session.settingsSendTimer);
+      session.settingsSendTimer = null;
+    }
     try {
       session.agentSocket?.close();
     } catch (error) {
       // Ignore close races.
     }
     session.agentSocket = null;
+    session.settingsSent = false;
     session.settingsApplied = false;
+  }
+
+  async sendVoiceAgentSettings(agentSocket, session) {
+    if (!agentSocket || agentSocket.readyState !== WebSocket.OPEN || session.settingsSent) {
+      return;
+    }
+
+    const settings = await this.buildSettingsPayload(session);
+    session.settingsSent = true;
+    this.log(session.id, 'Sending Voice Agent settings', {
+      workflowCount: session.availableWorkflows?.length || 0,
+      llmModel: settings.agent?.think?.provider?.model || '',
+      ttsModel: settings.agent?.speak?.provider?.model || ''
+    });
+    agentSocket.send(JSON.stringify(settings));
   }
 
   async openVoiceAgentSession(client, session, attemptIndex = 0) {
@@ -310,6 +330,12 @@ class VoiceRealtimeGateway {
     agentSocket.on('open', () => {
       this.log(session.id, 'Deepgram Voice Agent socket opened', targetUrl);
       this.startKeepAlive(session);
+      session.settingsSendTimer = setTimeout(() => {
+        this.log(session.id, 'Welcome timeout reached, sending settings proactively');
+        this.sendVoiceAgentSettings(agentSocket, session).catch((error) => {
+          this.log(session.id, 'Failed to send settings after timeout', error.message);
+        });
+      }, 350);
       if (session.phoneSessionId) {
         this.sendJson(client, { type: 'phone_waiting', sessionId: session.phoneSessionId });
       }
@@ -334,17 +360,19 @@ class VoiceRealtimeGateway {
 
       if (type === 'Welcome') {
         this.log(session.id, 'Deepgram Voice Agent welcome received');
-        const settings = await this.buildSettingsPayload(session);
-        this.log(session.id, 'Sending Voice Agent settings', {
-          workflowCount: session.availableWorkflows?.length || 0,
-          llmModel: settings.agent?.think?.provider?.model || '',
-          ttsModel: settings.agent?.speak?.provider?.model || ''
-        });
-        agentSocket.send(JSON.stringify(settings));
+        if (session.settingsSendTimer) {
+          clearTimeout(session.settingsSendTimer);
+          session.settingsSendTimer = null;
+        }
+        await this.sendVoiceAgentSettings(agentSocket, session);
         return;
       }
 
       if (type === 'SettingsApplied') {
+        if (session.settingsSendTimer) {
+          clearTimeout(session.settingsSendTimer);
+          session.settingsSendTimer = null;
+        }
         session.settingsApplied = true;
         this.log(session.id, 'Voice Agent settings applied');
         this.sendJson(client, { type: 'ready' });
@@ -503,6 +531,8 @@ class VoiceRealtimeGateway {
       stoppedByUser: false,
       agentSocket: null,
       keepAliveTimer: null,
+      settingsSent: false,
+      settingsSendTimer: null,
       settingsApplied: false,
       lastAudioAt: 0
     };
