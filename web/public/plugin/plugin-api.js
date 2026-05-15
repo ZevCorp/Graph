@@ -26,6 +26,9 @@
 
     function createClient(config) {
         const baseUrl = normalizeBaseUrl(config?.baseUrl || '');
+        const fetchImpl = typeof config?.fetchImpl === 'function'
+            ? config.fetchImpl
+            : fetch;
 
         return {
             listWorkflows() {
@@ -80,7 +83,7 @@
                 });
             },
             createOpenAiRealtimeSession(sdp, headers) {
-                return fetch(buildUrl(baseUrl, '/api/voice/openai/session'), {
+                return fetchImpl(buildUrl(baseUrl, '/api/voice/openai/session'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/sdp',

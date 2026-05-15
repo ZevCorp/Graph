@@ -65,24 +65,22 @@
         console.log(`[VoiceUI] ${event}`);
     }
 
+    function pluginHost() {
+        return options?.host
+            || window.GraphPluginHost?.createHost?.(options)
+            || null;
+    }
+
     function getStoredPhoneSessionId() {
-        try {
-            return window.localStorage.getItem(PHONE_MIC_SESSION_STORAGE_KEY) || '';
-        } catch (error) {
-            return '';
-        }
+        return pluginHost()?.localStore?.get(PHONE_MIC_SESSION_STORAGE_KEY) || '';
     }
 
     function setStoredPhoneSessionId(id) {
-        try {
-            if (!id) {
-                window.localStorage.removeItem(PHONE_MIC_SESSION_STORAGE_KEY);
-                return;
-            }
-            window.localStorage.setItem(PHONE_MIC_SESSION_STORAGE_KEY, id);
-        } catch (error) {
-            // Ignore storage failures in restricted browsers.
+        if (!id) {
+            pluginHost()?.localStore?.remove(PHONE_MIC_SESSION_STORAGE_KEY);
+            return;
         }
+        pluginHost()?.localStore?.set(PHONE_MIC_SESSION_STORAGE_KEY, id);
     }
 
     function runtime() {
@@ -104,6 +102,10 @@
     function buildMountOptions(config = {}) {
         const adapter = window.GraphPluginAdapters?.resolve?.(config) || null;
         const adapterDefaults = adapter?.mountDefaults || {};
+        const host = window.GraphPluginHost?.createHost?.({
+            ...adapterDefaults,
+            ...config
+        }) || null;
         return {
             ...DEFAULTS,
             ...adapterDefaults,
@@ -114,13 +116,15 @@
                 ...(config.assistantRuntime || {})
             },
             assistantProfile: config.assistantProfile || adapterDefaults.assistantProfile || DEFAULTS.assistantProfile,
-            adapter
+            adapter,
+            host
         };
     }
 
     function apiClient() {
         return window.GraphPluginApi?.createClient?.({
-            baseUrl: options.apiBaseUrl || ''
+            baseUrl: pluginHost()?.apiBaseUrl || options.apiBaseUrl || '',
+            fetchImpl: pluginHost()?.fetchImpl || null
         }) || null;
     }
 
@@ -1149,12 +1153,13 @@
 
     function getExecutionStorageKey() {
         const appId = `${options.appId || 'page'}`.trim() || 'page';
-        return `${EXECUTION_STORAGE_PREFIX}:${appId}`;
+        const platform = pluginHost()?.platform || 'web-page';
+        return `${EXECUTION_STORAGE_PREFIX}:${platform}:${appId}`;
     }
 
     function readPendingExecution() {
         try {
-            const raw = window.sessionStorage.getItem(getExecutionStorageKey());
+            const raw = pluginHost()?.sessionStore?.get(getExecutionStorageKey()) || '';
             if (!raw) return null;
             const parsed = JSON.parse(raw);
             if (!parsed || !parsed.workflowId || !Array.isArray(parsed.steps)) {
@@ -1169,17 +1174,17 @@
     function persistPendingExecution(plan) {
         if (!plan) {
             executionState.running = false;
-            window.sessionStorage.removeItem(getExecutionStorageKey());
+            pluginHost()?.sessionStore?.remove(getExecutionStorageKey());
             return;
         }
 
         executionState.running = true;
-        window.sessionStorage.setItem(getExecutionStorageKey(), JSON.stringify(plan));
+        pluginHost()?.sessionStore?.set(getExecutionStorageKey(), JSON.stringify(plan));
     }
 
     function clearPendingExecution() {
         executionState.running = false;
-        window.sessionStorage.removeItem(getExecutionStorageKey());
+        pluginHost()?.sessionStore?.remove(getExecutionStorageKey());
     }
 
     function normalizeExecutionUrl(rawUrl) {

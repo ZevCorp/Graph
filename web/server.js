@@ -244,6 +244,7 @@ function injectTrainerShell(html, options = {}) {
 <script src="/recorder.js"></script>
 <script src="/assistant-runtime.js"></script>
 <script src="/plugin/plugin-events.js"></script>
+<script src="/plugin/plugin-host.js"></script>
 <script src="/plugin/plugin-adapters.js"></script>
 <script src="/plugin/plugin-context.js"></script>
 <script src="/plugin/plugin-api.js"></script>
