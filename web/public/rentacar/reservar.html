@@ -561,33 +561,36 @@
     }
     .confirmation-stage {
       margin-top: 28px;
-      padding: 28px 24px 32px;
+      padding: 38px 24px 40px;
       text-align: center;
-      background: linear-gradient(180deg, #fff 0%, #fff8f8 100%);
-      border: 1px solid rgba(213, 23, 23, 0.12);
-      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.98)),
+        radial-gradient(circle at top center, rgba(139, 197, 63, 0.18), transparent 55%);
+      border: 1px solid rgba(18, 37, 62, 0.08);
+      border-radius: 22px;
       box-shadow: var(--shadow);
     }
     .confirmation-stage h3 {
-      margin: 0 0 10px;
+      margin: 0;
       color: #12253e;
-      font-size: 1.45rem;
+      font-size: clamp(2rem, 4vw, 2.8rem);
       font-weight: 800;
+      line-height: 1.05;
     }
     .confirmation-stage p {
-      max-width: 760px;
-      margin: 0 auto;
+      max-width: 640px;
+      margin: 14px auto 0;
       color: #334155;
-      line-height: 1.5;
-      font-size: 0.98rem;
+      line-height: 1.45;
+      font-size: 1.02rem;
     }
     .confirmation-stage .helper-text {
-      margin-top: 10px;
+      margin-top: 12px;
       color: #66758a;
-      font-size: 0.92rem;
+      font-size: 0.9rem;
     }
     .confirmation-actions {
-      margin-top: 22px;
+      margin-top: 26px;
       display: flex;
       justify-content: center;
       gap: 12px;
@@ -597,17 +600,18 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 280px;
-      min-height: 52px;
+      min-width: 360px;
+      min-height: 64px;
       border: none;
       border-radius: 999px;
-      padding: 0 26px;
-      background: linear-gradient(135deg, #d51717, #b61010);
-      color: #fff;
-      font-size: 1rem;
+      padding: 0 34px;
+      background: linear-gradient(135deg, #8bc53f, #6ea62a);
+      color: #112008;
+      font-size: 1.08rem;
       font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 16px 32px rgba(213, 23, 23, 0.22);
+      box-shadow: 0 18px 36px rgba(139, 197, 63, 0.28);
+      letter-spacing: 0.01em;
     }
     .confirmation-submit:disabled {
       cursor: not-allowed;
@@ -1211,13 +1215,13 @@
       </section>
 
       <section class="confirmation-stage" id="confirmationStage" data-testid="confirmation-stage">
-        <h3>Confirma tu solicitud de reserva</h3>
-        <p>Cuando termines de diligenciar tus datos, envia la solicitud para pasar a la pantalla de confirmacion. Alli le indicaremos al cliente que la verificacion llegara al correo y al telefono por SMS.</p>
+        <h3>Confirmar reserva</h3>
+        <p>Te enviaremos la verificacion al correo y al telefono por SMS.</p>
         <div class="confirmation-actions">
-          <button class="confirmation-submit" id="confirmationSubmit" data-testid="confirmation-submit" type="button">Enviar solicitud de reserva</button>
+          <button class="confirmation-submit" id="confirmationSubmit" data-testid="confirmation-submit" type="button">Confirmar reserva</button>
         </div>
         <div class="confirmation-status" id="confirmationStatus" data-testid="confirmation-status" aria-live="polite"></div>
-        <div class="helper-text">Usaremos el email y el telefono con WhatsApp diligenciados en el formulario.</div>
+        <div class="helper-text">Usaremos el email y el telefono registrados arriba.</div>
       </section>
 
       <section class="reviews-stage" id="reviewsStage" data-testid="reviews-stage">
