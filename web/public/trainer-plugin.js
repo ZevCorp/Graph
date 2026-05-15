@@ -2351,6 +2351,16 @@
         channel.send(JSON.stringify(event));
     }
 
+    function encodeVoiceHeaderPayload(value) {
+        const json = JSON.stringify(value || null);
+        const bytes = new TextEncoder().encode(json);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 1) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
+
     async function respondToRealtimeFunctionCall(callId, output) {
         sendRealtimeEvent({
             type: 'conversation.item.create',
@@ -2747,25 +2757,36 @@
 
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
+            const localSdp = `${peerConnection.localDescription?.sdp || offer.sdp || ''}`.trim();
+            if (!localSdp || !localSdp.includes('m=audio')) {
+                throw new Error('No pude generar una oferta de audio valida para iniciar la voz en tiempo real.');
+            }
 
             const response = await fetch('/api/voice/openai/session', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sdp: offer.sdp,
-                    context: getPageContext(),
-                    history: agentHistory.slice(-10)
-                })
+                headers: {
+                    'Content-Type': 'application/sdp',
+                    'X-Graph-Voice-Context': encodeVoiceHeaderPayload(getPageContext()),
+                    'X-Graph-Voice-History': encodeVoiceHeaderPayload(agentHistory.slice(-10))
+                },
+                body: localSdp
             });
 
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok || !payload?.sdp) {
-                throw new Error(payload.error || 'No pude iniciar la sesion de voz con OpenAI.');
+            const answerSdp = await response.text();
+            if (!response.ok || !answerSdp) {
+                let errorMessage = answerSdp || 'No pude iniciar la sesion de voz con OpenAI.';
+                try {
+                    const payload = JSON.parse(answerSdp || '{}');
+                    errorMessage = payload.error || errorMessage;
+                } catch (error) {
+                    // Keep raw text when the response is not JSON.
+                }
+                throw new Error(errorMessage);
             }
 
             await peerConnection.setRemoteDescription({
                 type: 'answer',
-                sdp: payload.sdp
+                sdp: answerSdp
             });
 
             await new Promise((resolve, reject) => {
@@ -2787,8 +2808,8 @@
             setVoiceButton(true);
             updateVoiceStatus('Escuchando...');
             voiceLog('openai_realtime_connected', {
-                model: payload.model || '',
-                voice: payload.voice || ''
+                model: response.headers.get('x-openai-realtime-model') || '',
+                voice: response.headers.get('x-openai-realtime-voice') || ''
             });
 
             peerConnection.addEventListener('connectionstatechange', () => {

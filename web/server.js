@@ -111,6 +111,19 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function decodeBase64JsonHeader(value, fallback = null) {
+  const encoded = `${value || ''}`.trim();
+  if (!encoded) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+  } catch (error) {
+    return fallback;
+  }
+}
+
 const CAR_DEMO_ASSISTANT_PROFILE = {
   tone: 'close, sincere, direct, human',
   style: 'helpful car-rental advisor',
@@ -864,25 +877,31 @@ app.post('/api/voice/complaints/process', async (req, res) => {
   }
 });
 
-app.post('/api/voice/openai/session', async (req, res) => {
+app.post('/api/voice/openai/session', express.text({ type: ['application/sdp', 'text/plain'], limit: '1mb' }), async (req, res) => {
   try {
     const openAiApiKey = `${process.env.OPENAI_API_KEY || ''}`.trim();
     if (!openAiApiKey) {
       return res.status(500).json({ error: 'OPENAI_API_KEY is not configured on the server.' });
     }
 
-    const sdp = `${req.body?.sdp || ''}`.trim();
+    const sdp = typeof req.body === 'string'
+      ? req.body.trim()
+      : `${req.body?.sdp || ''}`.trim();
     if (!sdp) {
       return res.status(400).json({ error: 'Missing SDP offer.' });
     }
 
-    const context = req.body?.context || {};
+    const context = decodeBase64JsonHeader(req.get('x-graph-voice-context'), {});
+    const history = decodeBase64JsonHeader(req.get('x-graph-voice-history'), []);
     const workflows = agentChat.filterWorkflowsForContext(await catalogService.getCatalog(), context);
 
     const sessionConfig = {
       type: 'realtime',
       model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime',
       instructions: buildOpenAiRealtimeInstructions(context, workflows),
+      conversation: Array.isArray(history) && history.length > 0
+        ? 'auto'
+        : undefined,
       audio: {
         input: {
           noise_reduction: { type: 'near_field' },
@@ -927,11 +946,11 @@ app.post('/api/voice/openai/session', async (req, res) => {
       });
     }
 
-    res.json({
-      sdp: answerSdp,
-      model: sessionConfig.model,
-      voice: sessionConfig.audio.output.voice
-    });
+    res
+      .set('Content-Type', 'application/sdp')
+      .set('X-OpenAI-Realtime-Model', sessionConfig.model)
+      .set('X-OpenAI-Realtime-Voice', sessionConfig.audio.output.voice)
+      .send(answerSdp);
   } catch (err) {
     console.error(`[Voice OpenAI] Session Error: ${err.message}`);
     res.status(500).json({ error: err.message });
