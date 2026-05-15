@@ -3,6 +3,16 @@ class Neo4jWorkflowRepository {
     this.db = db;
   }
 
+  serializeAllowedOptions(rawValue) {
+    if (Array.isArray(rawValue)) {
+      return JSON.stringify(rawValue);
+    }
+    if (typeof rawValue === 'string') {
+      return rawValue;
+    }
+    return '[]';
+  }
+
   toNativeNumber(value) {
     if (value && typeof value.toNumber === 'function') return value.toNumber();
     return Number(value);
@@ -103,6 +113,7 @@ class Neo4jWorkflowRepository {
     `, {
       wfId: workflowId,
       ...step,
+      allowedOptions: this.serializeAllowedOptions(step.allowedOptions),
       stepOrder: nextStepOrder
     });
   }
@@ -210,7 +221,15 @@ class Neo4jWorkflowRepository {
         timestamp: timestamp()
       })
       CREATE (w)-[:HAS_STEP]->(s)
-    `, workflow);
+    `, {
+      ...workflow,
+      steps: Array.isArray(workflow.steps)
+        ? workflow.steps.map((step) => ({
+            ...step,
+            allowedOptions: this.serializeAllowedOptions(step.allowedOptions)
+          }))
+        : []
+    });
   }
 
   async updateFullWorkflow(workflow) {
@@ -247,7 +266,15 @@ class Neo4jWorkflowRepository {
         timestamp: timestamp()
       })
       CREATE (w)-[:HAS_STEP]->(s)
-    `, workflow);
+    `, {
+      ...workflow,
+      steps: Array.isArray(workflow.steps)
+        ? workflow.steps.map((step) => ({
+            ...step,
+            allowedOptions: this.serializeAllowedOptions(step.allowedOptions)
+          }))
+        : []
+    });
   }
 
   async deleteWorkflow(workflowId) {

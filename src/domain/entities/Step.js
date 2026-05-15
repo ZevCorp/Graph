@@ -2,6 +2,21 @@ function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function parseAllowedOptions(rawValue) {
+  if (Array.isArray(rawValue)) {
+    return rawValue;
+  }
+  if (!rawValue || typeof rawValue !== 'string') {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
 class Step {
   constructor(data = {}) {
     this.actionType = normalizeText(data.actionType) || 'unknown';
@@ -14,13 +29,12 @@ class Step {
     this.selectedValue = typeof data.selectedValue === 'string' ? data.selectedValue : '';
     this.selectedLabel = normalizeText(data.selectedLabel);
     
-    this.allowedOptions = Array.isArray(data.allowedOptions)
-      ? data.allowedOptions.map((option) => ({
+    this.allowedOptions = parseAllowedOptions(data.allowedOptions)
+      .map((option) => ({
           value: typeof option?.value === 'string' ? option.value : '',
           label: normalizeText(option?.label),
           text: normalizeText(option?.text)
         }))
-      : [];
       
     this.stepOrder = Number.isFinite(data.stepOrder) ? data.stepOrder : Number(data.stepOrder);
   }
