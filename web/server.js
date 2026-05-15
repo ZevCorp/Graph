@@ -122,6 +122,94 @@ const CAR_DEMO_ASSISTANT_PROFILE = {
   ]
 };
 
+function summarizeRealtimeWorkflowVariable(variable = {}) {
+  const allowedOptions = Array.isArray(variable.allowedOptions)
+    ? variable.allowedOptions
+      .map((option) => option?.value)
+      .filter(Boolean)
+      .slice(0, 10)
+    : [];
+
+  return {
+    name: variable.name || '',
+    label: variable.fieldLabel || variable.prompt || variable.selector || variable.name || '',
+    defaultValue: variable.defaultValue || '',
+    allowedOptions
+  };
+}
+
+function summarizeRealtimeWorkflow(workflow = {}) {
+  return {
+    id: workflow.id || '',
+    description: workflow.description || '',
+    summary: workflow.summary || '',
+    sourcePathname: workflow.sourcePathname || '',
+    variables: Array.isArray(workflow.variables)
+      ? workflow.variables.map((variable) => summarizeRealtimeWorkflowVariable(variable))
+      : []
+  };
+}
+
+function buildOpenAiRealtimeInstructions(context = {}, workflows = []) {
+  const assistantProfile = context.assistantProfile && typeof context.assistantProfile === 'object'
+    ? JSON.stringify(context.assistantProfile)
+    : '';
+  const workflowSummaries = workflows.map((workflow) => summarizeRealtimeWorkflow(workflow));
+  const isDemoAutopilot = `${context.demoMode || ''}`.trim().toLowerCase() === 'autopilot'
+    || `${context.appId || ''}`.trim().toLowerCase() === 'car-demo';
+
+  return [
+    'Eres un concierge de reservas de carros en voz en tiempo real dentro de la pagina actual.',
+    assistantProfile
+      ? `Adopta este perfil en tono y estilo: ${assistantProfile}.`
+      : 'Habla en espanol latino, cercano, directo y natural.',
+    'Nunca menciones workflows, ids internos, llamadas de funcion, JSON, herramientas ni implementacion tecnica.',
+    'Tu trabajo es ayudar al usuario a reservar el vehiculo dentro de esta pagina y resolverlo rapido.',
+    isDemoAutopilot
+      ? 'Esta pagina esta en demo autopilot. Si el usuario pide reservar, cotizar, seguir o hacer el proceso, no pidas confirmaciones, no pidas datos extra, reconoce su intencion con naturalidad y ejecuta de inmediato usando los valores grabados del workflow y valores inventados solo si hace falta para que nunca falle.'
+      : 'Si el usuario dice que es una prueba o te pide inventar datos, puedes hacerlo y continuar.',
+    'Si ya tienes suficiente informacion para actuar, no expliques lo que haras: ejecuta la accion de inmediato.',
+    'Despues de ejecutar una accion con exito, confirma brevemente el resultado en lenguaje natural.',
+    isDemoAutopilot
+      ? 'Toma lo que el usuario diga como contexto conversacional, pero prioriza los valores grabados del workflow para mantener una demo estable.'
+      : 'Si realmente falta algo indispensable y el usuario no pidio inventarlo, pide solo lo minimo faltante.',
+    `Contexto de pagina: ${JSON.stringify({
+      appId: context.appId || '',
+      sourcePathname: context.sourcePathname || '',
+      sourceTitle: context.sourceTitle || ''
+    })}.`,
+    `Workflows disponibles: ${JSON.stringify(workflowSummaries)}.`
+  ].join(' ');
+}
+
+function buildOpenAiRealtimeTools() {
+  return [
+    {
+      type: 'function',
+      name: 'execute_reservation_on_page',
+      description: [
+        'Ejecuta uno de los workflows de reserva disponibles directamente en la pagina actual.',
+        'Usa esta funcion tan pronto sepas cual workflow correr.',
+        'En demo autopilot, prefiere los valores grabados del workflow para que la ejecucion nunca falle.'
+      ].join(' '),
+      parameters: {
+        type: 'object',
+        properties: {
+          workflowId: {
+            type: 'string',
+            description: 'Exact workflow id from the provided page flow catalog.'
+          },
+          variables: {
+            type: 'object',
+            description: 'Map of exact variable names to values for the selected flow.'
+          }
+        },
+        required: ['workflowId']
+      }
+    }
+  ];
+}
+
 function injectTrainerShell(html, options = {}) {
   const workflowDescription = JSON.stringify(options.workflowDescription || '');
   const storageKey = JSON.stringify(options.storageKey || 'graph-page-state-v1');
@@ -771,6 +859,80 @@ app.post('/api/voice/complaints/process', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error(`[Voice Complaints] Process Error: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/voice/openai/session', async (req, res) => {
+  try {
+    const openAiApiKey = `${process.env.OPENAI_API_KEY || ''}`.trim();
+    if (!openAiApiKey) {
+      return res.status(500).json({ error: 'OPENAI_API_KEY is not configured on the server.' });
+    }
+
+    const sdp = `${req.body?.sdp || ''}`.trim();
+    if (!sdp) {
+      return res.status(400).json({ error: 'Missing SDP offer.' });
+    }
+
+    const context = req.body?.context || {};
+    const workflows = agentChat.filterWorkflowsForContext(await catalogService.getCatalog(), context);
+
+    const sessionConfig = {
+      type: 'realtime',
+      model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime',
+      instructions: buildOpenAiRealtimeInstructions(context, workflows),
+      audio: {
+        input: {
+          noise_reduction: { type: 'near_field' },
+          transcription: {
+            model: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
+            language: 'es'
+          },
+          turn_detection: {
+            type: 'server_vad',
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 450,
+            create_response: true,
+            interrupt_response: true
+          }
+        },
+        output: {
+          voice: process.env.OPENAI_REALTIME_VOICE || 'marin'
+        }
+      },
+      tools: buildOpenAiRealtimeTools(),
+      tool_choice: 'auto',
+      modalities: ['audio', 'text']
+    };
+
+    const form = new FormData();
+    form.set('sdp', sdp);
+    form.set('session', JSON.stringify(sessionConfig));
+
+    const response = await fetch('https://api.openai.com/v1/realtime/calls', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${openAiApiKey}`
+      },
+      body: form
+    });
+
+    const answerSdp = await response.text();
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: answerSdp || 'Failed to create OpenAI Realtime session.'
+      });
+    }
+
+    res.json({
+      sdp: answerSdp,
+      model: sessionConfig.model,
+      voice: sessionConfig.audio.output.voice
+    });
+  } catch (err) {
+    console.error(`[Voice OpenAI] Session Error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });

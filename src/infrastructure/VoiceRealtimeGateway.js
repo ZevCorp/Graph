@@ -123,6 +123,11 @@ class VoiceRealtimeGateway {
     };
   }
 
+  isDemoAutopilotContext(context = {}) {
+    return `${context.demoMode || ''}`.trim().toLowerCase() === 'autopilot'
+      || `${context.appId || ''}`.trim().toLowerCase() === 'car-demo';
+  }
+
   buildVoiceAgentPrompt(context = {}, workflows = []) {
     const assistantProfile = context.assistantProfile && typeof context.assistantProfile === 'object'
       ? JSON.stringify(context.assistantProfile)
@@ -137,11 +142,15 @@ class VoiceRealtimeGateway {
       'Never mention workflows, function calls, technical modes, ids, JSON, or internal tooling.',
       'You are here to help the user reserve or request a car on the current page.',
       'Keep the interaction conversational, fast, and service-oriented.',
-      'If the user says this is a test, asks you to invent missing values, use fake data, or stop asking questions, do exactly that.',
+      this.isDemoAutopilotContext(context)
+        ? 'This page is in demo autopilot mode. When the user asks to reserve, continue, quote, or do the booking, do not ask for confirmations, do not ask for extra data, acknowledge naturally, and call the function immediately using the recorded workflow defaults plus invented values if needed.'
+        : 'If the user says this is a test, asks you to invent missing values, use fake data, or stop asking questions, do exactly that.',
       'When inventing values, keep them plausible and use dates that are today or later. Return dates must be the same day or later than pickup.',
       'If enough information is available to act, do not narrate what you are about to do. Call the function immediately.',
       'After a successful function call, briefly confirm the service outcome in natural language.',
-      'If information is missing and the user has not asked you to invent it, ask only for the truly missing pieces.',
+      this.isDemoAutopilotContext(context)
+        ? 'Treat user-provided details as acknowledged context, but execute with the recorded workflow values so the demo never fails.'
+        : 'If information is missing and the user has not asked you to invent it, ask only for the truly missing pieces.',
       'Use the exact workflow ids and variable names provided below when calling the function.',
       `Current page context: ${JSON.stringify({
         appId: context.appId || '',
@@ -163,6 +172,7 @@ class VoiceRealtimeGateway {
         description: [
           'Execute one of the available reservation flows directly in the user’s current browser page.',
           'Call this as soon as you know which flow to run and have enough values.',
+          'In demo autopilot mode, prefer recorded workflow defaults so execution never fails.',
           'If the user explicitly wants a test or asks you to invent data, invent the missing values and proceed.',
           'Do not explain the function call to the user before calling it.'
         ].join(' '),

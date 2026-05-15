@@ -153,6 +153,53 @@ class AgentChat {
     return workflows;
   }
 
+  isDemoAutopilotContext(context = {}) {
+    return `${context.demoMode || ''}`.trim().toLowerCase() === 'autopilot'
+      || `${context.appId || ''}`.trim().toLowerCase() === 'car-demo';
+  }
+
+  wantsImmediateDemoExecution(message = '', history = []) {
+    const combined = [
+      ...history.map((item) => item?.content || ''),
+      message || ''
+    ].join(' ').toLowerCase();
+
+    return [
+      'reserva',
+      'reservar',
+      'haz la reserva',
+      'hazme la reserva',
+      'hazlo',
+      'cotiza',
+      'cotizacion',
+      'cotíz',
+      'separa el carro',
+      'apartalo',
+      'apártalo',
+      'quiero ese',
+      'quiero este',
+      'me lo llevo',
+      'dale',
+      'continua',
+      'continua',
+      'sigue'
+    ].some((token) => combined.includes(token));
+  }
+
+  buildDemoAutopilotDecision(workflows = [], message = '', history = []) {
+    const chosenWorkflow = this.pickWorkflowForInventedExecution(workflows, {}, message);
+    if (!chosenWorkflow) {
+      return null;
+    }
+
+    return {
+      reply: 'Perfecto, ya me encargo de la reserva.',
+      workflowId: chosenWorkflow.id,
+      variables: this.buildInventedVariables(chosenWorkflow, {}),
+      shouldExecute: true
+    };
+  }
+
   fallbackAgentDecision(message, workflows) {
     const chosen = workflows.find((workflow) =>
       `${workflow.id} ${workflow.description} ${workflow.summary || ''}`.toLowerCase().includes(message.toLowerCase())
@@ -202,7 +249,9 @@ class AgentChat {
           'reply: short assistant message to show the user.',
           'workflowId: exact workflow id or null.',
           'variables: object mapping variable names like input_2 to their values.',
-          'If the user request is incomplete, ask only for the missing information that would let you choose and run the right workflow.',
+          this.isDemoAutopilotContext(context)
+            ? 'This page is running in demo autopilot mode. If the user asks to reserve, quote, continue, or do the process, never ask for confirmations, never ask for extra data, choose the best matching workflow immediately, reuse recorded defaults, invent any remaining values, and set shouldExecute to true.'
+            : 'If the user request is incomplete, ask only for the missing information that would let you choose and run the right workflow.',
           'If the user explicitly says this is a test, asks you to invent values, use fake data, fill defaults, or proceed without asking, then do not ask follow-up questions.',
           'In that case, choose the workflow, reuse recorded default values when available, invent any remaining required values, and set shouldExecute to true.',
           'Match the wording and tone of the page-specific assistant profile when asking follow-up questions.',
@@ -257,16 +306,35 @@ class AgentChat {
 
     const workflows = this.filterWorkflowsForContext(await this.catalogService.getCatalog(), context);
     let decision;
+
+    if (this.isDemoAutopilotContext(context) && this.wantsImmediateDemoExecution(message, history)) {
+      decision = this.buildDemoAutopilotDecision(workflows, message, history);
+    }
     
-    try {
-      decision = await this.decideWorkflowFromMessage(message, workflows, history, context);
-    } catch (error) {
-      console.warn(`[Agent Chat] LLM fallback: ${error.message}`);
-      decision = this.fallbackAgentDecision(message, workflows);
-      decision.reply = `${decision.reply} LLM fallback engaged because the provider request failed.`;
+    if (!decision) {
+      try {
+        decision = await this.decideWorkflowFromMessage(message, workflows, history, context);
+      } catch (error) {
+        console.warn(`[Agent Chat] LLM fallback: ${error.message}`);
+        decision = this.fallbackAgentDecision(message, workflows);
+        decision.reply = this.isDemoAutopilotContext(context)
+          ? 'Perfecto, ya me encargo de la reserva.'
+          : `${decision.reply} LLM fallback engaged because the provider request failed.`;
+      }
     }
 
-    if (this.wantsInventedValues(message, history)) {
+    if (this.isDemoAutopilotContext(context) && decision && decision.workflowId) {
+      const chosenWorkflow = this.pickWorkflowForInventedExecution(workflows, decision, message);
+      if (chosenWorkflow) {
+        decision = {
+          ...decision,
+          workflowId: chosenWorkflow.id,
+          shouldExecute: true,
+          variables: this.buildInventedVariables(chosenWorkflow, decision.variables || {}),
+          reply: 'Perfecto, ya me encargo de la reserva.'
+        };
+      }
+    } else if (this.wantsInventedValues(message, history)) {
       const chosenWorkflow = this.pickWorkflowForInventedExecution(workflows, decision, message);
       if (chosenWorkflow) {
         decision = {

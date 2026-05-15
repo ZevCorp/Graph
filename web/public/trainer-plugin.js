@@ -27,17 +27,17 @@
     let assistantPhonePairingFrame = null;
     const voiceState = {
         active: false,
-        socket: null,
+        peerConnection: null,
+        dataChannel: null,
         stream: null,
-        audioContext: null,
-        processor: null,
-        source: null,
-        silenceGain: null,
+        remoteAudio: null,
         playbackContext: null,
         playbackSources: new Set(),
         nextPlaybackTime: 0,
         ttsSampleRate: 24000,
-        phoneSession: null
+        phoneSession: null,
+        processedFunctionCalls: new Set(),
+        assistantTranscript: new Map()
     };
     const greetingState = {
         playing: false,
@@ -84,8 +84,10 @@
     }
 
     function getPageContext() {
+        const demoMode = options.appId === 'car-demo' ? 'autopilot' : '';
         return {
             appId: options.appId || '',
+            demoMode,
             sourceUrl: window.location.href,
             sourceOrigin: window.location.origin,
             sourcePathname: window.location.pathname,
@@ -2324,6 +2326,356 @@
 
         updateVoiceStatus('Escanea el QR con el telefono. Luego toca "Activar microfono" en el telefono.');
         await startVoiceConversation({ phoneSessionId: payload.id });
+    }
+
+    async function playAssistantGreeting() {
+        return;
+    }
+
+    function getRealtimeDataChannel() {
+        return voiceState.dataChannel && voiceState.dataChannel.readyState === 'open'
+            ? voiceState.dataChannel
+            : null;
+    }
+
+    function resetRealtimeTranscriptState() {
+        voiceState.processedFunctionCalls = new Set();
+        voiceState.assistantTranscript = new Map();
+    }
+
+    function sendRealtimeEvent(event) {
+        const channel = getRealtimeDataChannel();
+        if (!channel) {
+            throw new Error('La sesion de voz no esta lista en este momento.');
+        }
+        channel.send(JSON.stringify(event));
+    }
+
+    async function respondToRealtimeFunctionCall(callId, output) {
+        sendRealtimeEvent({
+            type: 'conversation.item.create',
+            item: {
+                type: 'function_call_output',
+                call_id: callId,
+                output: JSON.stringify(output)
+            }
+        });
+        sendRealtimeEvent({ type: 'response.create' });
+    }
+
+    async function executeRealtimeFunctionCall(call) {
+        const callId = `${call?.call_id || ''}`.trim();
+        const functionName = `${call?.name || ''}`.trim();
+        if (!callId || !functionName || voiceState.processedFunctionCalls.has(callId)) {
+            return;
+        }
+        voiceState.processedFunctionCalls.add(callId);
+
+        if (functionName !== 'execute_reservation_on_page') {
+            await respondToRealtimeFunctionCall(callId, {
+                ok: false,
+                error: `Funcion no soportada en cliente: ${functionName || 'unknown'}`
+            });
+            return;
+        }
+
+        let args = {};
+        try {
+            args = JSON.parse(call.arguments || '{}');
+        } catch (error) {
+            await respondToRealtimeFunctionCall(callId, {
+                ok: false,
+                error: 'No pude interpretar los argumentos de la accion.'
+            });
+            return;
+        }
+
+        const workflowId = `${args.workflowId || ''}`.trim();
+        const variables = args.variables && typeof args.variables === 'object' ? args.variables : {};
+
+        if (!workflowId) {
+            await respondToRealtimeFunctionCall(callId, {
+                ok: false,
+                error: 'Falto workflowId para ejecutar la reserva.'
+            });
+            return;
+        }
+
+        updateVoiceStatus('Ejecutando la reserva en esta pagina...');
+        runtime()?.speak('Voy a resolverlo aqui mismo en la pagina.', { mode: 'executing' });
+
+        try {
+            const executionPlan = await fetchExecutionPlan(workflowId, variables);
+            await executeWorkflowPlan(executionPlan, 'voice');
+            await respondToRealtimeFunctionCall(callId, {
+                ok: true,
+                workflowId,
+                executed: true,
+                variables
+            });
+        } catch (error) {
+            voiceLog('browser_execution_error', error.message || 'plan execution failed');
+            await respondToRealtimeFunctionCall(callId, {
+                ok: false,
+                workflowId,
+                error: error.message || 'No pude completar la reserva en esta pagina.'
+            });
+            throw error;
+        }
+    }
+
+    async function handleRealtimeServerEvent(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return;
+        }
+
+        if (payload.type === 'session.created' || payload.type === 'session.updated' || payload.type === 'response.created') {
+            return;
+        }
+
+        if (payload.type === 'input_audio_buffer.speech_started') {
+            voiceLog('openai_event_speech_started');
+            updateVoiceStatus('Te escucho...');
+            runtime()?.clearUserSpeech?.();
+            return;
+        }
+
+        if (payload.type === 'input_audio_buffer.speech_stopped') {
+            voiceLog('openai_event_speech_stopped');
+            updateVoiceStatus('Procesando lo que dijiste...');
+            return;
+        }
+
+        if (payload.type === 'conversation.item.input_audio_transcription.completed') {
+            const transcript = `${payload.transcript || ''}`.trim();
+            if (!transcript) {
+                return;
+            }
+            voiceLog('openai_event_user_turn', transcript);
+            appendAgentMessage('user', transcript);
+            runtime()?.showUserSpeech?.(transcript);
+            updateVoiceStatus('Pensando y preparando la reserva...');
+            return;
+        }
+
+        if (payload.type === 'response.output_audio_transcript.done') {
+            const transcript = `${payload.transcript || ''}`.trim();
+            if (!transcript) {
+                return;
+            }
+            voiceLog('openai_event_assistant_turn', transcript.slice(0, 140));
+            appendAgentMessage('assistant', transcript, null);
+            runtime()?.clearUserSpeech?.();
+            updateVoiceStatus('Escuchando...');
+            return;
+        }
+
+        if (payload.type === 'response.output_item.done' && payload.item?.type === 'function_call') {
+            try {
+                await executeRealtimeFunctionCall(payload.item);
+            } catch (error) {
+                appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
+                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+            }
+            return;
+        }
+
+        if (payload.type === 'response.done' && Array.isArray(payload.response?.output)) {
+            for (const item of payload.response.output) {
+                if (item?.type !== 'function_call') {
+                    continue;
+                }
+                try {
+                    await executeRealtimeFunctionCall(item);
+                } catch (error) {
+                    appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
+                    updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                }
+            }
+            return;
+        }
+
+        if (payload.type === 'error') {
+            const message = payload.error?.message || payload.error || 'Error en la conversacion de voz.';
+            voiceLog('openai_event_error', message);
+            appendAgentMessage('assistant', message, null, false);
+            updateVoiceStatus(message);
+        }
+    }
+
+    async function startVoiceConversation() {
+        if (voiceState.active) {
+            voiceLog('start_ignored_already_active');
+            return;
+        }
+
+        openChatPanel();
+        updateVoiceStatus('Conectando voz en tiempo real...');
+        runtime()?.speak('Te escucho. Habla con naturalidad y yo me encargo de la reserva.', { mode: 'listening' });
+
+        try {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                throw new Error('Este navegador no permite usar el microfono en tiempo real.');
+            }
+
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
+
+            const peerConnection = new RTCPeerConnection();
+            const remoteAudio = document.createElement('audio');
+            remoteAudio.autoplay = true;
+            remoteAudio.playsInline = true;
+            remoteAudio.style.display = 'none';
+            document.body.appendChild(remoteAudio);
+
+            peerConnection.ontrack = (event) => {
+                remoteAudio.srcObject = event.streams[0];
+                updateVoiceStatus('Hablando...');
+            };
+
+            stream.getTracks().forEach((track) => {
+                peerConnection.addTrack(track, stream);
+            });
+
+            const dataChannel = peerConnection.createDataChannel('oai-events');
+            dataChannel.addEventListener('message', async (event) => {
+                let payload;
+                try {
+                    payload = JSON.parse(event.data);
+                } catch (error) {
+                    return;
+                }
+                await handleRealtimeServerEvent(payload);
+            });
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+
+            const response = await fetch('/api/voice/openai/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sdp: offer.sdp,
+                    context: getPageContext(),
+                    history: agentHistory.slice(-10)
+                })
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload?.sdp) {
+                throw new Error(payload.error || 'No pude iniciar la sesion de voz con OpenAI.');
+            }
+
+            await peerConnection.setRemoteDescription({
+                type: 'answer',
+                sdp: payload.sdp
+            });
+
+            await new Promise((resolve, reject) => {
+                if (dataChannel.readyState === 'open') {
+                    resolve();
+                    return;
+                }
+                dataChannel.addEventListener('open', resolve, { once: true });
+                dataChannel.addEventListener('error', () => reject(new Error('No pude abrir el canal de eventos de voz.')), { once: true });
+            });
+
+            resetRealtimeTranscriptState();
+            voiceState.stream = stream;
+            voiceState.peerConnection = peerConnection;
+            voiceState.dataChannel = dataChannel;
+            voiceState.remoteAudio = remoteAudio;
+            voiceState.active = true;
+            setVoiceButton(true);
+            updateVoiceStatus('Escuchando...');
+            voiceLog('openai_realtime_connected', {
+                model: payload.model || '',
+                voice: payload.voice || ''
+            });
+
+            peerConnection.addEventListener('connectionstatechange', () => {
+                const state = peerConnection.connectionState;
+                voiceLog('openai_peer_connection_state', state);
+                if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                    stopVoiceConversation({ announce: false });
+                }
+            });
+        } catch (error) {
+            const message = error.message || 'No pude acceder al microfono o iniciar la voz en tiempo real.';
+            voiceLog('openai_realtime_error', message);
+            updateVoiceStatus(message);
+            appendAgentMessage('assistant', message, null, false);
+            stopVoiceConversation({ announce: false });
+        }
+    }
+
+    function stopVoiceConversation(options = {}) {
+        voiceLog('stop_voice_conversation', {
+            announce: options.announce !== false,
+            active: voiceState.active
+        });
+        clearVoicePlayback();
+        const shouldAnnounce = options.announce !== false && voiceState.active;
+
+        try {
+            if (getRealtimeDataChannel()) {
+                sendRealtimeEvent({ type: 'response.cancel' });
+            }
+        } catch (error) {
+            // Ignore shutdown races.
+        }
+
+        if (voiceState.dataChannel) {
+            try {
+                voiceState.dataChannel.close();
+            } catch (error) {
+                // Ignore close races.
+            }
+        }
+        if (voiceState.peerConnection) {
+            try {
+                voiceState.peerConnection.close();
+            } catch (error) {
+                // Ignore close races.
+            }
+        }
+        if (voiceState.stream) {
+            voiceState.stream.getTracks().forEach((track) => track.stop());
+        }
+        if (voiceState.remoteAudio) {
+            try {
+                voiceState.remoteAudio.pause();
+                voiceState.remoteAudio.srcObject = null;
+                voiceState.remoteAudio.remove();
+            } catch (error) {
+                // Ignore DOM cleanup races.
+            }
+        }
+
+        voiceState.active = false;
+        voiceState.peerConnection = null;
+        voiceState.dataChannel = null;
+        voiceState.stream = null;
+        voiceState.remoteAudio = null;
+        resetRealtimeTranscriptState();
+        setVoiceButton(false);
+        if (options.clearStatus !== false) {
+            updateVoiceStatus('');
+        }
+        runtime()?.clearUserSpeech?.();
+        if (shouldAnnounce) {
+            runtime()?.speak('Conversacion de voz detenida.', { mode: 'idle' });
+        }
+    }
+
+    async function openPhoneMicPairing() {
+        throw new Error('La voz con OpenAI Realtime usa el microfono del dispositivo actual. En Render es mas confiable asi.');
     }
 
     async function processVoiceComplaints() {
