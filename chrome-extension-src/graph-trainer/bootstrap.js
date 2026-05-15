@@ -1,6 +1,6 @@
 (function () {
   const root = document.documentElement;
-  const backendUrl = `${root.dataset.graphTrainerBackendUrl || 'http://localhost:3000'}`.trim() || 'http://localhost:3000';
+  const backendUrl = `${root.dataset.graphTrainerBackendUrl || 'https://graph-1-hap6.onrender.com'}`.trim() || 'https://graph-1-hap6.onrender.com';
   const appId = `${root.dataset.graphTrainerAppId || 'chrome-extension-page'}`.trim() || 'chrome-extension-page';
   const storageKey = `${root.dataset.graphTrainerStorageKey || 'graph-extension-state-page'}`.trim() || 'graph-extension-state-page';
   const workflowDescription = `${root.dataset.graphTrainerWorkflowDescription || 'Workflow on current page'}`.trim() || 'Workflow on current page';

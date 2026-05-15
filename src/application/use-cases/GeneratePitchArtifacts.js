@@ -19,16 +19,42 @@ class GeneratePitchArtifacts {
     return normalized || fallback;
   }
 
+  normalizePathname(value = '') {
+    let pathname = `${value || ''}`.trim();
+    if (!pathname) {
+      return '';
+    }
+
+    pathname = pathname
+      .replace(/^https?:\/\/[^/]+/i, '')
+      .replace(/[?#].*$/, '')
+      .replace(/\/{2,}/g, '/');
+
+    if (!pathname.startsWith('/')) {
+      pathname = `/${pathname}`;
+    }
+
+    if (pathname.toLowerCase().endsWith('/index.html')) {
+      pathname = pathname.slice(0, -'/index.html'.length) || '/';
+    }
+
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1);
+    }
+
+    return pathname || '/';
+  }
+
   filterWorkflowsForContext(workflows, context = {}) {
     const appId = `${context.appId || ''}`.trim();
-    const sourcePathname = `${context.sourcePathname || ''}`.trim();
+    const sourcePathname = this.normalizePathname(context.sourcePathname || '');
 
     return (workflows || []).filter((workflow) => {
       if (appId && `${workflow.appId || ''}`.trim() !== appId) {
         return false;
       }
 
-      if (sourcePathname && `${workflow.sourcePathname || ''}`.trim() !== sourcePathname) {
+      if (sourcePathname && this.normalizePathname(workflow.sourcePathname || '') !== sourcePathname) {
         return false;
       }
 
@@ -38,7 +64,7 @@ class GeneratePitchArtifacts {
 
   buildOutputDirectory(context = {}) {
     const appSlug = this.slugify(context.appId || 'shared-app', 'shared-app');
-    const pathSlug = this.slugify((context.sourcePathname || '').replace(/\//g, '-'), 'page');
+    const pathSlug = this.slugify(this.normalizePathname(context.sourcePathname || '').replace(/\//g, '-'), 'page');
     return path.join(this.outputRoot, appSlug, pathSlug);
   }
 

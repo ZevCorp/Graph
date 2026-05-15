@@ -36,6 +36,32 @@ class VoiceRealtimeGateway {
     return `${text || ''}`.toLowerCase().replace(/\s+/g, ' ').trim();
   }
 
+  normalizePathname(value = '') {
+    let pathname = `${value || ''}`.trim();
+    if (!pathname) {
+      return '';
+    }
+
+    pathname = pathname
+      .replace(/^https?:\/\/[^/]+/i, '')
+      .replace(/[?#].*$/, '')
+      .replace(/\/{2,}/g, '/');
+
+    if (!pathname.startsWith('/')) {
+      pathname = `/${pathname}`;
+    }
+
+    if (pathname.toLowerCase().endsWith('/index.html')) {
+      pathname = pathname.slice(0, -'/index.html'.length) || '/';
+    }
+
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1);
+    }
+
+    return pathname || '/';
+  }
+
   shouldIgnoreUserTranscript(session, text = '') {
     const normalized = this.normalizeTranscript(text);
     if (!normalized) {
@@ -107,13 +133,13 @@ class VoiceRealtimeGateway {
     }
 
     const appId = `${context.appId || ''}`.trim();
-    const pathname = `${context.sourcePathname || ''}`.trim();
+    const pathname = this.normalizePathname(context.sourcePathname || '');
 
     return workflows.filter((workflow) => {
       if (appId && `${workflow.appId || ''}`.trim() !== appId) {
         return false;
       }
-      if (pathname && `${workflow.sourcePathname || ''}`.trim() !== pathname) {
+      if (pathname && this.normalizePathname(workflow.sourcePathname || '') !== pathname) {
         return false;
       }
       return true;

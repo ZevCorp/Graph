@@ -5,11 +5,14 @@
 
     function buildPageContext(config, overrides) {
         const adapter = resolveAdapter(config);
+        const normalizePathname = window.GraphPluginAdapters?.normalizePathname;
         const baseContext = {
             appId: config?.appId || '',
             sourceUrl: window.location.href,
             sourceOrigin: window.location.origin,
-            sourcePathname: window.location.pathname,
+            sourcePathname: typeof normalizePathname === 'function'
+                ? normalizePathname(window.location.pathname)
+                : window.location.pathname,
             sourceTitle: document.title,
             assistantProfile: config?.assistantProfile || null
         };

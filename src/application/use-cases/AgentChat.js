@@ -133,20 +133,55 @@ class AgentChat {
     return output;
   }
 
+  normalizePathname(value = '') {
+    let pathname = `${value || ''}`.trim();
+    if (!pathname) {
+      return '';
+    }
+
+    pathname = pathname
+      .replace(/^https?:\/\/[^/]+/i, '')
+      .replace(/[?#].*$/, '')
+      .replace(/\/{2,}/g, '/');
+
+    if (!pathname.startsWith('/')) {
+      pathname = `/${pathname}`;
+    }
+
+    if (pathname.toLowerCase().endsWith('/index.html')) {
+      pathname = pathname.slice(0, -'/index.html'.length) || '/';
+    }
+
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1);
+    }
+
+    return pathname || '/';
+  }
+
   filterWorkflowsForContext(workflows, context = {}) {
     if (!Array.isArray(workflows) || workflows.length === 0) {
       return [];
     }
 
     const appId = `${context.appId || ''}`.trim();
+    const sourcePathname = this.normalizePathname(context.sourcePathname || '');
     if (appId) {
       const byAppId = workflows.filter((workflow) => `${workflow.appId || ''}`.trim() === appId);
-      return byAppId;
+      if (!sourcePathname) {
+        return byAppId;
+      }
+
+      const byPath = byAppId.filter(
+        (workflow) => this.normalizePathname(workflow.sourcePathname || '') === sourcePathname
+      );
+      return byPath.length > 0 ? byPath : byAppId;
     }
 
-    const sourcePathname = `${context.sourcePathname || ''}`.trim();
     if (sourcePathname) {
-      const byPath = workflows.filter((workflow) => `${workflow.sourcePathname || ''}`.trim() === sourcePathname);
+      const byPath = workflows.filter(
+        (workflow) => this.normalizePathname(workflow.sourcePathname || '') === sourcePathname
+      );
       return byPath;
     }
 

@@ -70,21 +70,23 @@ class PlaywrightRunner {
     return page.locator(step.selector);
   }
 
-  async resolveSelectOption(locator, rawValue) {
-    const requested = `${rawValue || ''}`.trim();
-    const options = await locator.evaluate((element) =>
+  async readSelectOptions(locator) {
+    return locator.evaluate((element) =>
       Array.from(element.options || []).map((option) => ({
         value: option.value,
         label: option.label,
         text: option.textContent || ''
       }))
     );
+  }
 
-    if (!requested) {
+  findMatchingSelectOption(options = [], requested = '') {
+    const trimmedRequested = `${requested || ''}`.trim();
+    if (!trimmedRequested) {
       return { value: '' };
     }
 
-    const normalizedRequested = this.normalizeChoiceText(requested);
+    const normalizedRequested = this.normalizeChoiceText(trimmedRequested);
     const exactValue = options.find((option) => this.normalizeChoiceText(option.value) === normalizedRequested);
     if (exactValue) return { value: exactValue.value };
 
@@ -106,7 +108,29 @@ class PlaywrightRunner {
       return { value: partial.value };
     }
 
-    const selectableOptions = options.filter((option) => option.value);
+    return null;
+  }
+
+  async resolveSelectOption(locator, rawValue, timeoutMs = 6000) {
+    const requested = `${rawValue || ''}`.trim();
+    const startedAt = Date.now();
+    let lastOptions = [];
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const options = await this.readSelectOptions(locator);
+      lastOptions = options;
+      const match = this.findMatchingSelectOption(options, requested);
+      if (match) {
+        return match;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+
+    if (!requested) {
+      return { value: '' };
+    }
+
+    const selectableOptions = lastOptions.filter((option) => option.value);
     throw new Error(
       `No matching option found for "${requested}". Available options: ${
         selectableOptions.map((option) => `${option.value} (${option.label || option.text.trim()})`).join(', ') || 'none'

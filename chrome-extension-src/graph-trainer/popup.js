@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_URL = 'http://localhost:3000';
+const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
 
 function getStorage() {
   return chrome.storage?.sync || chrome.storage?.local;

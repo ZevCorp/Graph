@@ -22,7 +22,29 @@
     };
 
     function normalizePathname(value) {
-        return `${value || ''}`.trim();
+        let pathname = `${value || ''}`.trim();
+        if (!pathname) {
+            return '';
+        }
+
+        pathname = pathname
+            .replace(/^https?:\/\/[^/]+/i, '')
+            .replace(/[?#].*$/, '')
+            .replace(/\/{2,}/g, '/');
+
+        if (!pathname.startsWith('/')) {
+            pathname = `/${pathname}`;
+        }
+
+        if (pathname.toLowerCase().endsWith('/index.html')) {
+            pathname = pathname.slice(0, -'/index.html'.length) || '/';
+        }
+
+        if (pathname.length > 1 && pathname.endsWith('/')) {
+            pathname = pathname.slice(0, -1);
+        }
+
+        return pathname || '/';
     }
 
     function getSurfacePreset(config = {}) {
