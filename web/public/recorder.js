@@ -6,6 +6,10 @@ window.WorkflowRecorder = (() => {
   let lastFieldSignature = '';
   const focusedSelectValues = new Map();
 
+  function pluginEvents() {
+    return window.GraphPluginEvents || null;
+  }
+
   function explanationField() {
     return document.getElementById('step-explanation');
   }
@@ -191,6 +195,7 @@ window.WorkflowRecorder = (() => {
     });
 
     appendActivity(payload);
+    pluginEvents()?.emit?.('learning.step.captured', { step: payload });
   }
 
   function recordStep(step) {
@@ -311,6 +316,10 @@ window.WorkflowRecorder = (() => {
       updateRecordingUI(true);
       const activity = document.getElementById('activity-log');
       if (activity) activity.innerHTML = '';
+      pluginEvents()?.emit?.('learning.session.started', {
+        description: desc,
+        context
+      });
       await recordStep({ actionType: 'navigation', selector: 'document', label: document.title, value: '' });
     },
 
@@ -321,6 +330,9 @@ window.WorkflowRecorder = (() => {
       focusedSelectValues.clear();
       if (statusField()) statusField().innerText = 'Saved';
       updateRecordingUI(false);
+      pluginEvents()?.emit?.('learning.session.finished', {
+        redirectTo: redirectTo || ''
+      });
       if (redirectTo) {
         window.location.href = redirectTo;
         return;
@@ -338,6 +350,7 @@ window.WorkflowRecorder = (() => {
       if (startButton()) startButton().disabled = false;
       if (stopButton()) stopButton().disabled = true;
       updateRecordingUI(false);
+      pluginEvents()?.emit?.('learning.session.reset', {});
     },
 
     syncStatus,

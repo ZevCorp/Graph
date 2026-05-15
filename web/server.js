@@ -243,6 +243,10 @@ function injectTrainerShell(html, options = {}) {
 <script src="/page-state.js"></script>
 <script src="/recorder.js"></script>
 <script src="/assistant-runtime.js"></script>
+<script src="/plugin/plugin-events.js"></script>
+<script src="/plugin/plugin-adapters.js"></script>
+<script src="/plugin/plugin-context.js"></script>
+<script src="/plugin/plugin-api.js"></script>
 <script src="/trainer-plugin.js"></script>
 <script>
 window.addEventListener('load', function () {
@@ -250,6 +254,7 @@ window.addEventListener('load', function () {
   window.TrainerPlugin.mount({
     title: ${JSON.stringify(options.title || 'Trainer')},
     workflowDescription: ${workflowDescription},
+    apiBaseUrl: ${JSON.stringify(options.apiBaseUrl || '')},
     appId: ${appId},
     assistantProfile: ${assistantProfile}
   });

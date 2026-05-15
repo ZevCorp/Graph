@@ -4,6 +4,8 @@
         title: 'Trainer',
         aiPlaceholder: 'Ask AI to execute a saved flow',
         autoSyncStatus: true,
+        apiBaseUrl: '',
+        adapter: null,
         assistantProfile: null,
         assistantRuntime: {
             name: 'Graph',
@@ -87,11 +89,35 @@
         return window.GraphAssistantRuntime || null;
     }
 
+    function pluginEvents() {
+        return window.GraphPluginEvents || null;
+    }
+
+    function emitPluginEvent(eventName, payload) {
+        pluginEvents()?.emit?.(eventName, payload || {});
+    }
+
+    function getSurfaceAdapter() {
+        return window.GraphPluginAdapters?.resolve?.(options) || null;
+    }
+
+    function apiClient() {
+        return window.GraphPluginApi?.createClient?.({
+            baseUrl: options.apiBaseUrl || ''
+        }) || null;
+    }
+
+    function requireApiClient() {
+        const client = apiClient();
+        if (!client) {
+            throw new Error('No hay cliente API configurado para este plugin.');
+        }
+        return client;
+    }
+
     function getPageContext() {
-        const demoMode = options.appId === 'car-demo' ? 'autopilot' : '';
-        return {
+        return window.GraphPluginContext?.buildPageContext?.(options) || {
             appId: options.appId || '',
-            demoMode,
             sourceUrl: window.location.href,
             sourceOrigin: window.location.origin,
             sourcePathname: window.location.pathname,
@@ -855,130 +881,11 @@
     }
 
     function getMockFeedbackSuggestions() {
-        const pathname = normalizePathname(window.location.pathname);
-
-        if (pathname.includes('/rentacar/reservar.html')) {
-            return [
-                {
-                    id: 'clarity-dates',
-                    selector: '.summary-card',
-                    title: 'El resumen transmite cierre antes de tiempo',
-                    summary: 'El bloque superior se siente definitivo y puede hacer pensar que ya no es facil corregir recogida, devolucion o fechas antes de elegir carro.',
-                    evidence: '"No me queda claro si aqui todavia puedo corregir la recogida o si ya perdi ese paso."',
-                    opportunity: 'Hacer mas visible la accion para editar el trayecto desde este mismo bloque.',
-                    source: 'Observacion de experiencia',
-                    priority: 'alta',
-                    area: 'Resumen del viaje'
-                },
-                {
-                    id: 'filter-confidence',
-                    selector: '.filters-bar',
-                    title: 'Los filtros cambian la lista sin suficiente contexto',
-                    summary: 'Cuando desaparecen opciones, falta una explicacion inmediata sobre que filtro esta restringiendo la busqueda o como volver al estado anterior.',
-                    evidence: '"Movi un filtro y ya no supe que fue lo que oculto las otras opciones."',
-                    opportunity: 'Dar feedback mas explicito sobre cambios y filtros activos en lenguaje sencillo.',
-                    source: 'Observacion de experiencia',
-                    priority: 'media',
-                    area: 'Filtros'
-                },
-                {
-                    id: 'price-credit-card',
-                    selector: '#vehicle-kia-picanto .price-note',
-                    title: 'La condicion de tarjeta llega demasiado tarde',
-                    summary: 'La nota esta presente, pero compite con el resto del contenido y puede pasar desapercibida durante la comparacion inicial.',
-                    evidence: '"Yo ya iba a reservar y apenas ahi vi que ese valor dependia de tarjeta de credito."',
-                    opportunity: 'Convertir esa condicion en una etiqueta mas visible o explicarla antes de la comparacion.',
-                    source: 'Observacion de experiencia',
-                    priority: 'alta',
-                    area: 'Precio del vehiculo'
-                },
-                {
-                    id: 'call-widget-expectation',
-                    selector: '#callWidget',
-                    title: 'La ayuda humana no explica que ocurrira despues',
-                    summary: 'El acceso es visible, pero deja dudas sobre si la llamada es inmediata, en horario laboral o solo una solicitud de contacto.',
-                    evidence: '"Le di en llamame, pero no supe si alguien me iba a marcar ya o despues."',
-                    opportunity: 'Aclarar tiempo de respuesta y que pasara despues de dejar el numero.',
-                    source: 'Observacion de experiencia',
-                    priority: 'media',
-                    area: 'Ayuda humana'
-                }
-            ];
+        const adapter = getSurfaceAdapter();
+        if (!adapter || typeof adapter.getImprovementSuggestions !== 'function') {
+            return [];
         }
-
-        if (pathname.includes('/examples/car-demo')) {
-            return [
-                {
-                    id: 'hero-focus',
-                    selector: '#main-banner',
-                    title: 'La promesa principal tarda en aterrizar',
-                    summary: 'La cabecera tiene mucha presencia visual, pero el beneficio concreto y el siguiente paso quedan un poco lejos del primer barrido visual.',
-                    evidence: '"Entendi que alquilan carros, pero tarde en ver exactamente donde empezaba la cotizacion."',
-                    opportunity: 'Conectar el hero con una indicacion mas directa hacia el formulario y el valor de respuesta inmediata.',
-                    source: 'Observacion de experiencia',
-                    priority: 'alta',
-                    area: 'Hero principal'
-                },
-                {
-                    id: 'quote-form-anxiety',
-                    selector: '#ajax-contact-form',
-                    title: 'El formulario pide datos antes de generar confianza',
-                    summary: 'El usuario debe interpretar varios campos de fecha, hora y entrega sin una guia breve sobre el orden ideal para diligenciarlos.',
-                    evidence: '"Antes de empezar queria saber cuanto me iba a tomar y si podia cotizar sin equivocarme en las fechas."',
-                    opportunity: 'Explicar el flujo en una linea corta y dejar mas visibles las reglas criticas de anticipacion.',
-                    source: 'Observacion de experiencia',
-                    priority: 'alta',
-                    area: 'Formulario de cotizacion'
-                },
-                {
-                    id: 'service-hours-visibility',
-                    selector: '[data-testid=\"service-hours-banner\"]',
-                    title: 'El horario aparece, pero no resuelve la duda completa',
-                    summary: 'El banner informa la franja horaria, aunque todavia deja abierto que cambia si el usuario cotiza por fuera de ese horario.',
-                    evidence: '"Vi el horario, pero no supe si igual podia reservar en la noche o que pasaba con la entrega."',
-                    opportunity: 'Acompanar el horario con una microaclaracion de disponibilidad, respuesta o excepciones.',
-                    source: 'Observacion de experiencia',
-                    priority: 'media',
-                    area: 'Horario de atencion'
-                },
-                {
-                    id: 'fleet-scan',
-                    selector: '#second-section',
-                    title: 'La seccion de flota comunica variedad, no decision',
-                    summary: 'Las categorias ayudan a explorar, pero todavia cuesta entender cual conviene segun tipo de viaje, pasajeros o equipaje.',
-                    evidence: '"Vi varias categorias bonitas, pero no cual era la mas conveniente para mi plan."',
-                    opportunity: 'Traducir cada categoria a contextos de uso reales para acelerar la eleccion.',
-                    source: 'Observacion de experiencia',
-                    priority: 'media',
-                    area: 'Categorias de vehiculos'
-                },
-                {
-                    id: 'requirements-discovery',
-                    selector: '.site-navbar',
-                    title: 'Los requisitos estan en navegacion, no en el momento de decision',
-                    summary: 'La informacion existe, pero un usuario nuevo puede iniciar la cotizacion sin detectar a tiempo las condiciones de tarjeta o documentacion.',
-                    evidence: '"Yo habria querido saber antes si necesitaba tarjeta, no despues de empezar."',
-                    opportunity: 'Traer un resumen de requisitos al area de cotizacion o cerca del CTA principal.',
-                    source: 'Observacion de experiencia',
-                    priority: 'alta',
-                    area: 'Requisitos'
-                }
-            ];
-        }
-
-        return [
-            {
-                id: 'generic-cta-clarity',
-                selector: 'main, body',
-                title: 'La pagina necesita mas claridad en el siguiente paso',
-                summary: 'Un usuario nuevo podria no identificar de inmediato cual es la accion principal para continuar.',
-                evidence: '"La pagina se ve bien, pero no supe cual era el siguiente paso recomendado."',
-                opportunity: 'Resaltar mejor la accion principal y reducir competencia visual.',
-                source: 'Observacion de experiencia',
-                priority: 'media',
-                area: 'Experiencia general'
-            }
-        ];
+        return adapter.getImprovementSuggestions(getPageContext()) || [];
     }
 
     function resolveFeedbackAnchors(suggestions) {
@@ -1184,20 +1091,12 @@
     }
 
     function normalizePathname(value) {
-        return `${value || ''}`.trim();
+        return window.GraphPluginAdapters?.normalizePathname?.(value)
+            || `${value || ''}`.trim();
     }
 
     function filterWorkflowsForCurrentPage(workflows) {
-        const context = getPageContext();
-        const appId = `${context.appId || ''}`.trim();
-        const pathname = normalizePathname(context.sourcePathname);
-
-        return (workflows || []).filter((workflow) => {
-            if (appId && `${workflow.appId || ''}`.trim() !== appId) {
-                return false;
-            }
-            return normalizePathname(workflow.sourcePathname) === pathname;
-        });
+        return window.GraphPluginContext?.filterWorkflows?.(workflows || [], options) || [];
     }
 
     function formatTimestamp(value) {
@@ -1447,10 +1346,21 @@
         }, Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0);
 
         updateWorkflowPanelStatus('Completando la reserva en esta pagina...');
+        emitPluginEvent('workflow.execution.started', {
+            workflowId: currentPlan.workflowId,
+            trigger,
+            stepCount: currentPlan.steps.length
+        });
 
         for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
             const step = currentPlan.steps[stepIndex];
             const expectedUrl = step.url ? normalizeExecutionUrl(step.url) : '';
+            emitPluginEvent('workflow.execution.step_started', {
+                workflowId: currentPlan.workflowId,
+                trigger,
+                stepIndex,
+                step
+            });
 
             if (step.actionType === 'navigation') {
                 const targetUrl = normalizeExecutionUrl(step.url);
@@ -1505,24 +1415,15 @@
         runtime()?.clearSpotlight?.();
         updateWorkflowPanelStatus('Reserva completada en esta pagina.');
         runtime()?.speak('Listo, termine de completar la reserva aqui mismo.', { mode: 'idle' });
+        emitPluginEvent('workflow.execution.finished', {
+            workflowId: currentPlan.workflowId,
+            trigger
+        });
     }
 
     async function fetchExecutionPlan(workflowId, variables = {}) {
-        const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}/plan`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                variables,
-                context: getPageContext()
-            })
-        });
-
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(payload.error || 'No pude preparar la automatizacion para la reserva.');
-        }
-
-        return payload.executionPlan || null;
+        const payload = await requireApiClient().getExecutionPlan(workflowId, variables, getPageContext());
+        return payload?.executionPlan || null;
     }
 
     async function sendMessageToAgentBackend(message, options = {}) {
@@ -1543,25 +1444,26 @@
             appendAgentMessage('user', normalizedMessage);
         }
 
-        const response = await fetch('/api/agent/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: normalizedMessage,
-                history: historyForRequest,
-                context: getPageContext(),
-                executionMode: 'browser'
-            })
+        emitPluginEvent('chat.message.sent', {
+            message: normalizedMessage,
+            trigger
         });
 
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            const errorMessage = payload.error || 'No pude procesar tu solicitud en este momento.';
+        let payload;
+        try {
+            payload = await requireApiClient().sendAgentMessage(normalizedMessage, historyForRequest, getPageContext());
+        } catch (error) {
+            const errorMessage = error.message || 'No pude procesar tu solicitud en este momento.';
             appendAgentMessage('assistant', errorMessage, null, false);
             throw new Error(errorMessage);
         }
 
         appendAgentMessage('assistant', payload.reply, null);
+        emitPluginEvent('chat.reply.received', {
+            reply: payload.reply || '',
+            trigger,
+            hasExecutionPlan: Boolean(payload.executionPlan)
+        });
         if (speakReply && payload.reply) {
             runtime()?.speak(payload.reply, {
                 mode: payload.executionPlan ? 'executing' : 'assistant'
@@ -1688,21 +1590,10 @@
         updateWorkflowPanelStatus('Generando pitchpersonality.md y future-improvement.md...');
         runtime()?.speak('Estoy generando los artefactos de pitch y preparando el recorrido de mejoras.', { mode: 'tour' });
 
-        const response = await fetch('/api/pitch/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...getPageContext(),
-                workflowDescription: options.workflowDescription || ''
-            })
+        return requireApiClient().generatePitchArtifacts({
+            ...getPageContext(),
+            workflowDescription: options.workflowDescription || ''
         });
-
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(payload.error || 'No se pudieron generar los archivos de pitch.');
-        }
-
-        return payload;
     }
 
     function startImprovementTour(result) {
@@ -1717,16 +1608,7 @@
 
     async function deleteWorkflowFromPanel(workflowId) {
         updateWorkflowPanelStatus(`Borrando ${workflowId}...`);
-
-        const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}`, {
-            method: 'DELETE'
-        });
-
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(payload.error || 'No se pudo borrar el workflow.');
-        }
-
+        await requireApiClient().deleteWorkflow(workflowId);
         updateWorkflowPanelStatus(`Workflow ${workflowId} borrado.`);
     }
 
@@ -1823,12 +1705,7 @@
         updateWorkflowPanelStatus('Buscando workflows de esta pagina...');
 
         try {
-            const response = await fetch('/api/workflows');
-            const payload = await response.json();
-            if (!response.ok) {
-                throw new Error(payload.error || 'No se pudo cargar el catalogo.');
-            }
-
+            const payload = await requireApiClient().listWorkflows();
             renderWorkflowPanel(filterWorkflowsForCurrentPage(payload.workflows || []));
         } catch (error) {
             workflowPanelLoaded = false;
@@ -2362,18 +2239,10 @@
         setPhonePairingVisible(true);
         const requestedId = getStoredPhoneSessionId() || `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
 
-        const response = await fetch('/api/voice/phone-session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                context: getPageContext(),
-                requestedId
-            })
+        const payload = await requireApiClient().createPhoneSession({
+            context: getPageContext(),
+            requestedId
         });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(payload.error || 'No pude crear la sincronizacion con telefono.');
-        }
 
         voiceState.phoneSession = payload;
         setStoredPhoneSessionId(payload.id);
@@ -2577,6 +2446,11 @@
             voiceState.lastUserTranscript = normalizeVoiceTranscript(transcript);
             voiceState.lastUserTranscriptAt = Date.now();
             voiceLog('openai_event_user_turn', transcript);
+            emitPluginEvent('voice.transcript.captured', {
+                role: 'user',
+                transcript,
+                mode: 'openai-realtime'
+            });
             appendAgentMessage('user', transcript);
             runtime()?.showUserSpeech?.(transcript);
             updateVoiceStatus('Pensando y preparando la reserva...');
@@ -2609,6 +2483,11 @@
             voiceState.lastAssistantTranscript = normalizeVoiceTranscript(transcript);
             voiceState.lastAssistantTranscriptAt = Date.now();
             voiceLog('openai_event_assistant_turn', transcript.slice(0, 140));
+            emitPluginEvent('voice.transcript.captured', {
+                role: 'assistant',
+                transcript,
+                mode: 'openai-realtime'
+            });
             appendAgentMessage('assistant', transcript, null);
             runtime()?.clearUserSpeech?.();
             updateVoiceStatus('Escuchando...');
@@ -2728,6 +2607,11 @@
         if (payload.type === 'user_turn') {
             runtime()?.stopAudibleSpeech?.();
             voiceLog('server_event_user_turn', payload.text);
+            emitPluginEvent('voice.transcript.captured', {
+                role: 'user',
+                transcript: payload.text || '',
+                mode: 'phone-realtime'
+            });
             appendAgentMessage('user', payload.text);
             updateVoiceStatus('Pensando y preparando la reserva...');
             runtime()?.showUserSpeech?.(payload.text);
@@ -2761,6 +2645,11 @@
             }
             voiceLog('server_event_assistant_turn', {
                 text: (payload.text || '').slice(0, 140)
+            });
+            emitPluginEvent('voice.transcript.captured', {
+                role: 'assistant',
+                transcript: payload.text || '',
+                mode: 'phone-realtime'
             });
             appendAgentMessage('assistant', payload.text, null);
             updateVoiceStatus('Respondiendo por voz...');
@@ -2916,14 +2805,9 @@
                 throw new Error('No pude generar una oferta de audio valida para iniciar la voz en tiempo real.');
             }
 
-            const response = await fetch('/api/voice/openai/session', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/sdp',
-                    'X-Graph-Voice-Context': encodeVoiceHeaderPayload(getPageContext()),
-                    'X-Graph-Voice-History': encodeVoiceHeaderPayload(agentHistory.slice(-10))
-                },
-                body: localSdp
+            const response = await requireApiClient().createOpenAiRealtimeSession(localSdp, {
+                'X-Graph-Voice-Context': encodeVoiceHeaderPayload(getPageContext()),
+                'X-Graph-Voice-History': encodeVoiceHeaderPayload(agentHistory.slice(-10))
             });
 
             const answerSdp = await response.text();
@@ -3068,18 +2952,10 @@
         setPhonePairingVisible(true);
         const requestedId = getStoredPhoneSessionId() || `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
 
-        const response = await fetch('/api/voice/phone-session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                context: getPageContext(),
-                requestedId
-            })
+        const payload = await requireApiClient().createPhoneSession({
+            context: getPageContext(),
+            requestedId
         });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(payload.error || 'No pude crear la sincronizacion con telefono.');
-        }
 
         voiceState.phoneSession = payload;
         setStoredPhoneSessionId(payload.id);
@@ -3102,21 +2978,10 @@
 
     async function processVoiceComplaints() {
         updateImprovementPanelStatus('Procesando quejas reales capturadas por voz...');
-        const response = await fetch('/api/voice/complaints/process', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...getPageContext(),
-                workflowDescription: options.workflowDescription || ''
-            })
+        return requireApiClient().processVoiceComplaints({
+            ...getPageContext(),
+            workflowDescription: options.workflowDescription || ''
         });
-
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(payload.error || 'No se pudieron procesar las quejas de voz.');
-        }
-
-        return payload;
     }
 
     async function startWorkflow() {
@@ -3127,6 +2992,10 @@
         }
         runtime()?.pinBottomRight();
         runtime()?.speak(`Empece a aprender este recorrido: "${description}".`, { mode: 'recording' });
+        emitPluginEvent('learning.session.requested', {
+            description,
+            context: getPageContext()
+        });
         await window.WorkflowRecorder.startWorkflow(description, getPageContext());
         workflowPanelLoaded = false;
     }
@@ -3135,6 +3004,9 @@
         runtime()?.unpin();
         runtime()?.speak('Listo, guarde este recorrido.', { mode: 'idle' });
         await window.WorkflowRecorder.stopWorkflow();
+        emitPluginEvent('learning.session.stop_requested', {
+            context: getPageContext()
+        });
         workflowPanelLoaded = false;
     }
 
@@ -3329,6 +3201,7 @@
     window.TrainerPlugin = {
         mount(config = {}) {
             options = { ...DEFAULTS, ...config };
+            options.adapter = getSurfaceAdapter();
             ensureStyles();
             ensureConsole();
             if (!voiceState.phoneSession?.id) {
