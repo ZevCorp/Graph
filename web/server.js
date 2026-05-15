@@ -247,6 +247,7 @@ function injectTrainerShell(html, options = {}) {
 <script src="/plugin/plugin-adapters.js"></script>
 <script src="/plugin/plugin-context.js"></script>
 <script src="/plugin/plugin-api.js"></script>
+<script src="/plugin/plugin-learning-bridge.js"></script>
 <script src="/trainer-plugin.js"></script>
 <script>
 window.addEventListener('load', function () {

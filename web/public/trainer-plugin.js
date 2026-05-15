@@ -10,7 +10,7 @@
         assistantRuntime: {
             name: 'Graph',
             accentColor: '#0f5f8c',
-            idleMessage: 'Puedo hacer la reserva de un carro por ti, solo hazme clic.'
+            idleMessage: 'Puedo ayudarte con esta pagina cuando quieras.'
         }
     };
 
@@ -98,7 +98,24 @@
     }
 
     function getSurfaceAdapter() {
-        return window.GraphPluginAdapters?.resolve?.(options) || null;
+        return options?.adapter || window.GraphPluginAdapters?.resolve?.(options) || null;
+    }
+
+    function buildMountOptions(config = {}) {
+        const adapter = window.GraphPluginAdapters?.resolve?.(config) || null;
+        const adapterDefaults = adapter?.mountDefaults || {};
+        return {
+            ...DEFAULTS,
+            ...adapterDefaults,
+            ...config,
+            assistantRuntime: {
+                ...DEFAULTS.assistantRuntime,
+                ...(adapterDefaults.assistantRuntime || {}),
+                ...(config.assistantRuntime || {})
+            },
+            assistantProfile: config.assistantProfile || adapterDefaults.assistantProfile || DEFAULTS.assistantProfile,
+            adapter
+        };
     }
 
     function apiClient() {
@@ -3200,8 +3217,7 @@
 
     window.TrainerPlugin = {
         mount(config = {}) {
-            options = { ...DEFAULTS, ...config };
-            options.adapter = getSurfaceAdapter();
+            options = buildMountOptions(config);
             ensureStyles();
             ensureConsole();
             if (!voiceState.phoneSession?.id) {

@@ -1,6 +1,67 @@
 (function () {
+    const MEDICAL_ASSISTANT_PROFILE = {
+        tone: 'professional, calm, concise',
+        style: 'clinical assistant',
+        goals: [
+            'Ask only for the information needed to execute the correct workflow.',
+            'Stay direct and clear.',
+            'Do not use a sales tone.'
+        ]
+    };
+
+    const CAR_ASSISTANT_PROFILE = {
+        tone: 'close, sincere, direct, human',
+        style: 'helpful car-rental advisor',
+        goals: [
+            'Sound like a nearby, trustworthy salesperson.',
+            'Guide the user through a natural conversation instead of a cold questionnaire.',
+            'Ask about the trip, experience, route, passengers, luggage, and what the vehicle will be used for.',
+            'Quietly collect the information needed to complete the forms correctly.',
+            'Be direct about the missing information and avoid robotic wording.'
+        ]
+    };
+
     function normalizePathname(value) {
         return `${value || ''}`.trim();
+    }
+
+    function getSurfacePreset(config = {}) {
+        const appId = `${config.appId || ''}`.trim();
+        const pathname = normalizePathname(config.sourcePathname || window.location.pathname);
+
+        if (appId === 'medical-demo') {
+            if (pathname.endsWith('/page1.html')) {
+                return {
+                    title: 'Anamnesis Trainer',
+                    workflowDescription: 'Anamnesis workflow'
+                };
+            }
+            if (pathname.endsWith('/page2.html')) {
+                return {
+                    title: 'Assessment Trainer',
+                    workflowDescription: 'Diagnosis and prescription workflow'
+                };
+            }
+            return {
+                title: 'Medical Intake Trainer',
+                workflowDescription: 'Patient intake workflow'
+            };
+        }
+
+        if (appId === 'car-demo') {
+            if (pathname.includes('/rentacar/reservar.html')) {
+                return {
+                    title: 'Car Rental Trainer',
+                    workflowDescription: 'Car rental quote and reservation workflow'
+                };
+            }
+            return {
+                title: 'Car Rental Trainer',
+                workflowDescription: 'Car rental quote workflow'
+            };
+        }
+
+        return {};
     }
 
     function getDefaultSuggestions(pathname) {
@@ -130,9 +191,26 @@
 
     function createAdapter(config) {
         const adapterConfig = config && typeof config === 'object' ? config : {};
+        const preset = getSurfacePreset(adapterConfig);
+        const assistantProfile = adapterConfig.assistantProfile
+            || (adapterConfig.appId === 'car-demo' ? CAR_ASSISTANT_PROFILE : null)
+            || (adapterConfig.appId === 'medical-demo' ? MEDICAL_ASSISTANT_PROFILE : null);
         const baseAdapter = {
             id: adapterConfig.id || adapterConfig.appId || 'default-surface',
             appId: adapterConfig.appId || '',
+            mountDefaults: {
+                title: adapterConfig.title || preset.title || 'Trainer',
+                workflowDescription: adapterConfig.workflowDescription || preset.workflowDescription || '',
+                aiPlaceholder: adapterConfig.aiPlaceholder || 'Ask AI to execute a saved flow',
+                assistantProfile,
+                assistantRuntime: adapterConfig.assistantRuntime || {
+                    name: 'Graph',
+                    accentColor: adapterConfig.appId === 'medical-demo' ? '#22577a' : '#0f5f8c',
+                    idleMessage: adapterConfig.appId === 'medical-demo'
+                        ? 'Puedo ayudarte a completar este flujo clinico cuando quieras.'
+                        : 'Puedo ayudarte con esta pagina cuando quieras.'
+                }
+            },
             capabilities: {
                 learning: true,
                 execution: true,
@@ -213,6 +291,7 @@
 
     window.GraphPluginAdapters = {
         createAdapter,
+        getSurfacePreset,
         normalizePathname,
         resolve
     };

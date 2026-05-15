@@ -398,6 +398,7 @@
     <script src="plugin/plugin-adapters.js"></script>
     <script src="plugin/plugin-context.js"></script>
     <script src="plugin/plugin-api.js"></script>
+    <script src="plugin/plugin-learning-bridge.js"></script>
     <script src="trainer-plugin.js"></script>
     <script>
         function hasValue(id) {
@@ -456,18 +457,7 @@
         window.onload = () => {
             window.PageState.init({ storageKey: 'graph-emr-form-state-v1' });
             window.TrainerPlugin.mount({
-                title: 'Anamnesis Trainer',
-                workflowDescription: 'Anamnesis workflow',
-                appId: 'medical-demo',
-                assistantProfile: {
-                    tone: 'professional, calm, concise',
-                    style: 'clinical assistant',
-                    goals: [
-                        'Ask only for the information needed to execute the correct workflow.',
-                        'Stay direct and clear.',
-                        'Do not use a sales tone.'
-                    ]
-                }
+                appId: 'medical-demo'
             });
             syncAnamnesisActions();
         };
