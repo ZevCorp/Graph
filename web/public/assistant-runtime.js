@@ -22,7 +22,9 @@
         speech: {
             displayedText: '',
             targetText: '',
-            typingTimer: null
+            typingTimer: null,
+            currentUtterance: null,
+            selectedVoice: null
         },
         interaction: {
             lastTouchAt: 0
@@ -811,6 +813,84 @@
         typeNextChunk();
     }
 
+    function getSpeechSynthesis() {
+        if (typeof window === 'undefined' || !window.speechSynthesis || typeof window.SpeechSynthesisUtterance === 'undefined') {
+            return null;
+        }
+        return window.speechSynthesis;
+    }
+
+    function pickSpanishVoice() {
+        const synth = getSpeechSynthesis();
+        if (!synth) {
+            return null;
+        }
+
+        const voices = synth.getVoices();
+        if (!voices.length) {
+            return null;
+        }
+
+        const preferredLocales = ['es-CO', 'es-MX', 'es-US', 'es-419', 'es-ES'];
+        for (const locale of preferredLocales) {
+            const exact = voices.find((voice) => `${voice.lang || ''}`.toLowerCase() === locale.toLowerCase());
+            if (exact) {
+                return exact;
+            }
+        }
+
+        return voices.find((voice) => `${voice.lang || ''}`.toLowerCase().startsWith('es')) || null;
+    }
+
+    function stopAudibleSpeech() {
+        const synth = getSpeechSynthesis();
+        if (!synth) {
+            return;
+        }
+        if (state.speech.currentUtterance) {
+            state.speech.currentUtterance.onend = null;
+            state.speech.currentUtterance.onerror = null;
+            state.speech.currentUtterance = null;
+        }
+        if (synth.speaking || synth.pending) {
+            synth.cancel();
+        }
+    }
+
+    function speakAudibly(text, options = {}) {
+        const synth = getSpeechSynthesis();
+        const normalizedText = `${text || ''}`.trim();
+        if (!synth || !normalizedText) {
+            return;
+        }
+
+        stopAudibleSpeech();
+
+        const utterance = new window.SpeechSynthesisUtterance(normalizedText);
+        state.speech.selectedVoice = state.speech.selectedVoice || pickSpanishVoice();
+        if (state.speech.selectedVoice) {
+            utterance.voice = state.speech.selectedVoice;
+            utterance.lang = state.speech.selectedVoice.lang || 'es-CO';
+        } else {
+            utterance.lang = 'es-CO';
+        }
+        utterance.rate = Number(options.rate || 1);
+        utterance.pitch = Number(options.pitch || 1);
+        utterance.volume = Number(options.volume || 1);
+        utterance.onend = () => {
+            if (state.speech.currentUtterance === utterance) {
+                state.speech.currentUtterance = null;
+            }
+        };
+        utterance.onerror = () => {
+            if (state.speech.currentUtterance === utterance) {
+                state.speech.currentUtterance = null;
+            }
+        };
+        state.speech.currentUtterance = utterance;
+        synth.speak(utterance);
+    }
+
     function positionBubbleNearShell() {
         const shell = document.getElementById('graph-assistant-shell');
         const bubble = document.getElementById('graph-assistant-bubble');
@@ -942,9 +1022,13 @@
             if (options.mode) {
                 setMode(options.mode);
             }
+            if (options.audible) {
+                speakAudibly(text, options);
+            }
         },
         clearSpeech() {
             showBubble('');
+            stopAudibleSpeech();
         },
         showUserSpeech(text) {
             renderUserBubbleText(text || '');
@@ -956,6 +1040,9 @@
             const { micButton } = ensureElements();
             if (!micButton) return;
             micButton.dataset.active = active ? 'true' : 'false';
+        },
+        stopAudibleSpeech() {
+            stopAudibleSpeech();
         },
         moveToSelector(selector, options = {}) {
             if (!state.mounted) {

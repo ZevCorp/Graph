@@ -1084,7 +1084,7 @@
         agentChatLog.scrollTop = agentChatLog.scrollHeight;
 
         if (role === 'assistant' && text) {
-            runtime()?.speak(text, { mode: 'assistant' });
+            runtime()?.speak(text, { mode: 'assistant', audible: true });
         }
     }
 
@@ -1565,6 +1565,8 @@
         if (speakReply && payload.reply) {
             runtime()?.speak(payload.reply, {
                 mode: payload.executionPlan ? 'executing' : 'assistant'
+                ,
+                audible: true
             });
         }
 
@@ -2555,6 +2557,7 @@
 
         if (payload.type === 'input_audio_buffer.speech_started') {
             voiceLog('openai_event_speech_started');
+            runtime()?.stopAudibleSpeech?.();
             updateVoiceStatus('Te escucho...');
             runtime()?.clearUserSpeech?.();
             return;
@@ -2586,7 +2589,7 @@
                 await sendMessageToAgentBackend(transcript, {
                     appendUser: false,
                     trigger: 'voice',
-                    speakReply: true
+                    speakReply: false
                 });
                 updateVoiceStatus('Reserva ejecutada desde el chat del asistente...');
             } catch (error) {
@@ -2717,6 +2720,7 @@
 
         if (payload.type === 'user_started_speaking') {
             voiceLog('server_event_user_started_speaking');
+            runtime()?.stopAudibleSpeech?.();
             clearVoicePlayback();
             updateVoiceStatus('Te escucho...');
             return;
@@ -2736,7 +2740,7 @@
                 await sendMessageToAgentBackend(payload.text, {
                     appendUser: false,
                     trigger: 'voice',
-                    speakReply: true
+                    speakReply: false
                 });
                 updateVoiceStatus('Reserva ejecutada desde el chat del asistente...');
             } catch (error) {
