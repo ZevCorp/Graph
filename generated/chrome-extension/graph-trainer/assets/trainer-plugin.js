@@ -1309,6 +1309,25 @@
         });
     }
 
+    function emitExtensionLog(level, message, details = null) {
+        const detail = {
+            level,
+            scope: 'trainer-plugin',
+            message,
+            details
+        };
+        try {
+            document.dispatchEvent(new CustomEvent('graph-trainer-extension-log', { detail }));
+            window.postMessage({
+                source: 'graph-trainer-extension',
+                type: 'log',
+                detail
+            }, '*');
+        } catch (error) {
+            // Ignore logging bridge issues.
+        }
+    }
+
     async function applyInputStep(element, step, variables = {}) {
         const variableName = `input_${step.stepOrder}`;
         const nextValue = Object.prototype.hasOwnProperty.call(variables, variableName)
@@ -1382,6 +1401,37 @@
         );
     }
 
+    function dispatchMouseLikeEvent(element, eventName) {
+        element.dispatchEvent(new MouseEvent(eventName, {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        }));
+    }
+
+    function dispatchKeyboardLikeEvent(element, eventName, key) {
+        element.dispatchEvent(new KeyboardEvent(eventName, {
+            bubbles: true,
+            cancelable: true,
+            key,
+            code: key,
+            view: window
+        }));
+    }
+
+    async function performSelectInteractionSequence(element) {
+        element.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await new Promise((resolve) => window.setTimeout(resolve, 40));
+        element.focus?.();
+        dispatchMouseLikeEvent(element, 'pointerdown');
+        dispatchMouseLikeEvent(element, 'mousedown');
+        dispatchMouseLikeEvent(element, 'pointerup');
+        dispatchMouseLikeEvent(element, 'mouseup');
+        dispatchMouseLikeEvent(element, 'click');
+        dispatchKeyboardLikeEvent(element, 'keydown', 'ArrowDown');
+        dispatchKeyboardLikeEvent(element, 'keyup', 'ArrowDown');
+    }
+
     async function waitForMatchingSelectOption(element, candidates, timeoutMs = EXECUTION_WAIT_TIMEOUT_MS) {
         const startedAt = Date.now();
         while (Date.now() - startedAt < timeoutMs) {
@@ -1399,18 +1449,48 @@
 
     async function applySelectStep(element, step, variables = {}) {
         const candidates = buildSelectCandidates(step, variables);
+        emitExtensionLog('info', 'Applying select step.', {
+            selector: step.selector || '',
+            label: step.label || '',
+            candidates
+        });
         const selected = await waitForMatchingSelectOption(element, candidates);
 
         if (!selected) {
+            emitExtensionLog('error', 'No matching option found for select step.', {
+                selector: step.selector || '',
+                label: step.label || '',
+                candidates,
+                availableOptions: Array.from(element.options || []).map((option) => ({
+                    value: option.value,
+                    label: option.label || option.textContent || ''
+                }))
+            });
             throw new Error(`No encontre una opcion compatible para ${describeStep(step)}.`);
         }
 
-        element.scrollIntoView({ block: 'center', inline: 'nearest' });
-        element.focus?.();
+        await performSelectInteractionSequence(element);
+        const optionsList = Array.from(element.options || []);
+        const selectedIndex = optionsList.findIndex((option) => option.value === selected.value);
+        if (selectedIndex >= 0) {
+            element.selectedIndex = selectedIndex;
+            if (optionsList[selectedIndex]) {
+                optionsList[selectedIndex].selected = true;
+            }
+        }
         element.value = selected.value;
         fireDomEvent(element, 'input');
         fireDomEvent(element, 'change');
+        dispatchKeyboardLikeEvent(element, 'keydown', 'Enter');
+        dispatchKeyboardLikeEvent(element, 'keyup', 'Enter');
         fireDomEvent(element, 'blur');
+        emitExtensionLog('info', 'Applied select step.', {
+            selector: step.selector || '',
+            label: step.label || '',
+            selectedValue: selected.value,
+            resultingValue: element.value || '',
+            selectedLabel: selected.label || selected.text || ''
+        });
     }
 
     function updateExecutionProgress(plan, nextStepIndex) {
@@ -1509,6 +1589,10 @@
         runtime()?.clearSpotlight?.();
         updateWorkflowPanelStatus('Reserva completada en esta pagina.');
         runtime()?.speak('Listo, termine de completar la reserva aqui mismo.', { mode: 'idle' });
+        emitExtensionLog('info', 'Workflow execution finished on page.', {
+            workflowId: currentPlan.workflowId,
+            trigger
+        });
         emitPluginEvent('workflow.execution.finished', {
             workflowId: currentPlan.workflowId,
             trigger
