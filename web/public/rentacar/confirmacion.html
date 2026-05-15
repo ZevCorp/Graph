@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirmacion de reserva | Rent a Car Medellin</title>
+  <link rel="stylesheet" href="./assets/bootstrap.min.css">
+  <link rel="stylesheet" href="./assets/font-awesome.min.css">
+  <style>
+    :root {
+      --brand-red: #d51717;
+      --brand-dark: #12253e;
+      --brand-green: #8bc53f;
+      --text-main: #1f2f46;
+      --text-soft: #5d6c80;
+      --surface: #ffffff;
+      --line: rgba(18, 37, 62, 0.1);
+      --shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Quicksand, "Segoe UI", sans-serif;
+      color: var(--text-main);
+      background:
+        radial-gradient(circle at top left, rgba(213, 23, 23, 0.16), transparent 28%),
+        linear-gradient(180deg, #f6f4f2 0%, #ffffff 100%);
+    }
+    .site-navbar {
+      background: #000;
+      border-bottom: 4px solid var(--brand-red);
+      padding: 18px 0;
+    }
+    .site-navbar img {
+      max-width: 200px;
+      height: auto;
+    }
+    .confirmation-shell {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 48px 16px 72px;
+    }
+    .confirmation-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 36px 28px;
+      text-align: center;
+    }
+    .confirmation-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 86px;
+      height: 86px;
+      margin-bottom: 18px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #d51717, #ff5757);
+      color: #fff;
+      box-shadow: 0 18px 36px rgba(213, 23, 23, 0.22);
+    }
+    .confirmation-badge svg {
+      width: 42px;
+      height: 42px;
+    }
+    .confirmation-card h1 {
+      margin: 0;
+      color: var(--brand-dark);
+      font-size: clamp(2rem, 4vw, 2.6rem);
+      font-weight: 800;
+    }
+    .confirmation-lead {
+      max-width: 620px;
+      margin: 14px auto 0;
+      color: var(--text-soft);
+      font-size: 1.02rem;
+      line-height: 1.6;
+    }
+    .confirmation-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+      text-align: left;
+    }
+    .confirmation-item {
+      border: 1px solid rgba(18, 37, 62, 0.08);
+      border-radius: 18px;
+      padding: 18px;
+      background: linear-gradient(180deg, #fff 0%, #fbfbfb 100%);
+    }
+    .confirmation-item span {
+      display: block;
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #7b8797;
+    }
+    .confirmation-item strong {
+      display: block;
+      margin-top: 8px;
+      color: var(--brand-dark);
+      font-size: 1.02rem;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .timeline {
+      margin-top: 28px;
+      padding: 22px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, #fff7f7 0%, #fff 100%);
+      border: 1px solid rgba(213, 23, 23, 0.12);
+      text-align: left;
+    }
+    .timeline h2 {
+      margin: 0 0 14px;
+      color: var(--brand-dark);
+      font-size: 1.2rem;
+      font-weight: 800;
+    }
+    .timeline-step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .timeline-step + .timeline-step {
+      margin-top: 14px;
+    }
+    .timeline-index {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      background: var(--brand-red);
+      color: #fff;
+      font-weight: 800;
+    }
+    .timeline-step strong,
+    .timeline-step span {
+      display: block;
+    }
+    .timeline-step strong {
+      color: var(--brand-dark);
+      font-size: 0.98rem;
+    }
+    .timeline-step span {
+      margin-top: 4px;
+      color: var(--text-soft);
+      line-height: 1.5;
+    }
+    .confirmation-actions {
+      margin-top: 30px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .primary-link,
+    .secondary-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 220px;
+      min-height: 50px;
+      padding: 0 24px;
+      border-radius: 999px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .primary-link {
+      background: linear-gradient(135deg, #d51717, #b61010);
+      color: #fff;
+      box-shadow: 0 16px 32px rgba(213, 23, 23, 0.2);
+    }
+    .secondary-link {
+      border: 1px solid rgba(18, 37, 62, 0.14);
+      background: #fff;
+      color: var(--brand-dark);
+    }
+    @media (max-width: 767px) {
+      .confirmation-card {
+        padding: 28px 18px;
+      }
+      .confirmation-grid {
+        grid-template-columns: 1fr;
+      }
+      .timeline {
+        padding: 18px;
+      }
+      .primary-link,
+      .secondary-link {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-navbar">
+    <div class="container text-center">
+      <a href="/examples/car-demo">
+        <img src="./assets/logo_white2.png" alt="Rent a Car Medellin">
+      </a>
+    </div>
+  </header>
+
+  <main class="confirmation-shell">
+    <section class="confirmation-card">
+      <div class="confirmation-badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path fill="currentColor" d="M12 2 1.5 6v6c0 6 4.26 11.62 10.5 13 6.24-1.38 10.5-7 10.5-13V6L12 2Zm-1.18 15.2-4.24-4.24 1.41-1.41 2.83 2.82 5.19-5.18 1.41 1.41-6.6 6.6Z"></path>
+        </svg>
+      </div>
+      <h1>Solicitud recibida</h1>
+      <p class="confirmation-lead">Tu solicitud de reserva fue registrada correctamente. En unos minutos te llegara la verificacion al correo y al telefono por SMS para continuar con la confirmacion final.</p>
+
+      <div class="confirmation-grid">
+        <article class="confirmation-item">
+          <span>Email de verificacion</span>
+          <strong id="emailValue">No registrado</strong>
+        </article>
+        <article class="confirmation-item">
+          <span>Telefono para SMS</span>
+          <strong id="phoneValue">No registrado</strong>
+        </article>
+        <article class="confirmation-item">
+          <span>Vehiculo solicitado</span>
+          <strong id="vehicleValue">Vehiculo por confirmar</strong>
+        </article>
+        <article class="confirmation-item">
+          <span>Fechas del viaje</span>
+          <strong id="dateValue">Fechas por confirmar</strong>
+        </article>
+      </div>
+
+      <div class="timeline">
+        <h2>Que sigue ahora</h2>
+        <div class="timeline-step">
+          <div class="timeline-index">1</div>
+          <div>
+            <strong>Revisa tu correo</strong>
+            <span>Te enviaremos un email con el resumen de la solicitud y las instrucciones de verificacion.</span>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-index">2</div>
+          <div>
+            <strong>Confirma el codigo por SMS</strong>
+            <span>Recibiras un mensaje de texto en tu telefono para validar que la reserva pertenece al titular correcto.</span>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-index">3</div>
+          <div>
+            <strong>Un asesor finaliza la reserva</strong>
+            <span>Despues de la verificacion, nuestro equipo te contactara para cerrar la entrega del vehiculo y la garantia.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="confirmation-actions">
+        <a class="primary-link" href="/examples/car-demo">Volver al inicio</a>
+        <a class="secondary-link" href="/rentacar/reservar.html">Hacer otra reserva</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+
+    function valueOrFallback(value, fallback) {
+      return value && value.trim() ? value.trim() : fallback;
+    }
+
+    function formatDate(raw) {
+      if (!raw) return '';
+      const parsed = new Date(raw + 'T12:00:00');
+      if (Number.isNaN(parsed.getTime())) return raw;
+      return parsed.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    const email = valueOrFallback(params.get('email'), 'No registrado');
+    const phone = valueOrFallback(params.get('phone'), 'No registrado');
+    const vehicle = valueOrFallback(params.get('vehicle'), 'Vehiculo por confirmar');
+    const start = formatDate(params.get('desde'));
+    const end = formatDate(params.get('hasta'));
+    const dateLabel = start && end ? start + ' al ' + end : 'Fechas por confirmar';
+
+    document.getElementById('emailValue').textContent = email;
+    document.getElementById('phoneValue').textContent = phone;
+    document.getElementById('vehicleValue').textContent = vehicle;
+    document.getElementById('dateValue').textContent = dateLabel;
+  </script>
+</body>
+</html>
