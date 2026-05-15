@@ -32,6 +32,37 @@ class VoiceRealtimeGateway {
     return `${cleaned.slice(0, maxLength - 1)}…`;
   }
 
+  normalizeTranscript(text = '') {
+    return `${text || ''}`.toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  shouldIgnoreUserTranscript(session, text = '') {
+    const normalized = this.normalizeTranscript(text);
+    if (!normalized) {
+      return true;
+    }
+
+    const fillerWords = new Set(['eh', 'em', 'mmm', 'mm', 'aja', 'ajá', 'ok', 'vale']);
+    const now = Date.now();
+    if (fillerWords.has(normalized) || normalized.length < 3) {
+      return true;
+    }
+
+    return normalized === (session.lastAcceptedUserTranscript || '')
+      && now - (session.lastAcceptedUserTranscriptAt || 0) < 5000;
+  }
+
+  shouldIgnoreAssistantTranscript(session, text = '') {
+    const normalized = this.normalizeTranscript(text);
+    if (!normalized) {
+      return true;
+    }
+
+    const now = Date.now();
+    return normalized === (session.lastAcceptedAssistantTranscript || '')
+      && now - (session.lastAcceptedAssistantTranscriptAt || 0) < 5000;
+  }
+
   attach(server) {
     const wss = new WebSocket.Server({ noServer: true });
 
@@ -250,8 +281,8 @@ class VoiceRealtimeGateway {
               type: 'server_vad',
               threshold: 0.5,
               prefix_padding_ms: 300,
-              silence_duration_ms: 450,
-              create_response: true,
+              silence_duration_ms: 900,
+              create_response: false,
               interrupt_response: true
             }
           },
@@ -268,8 +299,7 @@ class VoiceRealtimeGateway {
           type: 'function',
           ...tool
         })),
-        tool_choice: 'auto',
-        modalities: ['audio', 'text']
+        tool_choice: 'auto'
       }
     };
   }
@@ -364,15 +394,20 @@ class VoiceRealtimeGateway {
 
       if (type === 'conversation.item.input_audio_transcription.completed') {
         const content = `${payload.transcript || ''}`.trim();
-        if (!content) {
+        if (!content || this.shouldIgnoreUserTranscript(session, content)) {
           return;
         }
+        session.lastAcceptedUserTranscript = this.normalizeTranscript(content);
+        session.lastAcceptedUserTranscriptAt = Date.now();
         this.log(session.id, 'User transcription received', this.summarizeText(content));
         this.sendJson(client, {
           type: 'user_turn',
           text: content
         });
         session.pendingUserText = content;
+        if (session.agentSocket?.readyState === WebSocket.OPEN) {
+          session.agentSocket.send(JSON.stringify({ type: 'response.create' }));
+        }
         return;
       }
 
@@ -401,9 +436,11 @@ class VoiceRealtimeGateway {
 
       if (type === 'response.output_audio_transcript.done') {
         const content = `${payload.transcript || ''}`.trim();
-        if (!content) {
+        if (!content || this.shouldIgnoreAssistantTranscript(session, content)) {
           return;
         }
+        session.lastAcceptedAssistantTranscript = this.normalizeTranscript(content);
+        session.lastAcceptedAssistantTranscriptAt = Date.now();
         this.log(session.id, 'Assistant transcript received', this.summarizeText(content));
         this.sendJson(client, {
           type: 'assistant_turn',
@@ -522,6 +559,10 @@ class VoiceRealtimeGateway {
       availableWorkflows: [],
       phoneSessionId: null,
       pendingUserText: '',
+      lastAcceptedUserTranscript: '',
+      lastAcceptedUserTranscriptAt: 0,
+      lastAcceptedAssistantTranscript: '',
+      lastAcceptedAssistantTranscriptAt: 0,
       stoppedByUser: false,
       agentSocket: null,
       keepAliveTimer: null,

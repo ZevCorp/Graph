@@ -913,8 +913,8 @@ app.post('/api/voice/openai/session', express.text({ type: ['application/sdp', '
             type: 'server_vad',
             threshold: 0.5,
             prefix_padding_ms: 300,
-            silence_duration_ms: 450,
-            create_response: true,
+            silence_duration_ms: 900,
+            create_response: false,
             interrupt_response: true
           }
         },
@@ -923,8 +923,7 @@ app.post('/api/voice/openai/session', express.text({ type: ['application/sdp', '
         }
       },
       tools: buildOpenAiRealtimeTools(),
-      tool_choice: 'auto',
-      modalities: ['audio', 'text']
+      tool_choice: 'auto'
     };
 
     const form = new FormData();

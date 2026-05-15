@@ -37,7 +37,11 @@
         ttsSampleRate: 24000,
         phoneSession: null,
         processedFunctionCalls: new Set(),
-        assistantTranscript: new Map()
+        assistantTranscript: new Map(),
+        lastUserTranscript: '',
+        lastUserTranscriptAt: 0,
+        lastAssistantTranscript: '',
+        lastAssistantTranscriptAt: 0
     };
     const greetingState = {
         playing: false,
@@ -2341,6 +2345,41 @@
     function resetRealtimeTranscriptState() {
         voiceState.processedFunctionCalls = new Set();
         voiceState.assistantTranscript = new Map();
+        voiceState.lastUserTranscript = '';
+        voiceState.lastUserTranscriptAt = 0;
+        voiceState.lastAssistantTranscript = '';
+        voiceState.lastAssistantTranscriptAt = 0;
+    }
+
+    function normalizeVoiceTranscript(text) {
+        return `${text || ''}`.toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function shouldIgnoreVoiceUserTranscript(text) {
+        const normalized = normalizeVoiceTranscript(text);
+        if (!normalized) {
+            return true;
+        }
+
+        const fillerWords = new Set(['eh', 'em', 'mmm', 'mm', 'aja', 'ajá', 'ok', 'vale']);
+        const now = Date.now();
+        if (fillerWords.has(normalized) || normalized.length < 3) {
+            return true;
+        }
+
+        return normalized === voiceState.lastUserTranscript
+            && now - voiceState.lastUserTranscriptAt < 5000;
+    }
+
+    function shouldIgnoreVoiceAssistantTranscript(text) {
+        const normalized = normalizeVoiceTranscript(text);
+        if (!normalized) {
+            return true;
+        }
+
+        const now = Date.now();
+        return normalized === voiceState.lastAssistantTranscript
+            && now - voiceState.lastAssistantTranscriptAt < 5000;
     }
 
     function sendRealtimeEvent(event) {
@@ -2458,21 +2497,26 @@
 
         if (payload.type === 'conversation.item.input_audio_transcription.completed') {
             const transcript = `${payload.transcript || ''}`.trim();
-            if (!transcript) {
+            if (!transcript || shouldIgnoreVoiceUserTranscript(transcript)) {
                 return;
             }
+            voiceState.lastUserTranscript = normalizeVoiceTranscript(transcript);
+            voiceState.lastUserTranscriptAt = Date.now();
             voiceLog('openai_event_user_turn', transcript);
             appendAgentMessage('user', transcript);
             runtime()?.showUserSpeech?.(transcript);
             updateVoiceStatus('Pensando y preparando la reserva...');
+            sendRealtimeEvent({ type: 'response.create' });
             return;
         }
 
         if (payload.type === 'response.output_audio_transcript.done') {
             const transcript = `${payload.transcript || ''}`.trim();
-            if (!transcript) {
+            if (!transcript || shouldIgnoreVoiceAssistantTranscript(transcript)) {
                 return;
             }
+            voiceState.lastAssistantTranscript = normalizeVoiceTranscript(transcript);
+            voiceState.lastAssistantTranscriptAt = Date.now();
             voiceLog('openai_event_assistant_turn', transcript.slice(0, 140));
             appendAgentMessage('assistant', transcript, null);
             runtime()?.clearUserSpeech?.();
