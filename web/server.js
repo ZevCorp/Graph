@@ -729,6 +729,16 @@ app.post('/api/step', async (req, res) => {
   }
 });
 
+app.post('/api/workflow/context-note', async (req, res) => {
+  try {
+    await workflowLearner.addContextNote(currentWorkflowId, req.body?.note || {});
+    res.sendStatus(200);
+  } catch (err) {
+    console.error(`[Server] Context Note Error: ${err.message}`);
+    res.status(500).send(err.message);
+  }
+});
+
 app.post('/api/workflow/stop', async (req, res) => {
   try {
     console.log(`[Server] Stopping workflow: ${currentWorkflowId}`);

@@ -24,6 +24,7 @@ class MarkdownCatalogWriter {
       lines.push('');
       lines.push(`- Purpose: ${workflow.summary || workflow.description || 'No summary available.'}`);
       lines.push(`- Status: ${workflow.status || 'unknown'}`);
+      lines.push(`- Context notes: ${Array.isArray(workflow.contextNotes) ? workflow.contextNotes.length : 0}`);
       lines.push(`- CLI: \`${this.formatCliExample(workflow.id, workflow.variables)}\``);
       lines.push('');
       lines.push('### Variables');

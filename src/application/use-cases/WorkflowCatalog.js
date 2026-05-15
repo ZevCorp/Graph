@@ -10,6 +10,21 @@ class WorkflowCatalog {
   groupWorkflowRows(rows) {
     const grouped = new Map();
 
+    function parseContextNotes(rawValue) {
+      if (Array.isArray(rawValue)) {
+        return rawValue;
+      }
+      if (!rawValue) {
+        return [];
+      }
+      try {
+        const parsed = JSON.parse(rawValue);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
     for (const row of rows) {
       if (!grouped.has(row.id)) {
         grouped.set(row.id, {
@@ -22,6 +37,7 @@ class WorkflowCatalog {
           sourceOrigin: row.sourceOrigin,
           sourcePathname: row.sourcePathname,
           sourceTitle: row.sourceTitle,
+          contextNotes: parseContextNotes(row.contextNotes),
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           completedAt: row.completedAt,

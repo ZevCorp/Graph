@@ -28,6 +28,7 @@ class Neo4jWorkflowRepository {
              w.sourceOrigin as sourceOrigin,
              w.sourcePathname as sourcePathname,
              w.sourceTitle as sourceTitle,
+             w.contextNotes as contextNotes,
              w.createdAt as createdAt,
              w.updatedAt as updatedAt,
              w.completedAt as completedAt,
@@ -57,6 +58,7 @@ class Neo4jWorkflowRepository {
         sourceOrigin: $sourceOrigin,
         sourcePathname: $sourcePathname,
         sourceTitle: $sourceTitle,
+        contextNotes: $contextNotes,
         createdAt: timestamp()
       })`,
       {
@@ -66,7 +68,8 @@ class Neo4jWorkflowRepository {
         sourceUrl: context.sourceUrl || '',
         sourceOrigin: context.sourceOrigin || '',
         sourcePathname: context.sourcePathname || '',
-        sourceTitle: context.sourceTitle || ''
+        sourceTitle: context.sourceTitle || '',
+        contextNotes: JSON.stringify(Array.isArray(context.contextNotes) ? context.contextNotes : [])
       }
     );
   }
@@ -102,6 +105,43 @@ class Neo4jWorkflowRepository {
       ...step,
       stepOrder: nextStepOrder
     });
+  }
+
+  async addContextNote(workflowId, note) {
+    const existing = await this.db.run(
+      'MATCH (w:Workflow {id: $id}) RETURN w.contextNotes as contextNotes',
+      { id: workflowId }
+    );
+
+    const raw = existing[0]?.contextNotes || '[]';
+    let currentNotes = [];
+    if (Array.isArray(raw)) {
+      currentNotes = raw;
+    } else {
+      try {
+        currentNotes = JSON.parse(raw);
+        if (!Array.isArray(currentNotes)) {
+          currentNotes = [];
+        }
+      } catch (error) {
+        currentNotes = [];
+      }
+    }
+
+    currentNotes.push({
+      transcript: `${note.transcript || ''}`.trim(),
+      role: `${note.role || 'user'}`.trim() || 'user',
+      mode: `${note.mode || 'unknown'}`.trim() || 'unknown',
+      capturedAt: Number(note.capturedAt) || Date.now()
+    });
+
+    await this.db.run(
+      'MATCH (w:Workflow {id: $id}) SET w.contextNotes = $contextNotes, w.updatedAt = timestamp()',
+      {
+        id: workflowId,
+        contextNotes: JSON.stringify(currentNotes)
+      }
+    );
   }
 
   async getWorkflowSteps(workflowId) {
@@ -149,6 +189,7 @@ class Neo4jWorkflowRepository {
         sourceOrigin: $sourceOrigin,
         sourcePathname: $sourcePathname,
         sourceTitle: $sourceTitle,
+        contextNotes: $contextNotes,
         createdAt: timestamp(),
         updatedAt: timestamp()
       })
@@ -183,6 +224,7 @@ class Neo4jWorkflowRepository {
           w.sourceOrigin = $sourceOrigin,
           w.sourcePathname = $sourcePathname,
           w.sourceTitle = $sourceTitle,
+          w.contextNotes = $contextNotes,
           w.updatedAt = timestamp()
       WITH w
       OPTIONAL MATCH (w)-[rel:HAS_STEP]->(old:Step)

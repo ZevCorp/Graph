@@ -39,6 +39,15 @@
                     method: 'DELETE'
                 });
             },
+            appendWorkflowContextNote(note) {
+                return createJsonRequest(baseUrl, '/api/workflow/context-note', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        note: note || {}
+                    })
+                });
+            },
             getExecutionPlan(workflowId, variables, context) {
                 return createJsonRequest(baseUrl, `/api/workflows/${encodeURIComponent(workflowId)}/plan`, {
                     method: 'POST',

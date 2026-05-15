@@ -24,6 +24,12 @@ class WorkflowLearner {
     return nextStepOrder;
   }
 
+  async addContextNote(workflowId, note) {
+    if (!workflowId) throw new Error('No active workflow');
+    if (!note || typeof note !== 'object') throw new Error('Context note is required');
+    await this.repository.addContextNote(workflowId, note);
+  }
+
   async finishSession(workflowId) {
     if (!workflowId) throw new Error('No active workflow');
 

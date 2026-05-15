@@ -11,6 +11,7 @@ class Workflow {
     this.sourceOrigin = data.sourceOrigin || '';
     this.sourcePathname = data.sourcePathname || '';
     this.sourceTitle = data.sourceTitle || '';
+    this.contextNotes = Array.isArray(data.contextNotes) ? data.contextNotes : [];
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
     this.completedAt = data.completedAt;
@@ -87,6 +88,7 @@ class Workflow {
       sourceOrigin: this.sourceOrigin,
       sourcePathname: this.sourcePathname,
       sourceTitle: this.sourceTitle,
+      contextNotes: this.contextNotes,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       completedAt: this.completedAt,

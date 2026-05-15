@@ -136,6 +136,17 @@
         return client;
     }
 
+    async function persistLearningContextNote(note) {
+        if (!note || !note.transcript) {
+            return;
+        }
+        try {
+            await requireApiClient().appendWorkflowContextNote(note);
+        } catch (error) {
+            console.warn('[LearningContext] Could not persist note:', error.message || error);
+        }
+    }
+
     function getPageContext() {
         return window.GraphPluginContext?.buildPageContext?.(options) || {
             appId: options.appId || '',
@@ -3253,6 +3264,9 @@
                         updateVoiceStatus(error.message || 'No pude preparar el microfono del telefono.');
                         appendAgentMessage('assistant', error.message || 'No pude preparar el microfono del telefono.', null, false);
                     }
+                });
+                pluginEvents()?.on?.('learning.context.captured', (payload) => {
+                    persistLearningContextNote(payload?.note || null);
                 });
                 runtimeTouchBound = true;
             }
