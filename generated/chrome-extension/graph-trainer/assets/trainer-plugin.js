@@ -164,11 +164,14 @@
     }
 
     function getPageContext() {
+        const normalizePathname = window.GraphPluginAdapters?.normalizePathname;
         return window.GraphPluginContext?.buildPageContext?.(options) || {
             appId: options.appId || '',
             sourceUrl: window.location.href,
             sourceOrigin: window.location.origin,
-            sourcePathname: window.location.pathname,
+            sourcePathname: typeof normalizePathname === 'function'
+                ? normalizePathname(window.location.pathname)
+                : window.location.pathname,
             sourceTitle: document.title,
             assistantProfile: options.assistantProfile || null
         };
@@ -1340,14 +1343,32 @@
             .trim();
     }
 
-    async function applySelectStep(element, step, variables = {}) {
+    function buildSelectCandidates(step, variables = {}) {
         const variableName = `input_${step.stepOrder}`;
-        const requestedValue = Object.prototype.hasOwnProperty.call(variables, variableName)
+        const fromVariables = Object.prototype.hasOwnProperty.call(variables, variableName)
             ? variables[variableName]
-            : (step.selectedValue || step.selectedLabel || step.value || '');
+            : null;
+        return [
+            fromVariables,
+            step.selectedValue,
+            step.selectedLabel,
+            step.value
+        ].filter((candidate, index, items) => {
+            if (candidate === null || candidate === undefined) {
+                return false;
+            }
+            const normalized = `${candidate}`.trim();
+            return normalized && items.findIndex((item) => `${item}`.trim() === normalized) === index;
+        });
+    }
+
+    function findMatchingSelectOption(optionsList, requestedValue) {
         const normalizedRequested = normalizeChoiceText(requestedValue);
-        const optionsList = Array.from(element.options || []);
-        const selected = optionsList.find((option) =>
+        if (!normalizedRequested) {
+            return null;
+        }
+
+        return optionsList.find((option) =>
             normalizeChoiceText(option.value) === normalizedRequested
             || normalizeChoiceText(option.label || option.textContent || '') === normalizedRequested
             || normalizeChoiceText(option.textContent || '') === normalizedRequested
@@ -1355,7 +1376,30 @@
             normalizeChoiceText(option.value).includes(normalizedRequested)
             || normalizeChoiceText(option.label || option.textContent || '').includes(normalizedRequested)
             || normalizeChoiceText(option.textContent || '').includes(normalizedRequested)
+            || normalizedRequested.includes(normalizeChoiceText(option.value))
+            || normalizedRequested.includes(normalizeChoiceText(option.label || option.textContent || ''))
+            || normalizedRequested.includes(normalizeChoiceText(option.textContent || ''))
         );
+    }
+
+    async function waitForMatchingSelectOption(element, candidates, timeoutMs = EXECUTION_WAIT_TIMEOUT_MS) {
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < timeoutMs) {
+            const optionsList = Array.from(element.options || []);
+            for (const candidate of candidates) {
+                const selected = findMatchingSelectOption(optionsList, candidate);
+                if (selected) {
+                    return selected;
+                }
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 120));
+        }
+        return null;
+    }
+
+    async function applySelectStep(element, step, variables = {}) {
+        const candidates = buildSelectCandidates(step, variables);
+        const selected = await waitForMatchingSelectOption(element, candidates);
 
         if (!selected) {
             throw new Error(`No encontre una opcion compatible para ${describeStep(step)}.`);
@@ -1366,6 +1410,7 @@
         element.value = selected.value;
         fireDomEvent(element, 'input');
         fireDomEvent(element, 'change');
+        fireDomEvent(element, 'blur');
     }
 
     function updateExecutionProgress(plan, nextStepIndex) {

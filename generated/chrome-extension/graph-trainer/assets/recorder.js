@@ -79,9 +79,16 @@ window.WorkflowRecorder = (() => {
     const explicitLabel = element.labels && element.labels.length > 0
       ? Array.from(element.labels).map((label) => label.textContent || '').join(' ').trim()
       : '';
-    const ariaLabel = element.getAttribute && (element.getAttribute('aria-label') || element.getAttribute('aria-labelledby'));
+    const ariaLabel = element.getAttribute && element.getAttribute('aria-label');
+    const ariaLabelledBy = element.getAttribute && element.getAttribute('aria-labelledby')
+      ? element.getAttribute('aria-labelledby')
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent || '')
+        .join(' ')
+        .trim()
+      : '';
     const fallback = element.placeholder || element.name || element.id || '';
-    return (explicitLabel || ariaLabel || fallback || '').trim().slice(0, 120);
+    return (explicitLabel || ariaLabel || ariaLabelledBy || fallback || '').trim().slice(0, 120);
   }
 
   function controlTypeForElement(element) {
@@ -95,7 +102,7 @@ window.WorkflowRecorder = (() => {
     if (!(element instanceof HTMLSelectElement)) return [];
     return Array.from(element.options).map((option) => ({
       value: option.value,
-      label: option.label || option.textContent || '',
+      label: (option.label || option.textContent || '').trim(),
       text: (option.textContent || '').trim()
     }));
   }

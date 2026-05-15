@@ -51,6 +51,22 @@
       font-weight: 700;
       cursor: pointer;
     }
+    .secondary-button {
+      background: #e7f0f7;
+      color: #0f5f8c;
+    }
+    .danger-button {
+      background: #fdecec;
+      color: #a63f3f;
+    }
+    .button-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .button-row button {
+      margin-top: 0;
+    }
     #status {
       margin-top: 10px;
       color: #1b6b4b;
@@ -59,6 +75,26 @@
     code {
       font-family: Consolas, monospace;
       font-size: 12px;
+    }
+    #logPanel {
+      display: none;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #c7d7e6;
+      border-radius: 10px;
+      background: #ffffff;
+    }
+    #logPanel.open {
+      display: block;
+    }
+    #logOutput {
+      margin: 0;
+      max-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 11px/1.45 Consolas, monospace;
+      color: #203040;
     }
   </style>
 </head>
@@ -75,7 +111,14 @@
   <input id="backendUrl" type="text" placeholder="https://graph-1-hap6.onrender.com">
 
   <button id="save">Save</button>
+  <div class="button-row">
+    <button id="toggleLogs" type="button" class="secondary-button">Show Logs</button>
+    <button id="clearLogs" type="button" class="danger-button">Clear Logs</button>
+  </div>
   <div id="status"></div>
+  <div id="logPanel" aria-live="polite">
+    <pre id="logOutput">No logs yet.</pre>
+  </div>
 
   <p>After saving, reload the target tab. The trainer will mount automatically.</p>
 
