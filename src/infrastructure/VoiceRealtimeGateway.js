@@ -637,6 +637,14 @@ class VoiceRealtimeGateway {
         return;
       }
 
+      if (payload.type === 'cancel_response') {
+        this.log(session.id, 'Response cancel requested by client');
+        if (session.agentSocket?.readyState === WebSocket.OPEN) {
+          session.agentSocket.send(JSON.stringify({ type: 'response.cancel' }));
+        }
+        return;
+      }
+
       if (payload.type === 'stop') {
         session.stoppedByUser = true;
         this.log(session.id, 'Stop requested by client');

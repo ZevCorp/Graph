@@ -1525,6 +1525,66 @@
         return payload.executionPlan || null;
     }
 
+    async function sendMessageToAgentBackend(message, options = {}) {
+        const normalizedMessage = `${message || ''}`.trim();
+        if (!normalizedMessage) {
+            return null;
+        }
+
+        const {
+            appendUser = true,
+            focusInput = false,
+            trigger = 'chat',
+            speakReply = false
+        } = options;
+
+        const historyForRequest = agentHistory.slice(-8);
+        if (appendUser) {
+            appendAgentMessage('user', normalizedMessage);
+        }
+
+        const response = await fetch('/api/agent/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: normalizedMessage,
+                history: historyForRequest,
+                context: getPageContext(),
+                executionMode: 'browser'
+            })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const errorMessage = payload.error || 'No pude procesar tu solicitud en este momento.';
+            appendAgentMessage('assistant', errorMessage, null, false);
+            throw new Error(errorMessage);
+        }
+
+        appendAgentMessage('assistant', payload.reply, null);
+        if (speakReply && payload.reply) {
+            runtime()?.speak(payload.reply, {
+                mode: payload.executionPlan ? 'executing' : 'assistant'
+            });
+        }
+
+        if (payload.executionPlan) {
+            try {
+                await executeWorkflowPlan(payload.executionPlan, trigger);
+            } catch (error) {
+                appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
+                updateWorkflowPanelStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                throw error;
+            }
+        }
+
+        if (focusInput) {
+            document.getElementById('agent-message')?.focus();
+        }
+
+        return payload;
+    }
+
     async function respondToVoiceFunctionCall(call, content) {
         if (!voiceState.socket || voiceState.socket.readyState !== WebSocket.OPEN) {
             throw new Error('La sesion de voz ya no esta conectada.');
@@ -2390,6 +2450,17 @@
         channel.send(JSON.stringify(event));
     }
 
+    function cancelActiveVoiceResponse() {
+        if (voiceState.socket && voiceState.socket.readyState === WebSocket.OPEN) {
+            voiceState.socket.send(JSON.stringify({ type: 'cancel_response' }));
+            return;
+        }
+
+        if (getRealtimeDataChannel()) {
+            sendRealtimeEvent({ type: 'response.cancel' });
+        }
+    }
+
     function encodeVoiceHeaderPayload(value) {
         const json = JSON.stringify(value || null);
         const bytes = new TextEncoder().encode(json);
@@ -2506,11 +2577,28 @@
             appendAgentMessage('user', transcript);
             runtime()?.showUserSpeech?.(transcript);
             updateVoiceStatus('Pensando y preparando la reserva...');
-            sendRealtimeEvent({ type: 'response.create' });
+            try {
+                cancelActiveVoiceResponse();
+            } catch (error) {
+                voiceLog('openai_cancel_response_error', error.message || 'cancel failed');
+            }
+            try {
+                await sendMessageToAgentBackend(transcript, {
+                    appendUser: false,
+                    trigger: 'voice',
+                    speakReply: true
+                });
+                updateVoiceStatus('Reserva ejecutada desde el chat del asistente...');
+            } catch (error) {
+                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+            }
             return;
         }
 
         if (payload.type === 'response.output_audio_transcript.done') {
+            if (voiceState.socket) {
+                return;
+            }
             const transcript = `${payload.transcript || ''}`.trim();
             if (!transcript || shouldIgnoreVoiceAssistantTranscript(transcript)) {
                 return;
@@ -2639,6 +2727,21 @@
             appendAgentMessage('user', payload.text);
             updateVoiceStatus('Pensando y preparando la reserva...');
             runtime()?.showUserSpeech?.(payload.text);
+            try {
+                cancelActiveVoiceResponse();
+            } catch (error) {
+                voiceLog('remote_cancel_response_error', error.message || 'cancel failed');
+            }
+            try {
+                await sendMessageToAgentBackend(payload.text, {
+                    appendUser: false,
+                    trigger: 'voice',
+                    speakReply: true
+                });
+                updateVoiceStatus('Reserva ejecutada desde el chat del asistente...');
+            } catch (error) {
+                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+            }
             return;
         }
 
@@ -2649,6 +2752,9 @@
         }
 
         if (payload.type === 'assistant_turn') {
+            if (voiceState.socket) {
+                return;
+            }
             voiceLog('server_event_assistant_turn', {
                 text: (payload.text || '').slice(0, 140)
             });
@@ -3119,37 +3225,16 @@
                 return;
             }
 
-            const historyForRequest = agentHistory.slice(-8);
-            appendAgentMessage('user', message);
             textarea.value = '';
-
-            const response = await fetch('/api/agent/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message,
-                    history: historyForRequest,
-                    context: getPageContext(),
-                    executionMode: 'browser'
-                })
-            });
-
-            const payload = await response.json();
-            if (!response.ok) {
-                appendAgentMessage('assistant', payload.error || 'Something went wrong.');
-                return;
+            try {
+                await sendMessageToAgentBackend(message, {
+                    appendUser: true,
+                    focusInput: true,
+                    trigger: 'chat'
+                });
+            } catch (error) {
+                // The helper already surfaced the error in chat.
             }
-
-            appendAgentMessage('assistant', payload.reply, null);
-            if (payload.executionPlan) {
-                try {
-                    await executeWorkflowPlan(payload.executionPlan, 'chat');
-                } catch (error) {
-                    appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                    updateWorkflowPanelStatus(error.message || 'No pude completar la reserva en esta pagina.');
-                }
-            }
-            textarea.focus();
         });
 
         document.getElementById('agent-message').addEventListener('keydown', (event) => {
