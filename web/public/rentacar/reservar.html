@@ -559,6 +559,68 @@
       margin-top: 28px;
       overflow: hidden;
     }
+    .confirmation-stage {
+      margin-top: 28px;
+      padding: 28px 24px 32px;
+      text-align: center;
+      background: linear-gradient(180deg, #fff 0%, #fff8f8 100%);
+      border: 1px solid rgba(213, 23, 23, 0.12);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+    .confirmation-stage h3 {
+      margin: 0 0 10px;
+      color: #12253e;
+      font-size: 1.45rem;
+      font-weight: 800;
+    }
+    .confirmation-stage p {
+      max-width: 760px;
+      margin: 0 auto;
+      color: #334155;
+      line-height: 1.5;
+      font-size: 0.98rem;
+    }
+    .confirmation-stage .helper-text {
+      margin-top: 10px;
+      color: #66758a;
+      font-size: 0.92rem;
+    }
+    .confirmation-actions {
+      margin-top: 22px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .confirmation-submit {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 280px;
+      min-height: 52px;
+      border: none;
+      border-radius: 999px;
+      padding: 0 26px;
+      background: linear-gradient(135deg, #d51717, #b61010);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 16px 32px rgba(213, 23, 23, 0.22);
+    }
+    .confirmation-submit:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+      box-shadow: none;
+    }
+    .confirmation-status {
+      min-height: 22px;
+      margin-top: 14px;
+      color: var(--brand-red);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
     .reviews-body {
       padding: 24px;
     }
@@ -1148,6 +1210,16 @@
         </div>
       </section>
 
+      <section class="confirmation-stage" id="confirmationStage" data-testid="confirmation-stage">
+        <h3>Confirma tu solicitud de reserva</h3>
+        <p>Cuando termines de diligenciar tus datos, envia la solicitud para pasar a la pantalla de confirmacion. Alli le indicaremos al cliente que la verificacion llegara al correo y al telefono por SMS.</p>
+        <div class="confirmation-actions">
+          <button class="confirmation-submit" id="confirmationSubmit" data-testid="confirmation-submit" type="button">Enviar solicitud de reserva</button>
+        </div>
+        <div class="confirmation-status" id="confirmationStatus" data-testid="confirmation-status" aria-live="polite"></div>
+        <div class="helper-text">Usaremos el email y el telefono con WhatsApp diligenciados en el formulario.</div>
+      </section>
+
       <section class="reviews-stage" id="reviewsStage" data-testid="reviews-stage">
         <div class="reviews-head">
           <h3>Resenas de clientes</h3>
@@ -1292,6 +1364,8 @@
       const callStatus = document.getElementById('callStatus');
       const callLivePhone = document.getElementById('callLivePhone');
       const callReset = document.getElementById('callReset');
+      const confirmationSubmit = document.getElementById('confirmationSubmit');
+      const confirmationStatus = document.getElementById('confirmationStatus');
 
       function updateRangeLabels() {
         priceValue.textContent = formatMoney(Number(filterPrice.value));
@@ -1359,6 +1433,42 @@
         if (showMessage) {
           clientEmail.reportValidity();
         }
+
+        return clientEmail.checkValidity();
+      }
+
+      function validateConfirmationFields(showMessage) {
+        const emailIsValid = validateEmailField(showMessage);
+        const phone = clientWhatsapp.value.trim();
+
+        confirmationStatus.textContent = '';
+        if (!emailIsValid) {
+          if (showMessage) {
+            confirmationStatus.textContent = 'Ingresa un email valido para continuar.';
+          }
+          return false;
+        }
+
+        if (!phone) {
+          if (showMessage) {
+            confirmationStatus.textContent = 'Ingresa un telefono con WhatsApp para continuar.';
+            clientWhatsapp.focus();
+          }
+          return false;
+        }
+
+        return true;
+      }
+
+      function buildConfirmationUrl() {
+        const selectedVehicle = document.getElementById('selectedVehicleTitle').textContent.trim();
+        const params = new URLSearchParams();
+        params.set('email', clientEmail.value.trim());
+        params.set('phone', clientWhatsapp.value.trim());
+        if (selectedVehicle) params.set('vehicle', selectedVehicle);
+        if (pickupDate) params.set('desde', pickupDate);
+        if (returnDate) params.set('hasta', returnDate);
+        return '/rentacar/confirmacion.html?' + params.toString();
       }
 
       function applyFilters() {
@@ -1468,6 +1578,14 @@
       callReset.addEventListener('click', () => {
         resetCallingState();
         callPhone.focus();
+      });
+      confirmationSubmit.addEventListener('click', () => {
+        if (!validateConfirmationFields(true)) {
+          return;
+        }
+        confirmationSubmit.disabled = true;
+        confirmationStatus.textContent = 'Enviando solicitud...';
+        window.location.href = buildConfirmationUrl();
       });
 
       resetFilterValues();

@@ -57,6 +57,9 @@ app.get('/', (req, res) => {
 
 app.use(express.static('web/public'));
 app.use('/rentacar/assets', express.static(path.join(process.cwd(), 'web/public', 'rentacar', 'assets')));
+app.get('/rentacar/assets/home/wallpaper-home.png', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'wallpaper home.png'));
+});
 
 app.use((req, res, next) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
@@ -503,6 +506,34 @@ window.addEventListener('load', function () {
 }
 
 function enhanceCarDemoHome(html) {
+  const heroWallpaperOverride = `
+<style>
+  #main-banner {
+    background-image:
+      linear-gradient(90deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.34)),
+      url('/rentacar/assets/home/wallpaper-home.png') !important;
+    background-size: cover !important;
+    background-position: center center !important;
+    background-repeat: no-repeat !important;
+  }
+  @media (max-width: 991.98px) {
+    #main-banner {
+      background-image:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.68), rgba(0, 0, 0, 0.38)),
+        url('/rentacar/assets/home/wallpaper-home.png') !important;
+    }
+  }
+  @media screen and (max-width: 768px) {
+    #main-banner {
+      background-image:
+        linear-gradient(180deg, rgba(36, 0, 0, 0.78), rgba(213, 23, 23, 0.58)),
+        url('/rentacar/assets/home/wallpaper-home.png') !important;
+      background-position: center center !important;
+    }
+  }
+</style>
+`;
+
   const enhanced = html
     .replace('action="reservar.html"', 'action="/rentacar/reservar.html" data-testid="car-quote-form"')
     .replace(
@@ -524,7 +555,11 @@ function enhanceCarDemoHome(html) {
     .replace('<input type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">', '<input id="quote-submit" data-testid="quote-submit" type="submit" class="btn btn-success btn-sm btn-block form-control rounded border border-white text-black font-weight-bold" value="COTIZAR">')
     .replace('style="background-image: url(/src/img/que-hacer.webp);"', 'style="background-image: url(/rentacar/assets/home/why-rent.svg);"');
 
-  return injectHomeCallWidget(enhanced);
+  const withHeroWallpaper = enhanced.includes('</head>')
+    ? enhanced.replace('</head>', `${heroWallpaperOverride}\n</head>`)
+    : `${heroWallpaperOverride}\n${enhanced}`;
+
+  return injectHomeCallWidget(withHeroWallpaper);
 }
 
 app.get('/examples/car-demo', (req, res) => {
