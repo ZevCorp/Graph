@@ -128,6 +128,17 @@ async function bootstrap() {
     const detail = event?.detail || {};
     log(detail.level || 'info', detail.scope || 'page', detail.message || 'Page event received.', detail.details || null);
   });
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) {
+      return;
+    }
+    const payload = event.data;
+    if (!payload || payload.source !== 'graph-trainer-extension' || payload.type !== 'log') {
+      return;
+    }
+    const detail = payload.detail || {};
+    log(detail.level || 'info', detail.scope || 'page', detail.message || 'Page message received.', detail.details || null);
+  });
 
   for (const path of runtimeScripts) {
     await log('info', 'content', `Injecting ${path}.`);

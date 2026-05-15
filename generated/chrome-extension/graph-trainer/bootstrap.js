@@ -1,13 +1,17 @@
 (function () {
   function emitExtensionLog(level, message, details) {
-    document.dispatchEvent(new CustomEvent('graph-trainer-extension-log', {
-      detail: {
-        level,
-        scope: 'bootstrap',
-        message,
-        details: details || null
-      }
-    }));
+    const detail = {
+      level,
+      scope: 'bootstrap',
+      message,
+      details: details || null
+    };
+    document.dispatchEvent(new CustomEvent('graph-trainer-extension-log', { detail }));
+    window.postMessage({
+      source: 'graph-trainer-extension',
+      type: 'log',
+      detail
+    }, '*');
   }
 
   const root = document.documentElement;

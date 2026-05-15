@@ -6,6 +6,25 @@ window.WorkflowRecorder = (() => {
   let lastFieldSignature = '';
   const focusedSelectValues = new Map();
 
+  function emitExtensionLog(level, message, details = null) {
+    const detail = {
+      level,
+      scope: 'recorder',
+      message,
+      details
+    };
+    try {
+      document.dispatchEvent(new CustomEvent('graph-trainer-extension-log', { detail }));
+      window.postMessage({
+        source: 'graph-trainer-extension',
+        type: 'log',
+        detail
+      }, '*');
+    } catch (error) {
+      // Ignore logging bridge issues.
+    }
+  }
+
   function pluginEvents() {
     return window.GraphPluginEvents || null;
   }
@@ -183,6 +202,17 @@ window.WorkflowRecorder = (() => {
     const actionType = element instanceof HTMLSelectElement ? 'select' : 'input';
     if (shouldSkipFieldEvent(element, actionType)) return;
 
+    if (element instanceof HTMLSelectElement) {
+      const metadata = getControlMetadata(element);
+      emitExtensionLog('info', 'Observed select field change.', {
+        selector: selectorForElement(element),
+        label: labelForElement(element),
+        value: element.value || '',
+        selectedLabel: metadata.selectedLabel || '',
+        allowedOptionCount: Array.isArray(metadata.allowedOptions) ? metadata.allowedOptions.length : 0
+      });
+    }
+
     await recordStep({
       actionType,
       selector: selectorForElement(element),
@@ -218,6 +248,17 @@ window.WorkflowRecorder = (() => {
 
     appendActivity(payload);
     pluginEvents()?.emit?.('learning.step.captured', { step: payload });
+    if (payload.actionType === 'select') {
+      emitExtensionLog('info', 'Recorded select step.', {
+        selector: payload.selector,
+        label: payload.label,
+        value: payload.value || '',
+        selectedValue: payload.selectedValue || '',
+        selectedLabel: payload.selectedLabel || '',
+        allowedOptionCount: Array.isArray(payload.allowedOptions) ? payload.allowedOptions.length : 0,
+        stepOrder: payload.stepOrder
+      });
+    }
   }
 
   function recordStep(step) {
@@ -278,6 +319,13 @@ window.WorkflowRecorder = (() => {
       const isField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
       if (!isField) return;
       if (isRecorderControl(target)) return;
+      if (target instanceof HTMLSelectElement) {
+        emitExtensionLog('info', 'Native select change event received.', {
+          selector: selectorForElement(target),
+          label: labelForElement(target),
+          value: target.value || ''
+        });
+      }
       await recordFieldState(target);
     }, true);
 
@@ -286,6 +334,11 @@ window.WorkflowRecorder = (() => {
       const target = event.target;
       if (!(target instanceof HTMLSelectElement)) return;
       if (isRecorderControl(target)) return;
+      emitExtensionLog('info', 'Native select input event received.', {
+        selector: selectorForElement(target),
+        label: labelForElement(target),
+        value: target.value || ''
+      });
       await recordFieldState(target);
     }, true);
 
@@ -294,6 +347,12 @@ window.WorkflowRecorder = (() => {
       const target = event.target;
       if (!(target instanceof HTMLSelectElement)) return;
       if (isRecorderControl(target)) return;
+      emitExtensionLog('info', 'Select focus observed.', {
+        selector: selectorForElement(target),
+        label: labelForElement(target),
+        value: target.value || '',
+        allowedOptionCount: getAllowedOptions(target).length
+      });
       rememberFocusedSelect(target);
     }, true);
 
@@ -303,6 +362,12 @@ window.WorkflowRecorder = (() => {
       if (!(target instanceof HTMLSelectElement)) return;
       if (isRecorderControl(target)) return;
       const changed = didSelectValueChange(target);
+      emitExtensionLog('info', 'Select blur observed.', {
+        selector: selectorForElement(target),
+        label: labelForElement(target),
+        value: target.value || '',
+        changed
+      });
       if (target.value && changed) {
         await recordFieldState(target);
       }
