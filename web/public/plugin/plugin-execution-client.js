@@ -104,11 +104,15 @@
         }
 
         function notifyAutomationStep(step, message, options = {}) {
-            runtime()?.spotlight?.(options.selector || step.selector || null, {
-                message,
-                mode: options.spotlight === false ? 'none' : 'automation'
+            const selector = options.selector || step?.selector || 'body';
+            runtime()?.handleAutomationEvent?.({
+                selector,
+                label: step?.label || '',
+                mode: options.mode || 'executing',
+                spotlight: options.spotlight !== false,
+                message: message || step?.label || step?.selector || 'Estoy trabajando en esta parte.'
             });
-            updateWorkflowPanelStatus(message);
+            updateWorkflowPanelStatus(message || step?.label || step?.selector || 'Estoy trabajando en esta parte.');
         }
 
         function emitExtensionLog(level, message, details = null) {
