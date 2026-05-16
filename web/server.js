@@ -928,7 +928,9 @@ app.post('/api/surface-profile/ensure', async (req, res) => {
       sourcePathname: req.body?.context?.sourcePathname || '',
       sourceTitle: req.body?.context?.sourceTitle || '',
       scope: req.body?.context?.scope || 'global',
-      ownerId: req.body?.context?.ownerId || ''
+      ownerId: req.body?.context?.ownerId || '',
+      browserLocale: req.body?.context?.browserLocale || '',
+      languageCode: req.body?.context?.languageCode || ''
     };
 
     const result = await surfaceProfileService.ensureGlobalProfile(context, req.body?.pageSnapshot || {});

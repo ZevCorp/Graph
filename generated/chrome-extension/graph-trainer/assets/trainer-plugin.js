@@ -174,11 +174,14 @@
                 ? normalizePathname(window.location.pathname)
                 : window.location.pathname,
             sourceTitle: document.title,
+            browserLocale: navigator.language || '',
+            browserLanguages: Array.isArray(navigator.languages) ? navigator.languages.slice(0, 5) : [],
             assistantProfile: options.assistantProfile || null,
             assistantPrompt: options.assistantPrompt || '',
             surfaceProfileId: options.surfaceProfile?.id || '',
             surfaceProfileScope: options.surfaceProfile?.scope || 'global',
-            ownerId: options.surfaceProfile?.ownerId || ''
+            ownerId: options.surfaceProfile?.ownerId || '',
+            languageCode: options.surfaceProfile?.languageCode || (navigator.language || 'es').split(/[-_]/)[0].toLowerCase()
         };
     }
 

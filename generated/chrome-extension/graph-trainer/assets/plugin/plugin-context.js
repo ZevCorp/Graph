@@ -61,11 +61,14 @@
                 ? normalizePathname(window.location.pathname)
                 : window.location.pathname,
             sourceTitle: document.title,
+            browserLocale: navigator.language || '',
+            browserLanguages: Array.isArray(navigator.languages) ? navigator.languages.slice(0, 5) : [],
             assistantProfile: config?.assistantProfile || null,
             assistantPrompt: config?.assistantPrompt || '',
             surfaceProfileId: config?.surfaceProfile?.id || '',
             surfaceProfileScope: config?.surfaceProfile?.scope || 'global',
-            ownerId: config?.surfaceProfile?.ownerId || ''
+            ownerId: config?.surfaceProfile?.ownerId || '',
+            languageCode: config?.surfaceProfile?.languageCode || (navigator.language || 'es').split(/[-_]/)[0].toLowerCase()
         };
 
         const merged = {

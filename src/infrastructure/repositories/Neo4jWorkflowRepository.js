@@ -43,12 +43,13 @@ class Neo4jWorkflowRepository {
     }
   }
 
-  buildSurfaceProfileId(appId, sourcePathname, scope = 'global', ownerId = '') {
+  buildSurfaceProfileId(appId, sourcePathname, scope = 'global', ownerId = '', languageCode = 'es') {
     const normalizedAppId = `${appId || 'page'}`.trim() || 'page';
     const normalizedPath = `${sourcePathname || '/'}`.trim() || '/';
     const normalizedScope = `${scope || 'global'}`.trim() || 'global';
     const normalizedOwnerId = `${ownerId || ''}`.trim() || 'shared';
-    return `surface:${normalizedScope}:${normalizedAppId}:${normalizedPath}:${normalizedOwnerId}`;
+    const normalizedLanguage = `${languageCode || 'es'}`.trim() || 'es';
+    return `surface:${normalizedScope}:${normalizedAppId}:${normalizedPath}:${normalizedOwnerId}:${normalizedLanguage}`;
   }
 
   toNativeNumber(value) {
@@ -193,13 +194,14 @@ class Neo4jWorkflowRepository {
     );
   }
 
-  async getSurfaceProfile(appId, sourcePathname, scope = 'global', ownerId = '') {
+  async getSurfaceProfile(appId, sourcePathname, scope = 'global', ownerId = '', languageCode = 'es') {
     const rows = await this.db.run(`
       MATCH (p:SurfaceProfile {
         appId: $appId,
         sourcePathname: $sourcePathname,
         scope: $scope,
-        ownerId: $ownerId
+        ownerId: $ownerId,
+        languageCode: $languageCode
       })
       RETURN p.id as id,
              p.appId as appId,
@@ -208,6 +210,8 @@ class Neo4jWorkflowRepository {
              p.sourceTitle as sourceTitle,
              p.scope as scope,
              p.ownerId as ownerId,
+             p.browserLocale as browserLocale,
+             p.languageCode as languageCode,
              p.workflowDescription as workflowDescription,
              p.assistantProfile as assistantProfile,
              p.assistantRuntime as assistantRuntime,
@@ -222,7 +226,8 @@ class Neo4jWorkflowRepository {
       appId: `${appId || ''}`.trim(),
       sourcePathname: `${sourcePathname || '/'}`.trim() || '/',
       scope: `${scope || 'global'}`.trim() || 'global',
-      ownerId: `${ownerId || ''}`.trim()
+      ownerId: `${ownerId || ''}`.trim(),
+      languageCode: `${languageCode || 'es'}`.trim() || 'es'
     });
 
     const row = rows[0];
@@ -238,6 +243,8 @@ class Neo4jWorkflowRepository {
       sourceTitle: row.sourceTitle || '',
       scope: row.scope || 'global',
       ownerId: row.ownerId || '',
+      browserLocale: row.browserLocale || '',
+      languageCode: row.languageCode || 'es',
       workflowDescription: row.workflowDescription || '',
       assistantProfile: this.parseJsonObject(row.assistantProfile) || null,
       assistantRuntime: this.parseJsonObject(row.assistantRuntime) || null,
@@ -255,7 +262,9 @@ class Neo4jWorkflowRepository {
     const sourcePathname = `${profile.sourcePathname || '/'}`.trim() || '/';
     const scope = `${profile.scope || 'global'}`.trim() || 'global';
     const ownerId = `${profile.ownerId || ''}`.trim();
-    const id = profile.id || this.buildSurfaceProfileId(appId, sourcePathname, scope, ownerId);
+    const browserLocale = `${profile.browserLocale || ''}`.trim();
+    const languageCode = `${profile.languageCode || 'es'}`.trim() || 'es';
+    const id = profile.id || this.buildSurfaceProfileId(appId, sourcePathname, scope, ownerId, languageCode);
 
     await this.db.run(`
       MERGE (p:SurfaceProfile {id: $id})
@@ -266,6 +275,8 @@ class Neo4jWorkflowRepository {
           p.sourceTitle = $sourceTitle,
           p.scope = $scope,
           p.ownerId = $ownerId,
+          p.browserLocale = $browserLocale,
+          p.languageCode = $languageCode,
           p.workflowDescription = $workflowDescription,
           p.assistantProfile = $assistantProfile,
           p.assistantRuntime = $assistantRuntime,
@@ -282,6 +293,8 @@ class Neo4jWorkflowRepository {
       sourceTitle: `${profile.sourceTitle || ''}`.trim(),
       scope,
       ownerId,
+      browserLocale,
+      languageCode,
       workflowDescription: `${profile.workflowDescription || ''}`.trim(),
       assistantProfile: JSON.stringify(profile.assistantProfile || null),
       assistantRuntime: JSON.stringify(profile.assistantRuntime || null),
@@ -290,7 +303,7 @@ class Neo4jWorkflowRepository {
       pageSummary: `${profile.pageSummary || ''}`.trim()
     });
 
-    return this.getSurfaceProfile(appId, sourcePathname, scope, ownerId);
+    return this.getSurfaceProfile(appId, sourcePathname, scope, ownerId, languageCode);
   }
 
   async touchSurfaceProfile(id) {
