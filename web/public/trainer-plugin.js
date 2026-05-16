@@ -137,6 +137,69 @@
         pluginEvents()?.emit?.(eventName, payload || {});
     }
 
+    function surfaceProfileClient() {
+        return window.GraphPluginSurfaceProfileClient?.create?.({
+            getOptions: () => options,
+            setOptions: (nextOptions) => {
+                options = nextOptions || options;
+            },
+            getDefaults: () => DEFAULTS,
+            runtime,
+            requireApiClient,
+            emitPluginEvent
+        }) || null;
+    }
+
+    function requireSurfaceProfileClient() {
+        const client = surfaceProfileClient();
+        if (!client) {
+            throw new Error('No hay cliente de surface profile configurado para este plugin.');
+        }
+        return client;
+    }
+
+    function executionClient() {
+        return window.GraphPluginExecutionClient?.create?.({
+            getOptions: () => options,
+            getPluginHost: pluginHost,
+            runtime,
+            emitPluginEvent,
+            updateWorkflowPanelStatus,
+            executionState,
+            executionStoragePrefix: EXECUTION_STORAGE_PREFIX,
+            waitTimeoutMs: EXECUTION_WAIT_TIMEOUT_MS,
+            stepDelayMs: EXECUTION_STEP_DELAY_MS
+        }) || null;
+    }
+
+    function requireExecutionClient() {
+        const client = executionClient();
+        if (!client) {
+            throw new Error('No hay cliente de ejecucion configurado para este plugin.');
+        }
+        return client;
+    }
+
+    function learningClient() {
+        return window.GraphPluginLearningClient?.create?.({
+            getOptions: () => options,
+            runtime,
+            getPageContext,
+            emitPluginEvent,
+            markWorkflowPanelDirty: () => {
+                workflowPanelLoaded = false;
+            }
+        }) || null;
+    }
+
+    function requireLearningClient() {
+        const client = learningClient();
+        if (!client) {
+            throw new Error('No hay cliente de aprendizaje configurado para este plugin.');
+        }
+        return client;
+    }
+
     function getSurfaceAdapter() {
         return options?.adapter || window.GraphPluginAdapters?.resolve?.(options) || null;
     }
@@ -179,110 +242,26 @@
     }
 
     async function persistLearningContextNote(note) {
-        if (!note || !note.transcript) {
-            return;
-        }
-        try {
-            await requireApiClient().appendWorkflowContextNote(note);
-        } catch (error) {
-            console.warn('[LearningContext] Could not persist note:', error.message || error);
-        }
+        return requireSurfaceProfileClient().persistLearningContextNote(note);
     }
 
     function getPageContext() {
-        const normalizePathname = window.GraphPluginAdapters?.normalizePathname;
-        return window.GraphPluginContext?.buildPageContext?.(options) || {
-            appId: options.appId || '',
-            sourceUrl: window.location.href,
-            sourceOrigin: window.location.origin,
-            sourcePathname: typeof normalizePathname === 'function'
-                ? normalizePathname(window.location.pathname)
-                : window.location.pathname,
-            sourceTitle: document.title,
-            browserLocale: navigator.language || '',
-            browserLanguages: Array.isArray(navigator.languages) ? navigator.languages.slice(0, 5) : [],
-            assistantProfile: options.assistantProfile || null,
-            assistantPrompt: options.assistantPrompt || '',
-            surfaceProfileId: options.surfaceProfile?.id || '',
-            surfaceProfileScope: options.surfaceProfile?.scope || 'global',
-            ownerId: options.surfaceProfile?.ownerId || '',
-            languageCode: options.surfaceProfile?.languageCode || (navigator.language || 'es').split(/[-_]/)[0].toLowerCase()
-        };
+        return requireSurfaceProfileClient().getPageContext();
     }
 
     function isGenericWorkflowDescription(value) {
-        const normalized = `${value || ''}`.trim();
-        return !normalized || /^workflow on /i.test(normalized);
+        return requireSurfaceProfileClient().isGenericWorkflowDescription(value);
     }
 
     function applySurfaceProfileToOptions(surfaceProfile) {
-        if (!surfaceProfile || typeof surfaceProfile !== 'object') {
-            return;
-        }
-
-        options.surfaceProfile = surfaceProfile;
-
-        if (surfaceProfile.assistantProfile && typeof surfaceProfile.assistantProfile === 'object') {
-            options.assistantProfile = surfaceProfile.assistantProfile;
-        }
-
-        if (`${surfaceProfile.systemPromptAddendum || ''}`.trim()) {
-            options.assistantPrompt = `${surfaceProfile.systemPromptAddendum || ''}`.trim();
-        }
-
-        if (surfaceProfile.assistantRuntime && typeof surfaceProfile.assistantRuntime === 'object') {
-            options.assistantRuntime = {
-                ...options.assistantRuntime,
-                ...surfaceProfile.assistantRuntime
-            };
-        }
-
-        if (isGenericWorkflowDescription(options.workflowDescription) && `${surfaceProfile.workflowDescription || ''}`.trim()) {
-            options.workflowDescription = `${surfaceProfile.workflowDescription || ''}`.trim();
-        }
-
-        if (`${surfaceProfile.welcomeMessage || ''}`.trim()) {
-            options.assistantRuntime = {
-                ...options.assistantRuntime,
-                idleMessage: `${surfaceProfile.welcomeMessage || ''}`.trim()
-            };
-        }
+        return requireSurfaceProfileClient().applySurfaceProfileToOptions(surfaceProfile);
     }
 
     async function hydrateSurfaceProfile() {
         if (surfaceProfileHydration) {
             return surfaceProfileHydration;
         }
-
-        surfaceProfileHydration = (async () => {
-            try {
-                const context = getPageContext();
-                const pageSnapshot = window.GraphPluginContext?.capturePageSnapshot?.() || {};
-                const payload = await requireApiClient().ensureSurfaceProfile(context, pageSnapshot);
-                const surfaceProfile = payload?.surfaceProfile || null;
-                if (!surfaceProfile) {
-                    return null;
-                }
-
-                applySurfaceProfileToOptions(surfaceProfile);
-                runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
-
-                const descriptionField = document.getElementById('wf-desc');
-                if (descriptionField && isGenericWorkflowDescription(descriptionField.value)) {
-                    descriptionField.value = options.workflowDescription || '';
-                }
-
-                emitPluginEvent('surface.profile.hydrated', {
-                    surfaceProfileId: surfaceProfile.id || '',
-                    generated: Boolean(payload?.generated)
-                });
-                return surfaceProfile;
-            } catch (error) {
-                console.warn('[SurfaceProfile] Could not hydrate surface profile:', error.message || error);
-                return null;
-            }
-        })();
-
+        surfaceProfileHydration = requireSurfaceProfileClient().hydrateSurfaceProfile();
         return surfaceProfileHydration;
     }
 
@@ -1344,17 +1323,7 @@
     }
 
     function readPendingExecution() {
-        try {
-            const raw = pluginHost()?.sessionStore?.get(getExecutionStorageKey()) || '';
-            if (!raw) return null;
-            const parsed = JSON.parse(raw);
-            if (!parsed || !parsed.workflowId || !Array.isArray(parsed.steps)) {
-                return null;
-            }
-            return parsed;
-        } catch (error) {
-            return null;
-        }
+        return requireExecutionClient().readPendingExecution();
     }
 
     function persistPendingExecution(plan) {
@@ -1369,8 +1338,7 @@
     }
 
     function clearPendingExecution() {
-        executionState.running = false;
-        pluginHost()?.sessionStore?.remove(getExecutionStorageKey());
+        return requireExecutionClient().clearPendingExecution();
     }
 
     function normalizeExecutionUrl(rawUrl) {
@@ -1466,22 +1434,7 @@
     }
 
     function emitExtensionLog(level, message, details = null) {
-        const detail = {
-            level,
-            scope: 'trainer-plugin',
-            message,
-            details
-        };
-        try {
-            document.dispatchEvent(new CustomEvent('graph-trainer-extension-log', { detail }));
-            window.postMessage({
-                source: 'graph-trainer-extension',
-                type: 'log',
-                detail
-            }, '*');
-        } catch (error) {
-            // Ignore logging bridge issues.
-        }
+        return requireExecutionClient().emitExtensionLog(level, message, details);
     }
 
     async function applyInputStep(element, step, variables = {}) {
@@ -1790,99 +1743,7 @@
     }
 
     async function executeWorkflowPlan(plan, trigger = 'panel') {
-        if (!plan || !plan.workflowId || !Array.isArray(plan.steps) || plan.steps.length === 0) {
-            throw new Error('No pude preparar la automatizacion para ayudarte con la reserva.');
-        }
-
-        if (executionState.running) {
-            throw new Error('Ya estoy completando una reserva en esta pagina.');
-        }
-
-        let currentPlan = updateExecutionProgress({
-            ...cloneJson(plan),
-            trigger,
-            nextStepIndex: Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0,
-            startedAt: plan.startedAt || Date.now()
-        }, Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0);
-
-        updateWorkflowPanelStatus('Completando la reserva en esta pagina...');
-        emitPluginEvent('workflow.execution.started', {
-            workflowId: currentPlan.workflowId,
-            trigger,
-            stepCount: currentPlan.steps.length
-        });
-
-        for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
-            const step = currentPlan.steps[stepIndex];
-            const expectedUrl = step.url ? normalizeExecutionUrl(step.url) : '';
-            emitPluginEvent('workflow.execution.step_started', {
-                workflowId: currentPlan.workflowId,
-                trigger,
-                stepIndex,
-                step
-            });
-
-            if (step.actionType === 'navigation') {
-                const targetUrl = normalizeExecutionUrl(step.url);
-                notifyAutomationStep(step, `Abriendo ${step.label || targetUrl}.`, {
-                    selector: 'body',
-                    spotlight: false
-                });
-                if (!urlsMatch(window.location.href, targetUrl)) {
-                    currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-                    updateWorkflowPanelStatus(`Abriendo ${targetUrl}...`);
-                    window.location.assign(targetUrl);
-                    return;
-                }
-
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-                continue;
-            }
-
-            if (expectedUrl && !urlsMatch(window.location.href, expectedUrl)) {
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex);
-                updateWorkflowPanelStatus(`Cambiando a la pagina correcta para ${describeStep(step)}...`);
-                window.location.assign(expectedUrl);
-                return;
-            }
-
-            const element = await waitForStepElement(step);
-            if (step.actionType === 'click') {
-                element.scrollIntoView({ block: 'center', inline: 'nearest' });
-                notifyAutomationStep(step, `Estoy interactuando con ${step.label || step.selector || 'este control'}.`);
-                if ('disabled' in element && element.disabled) {
-                    throw new Error(`El elemento ${describeStep(step)} sigue deshabilitado.`);
-                }
-
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-                element.click();
-            } else if (step.actionType === 'input') {
-                notifyAutomationStep(step, `Estoy completando ${step.label || step.selector || 'este campo'}.`);
-                await applyInputStep(element, step, currentPlan.variables || {});
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-            } else if (step.actionType === 'select') {
-                notifyAutomationStep(step, `Estoy eligiendo una opcion en ${step.label || step.selector || 'este selector'}.`);
-                await applySelectStep(element, step, currentPlan.variables || {});
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-            } else {
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-            }
-
-            await new Promise((resolve) => window.setTimeout(resolve, EXECUTION_STEP_DELAY_MS));
-        }
-
-        clearPendingExecution();
-        runtime()?.clearSpotlight?.();
-        updateWorkflowPanelStatus('Reserva completada en esta pagina.');
-        runtime()?.speak('Listo, termine de completar la reserva aqui mismo.', { mode: 'idle' });
-        emitExtensionLog('info', 'Workflow execution finished on page.', {
-            workflowId: currentPlan.workflowId,
-            trigger
-        });
-        emitPluginEvent('workflow.execution.finished', {
-            workflowId: currentPlan.workflowId,
-            trigger
-        });
+        return requireExecutionClient().executeWorkflowPlan(plan, trigger);
     }
 
     async function fetchExecutionPlan(workflowId, variables = {}) {
@@ -3476,34 +3337,15 @@
     }
 
     async function startWorkflow() {
-        const descField = document.getElementById('wf-desc');
-        const description = (descField?.value || '').trim() || options.workflowDescription || document.title;
-        if (descField && !descField.value) {
-            descField.value = description;
-        }
-        runtime()?.pinBottomRight();
-        runtime()?.speak(`Empece a aprender este recorrido: "${description}".`, { mode: 'recording' });
-        emitPluginEvent('learning.session.requested', {
-            description,
-            context: getPageContext()
-        });
-        await window.WorkflowRecorder.startWorkflow(description, getPageContext());
-        workflowPanelLoaded = false;
+        return requireLearningClient().startWorkflow();
     }
 
     async function stopWorkflow() {
-        runtime()?.unpin();
-        runtime()?.speak('Listo, guarde este recorrido.', { mode: 'idle' });
-        await window.WorkflowRecorder.stopWorkflow();
-        emitPluginEvent('learning.session.stop_requested', {
-            context: getPageContext()
-        });
-        workflowPanelLoaded = false;
+        return requireLearningClient().stopWorkflow();
     }
 
     async function resetWorkflow() {
-        await window.WorkflowRecorder.resetWorkflow();
-        workflowPanelLoaded = false;
+        return requireLearningClient().resetWorkflow();
     }
 
     function clearLongPressTimer() {
@@ -3693,6 +3535,7 @@
 
             document.getElementById('wf-desc').value = options.workflowDescription || '';
             surfaceProfileHydration = null;
+            requireSurfaceProfileClient().resetHydration();
             hydrateSurfaceProfile().catch(() => {});
 
             if (!mounted) {
@@ -3707,9 +3550,7 @@
             hideWorkflowOverlay();
             updateConsoleExpandedState();
 
-            if (options.autoSyncStatus && window.WorkflowRecorder?.syncStatus) {
-                window.WorkflowRecorder.syncStatus();
-            }
+            requireLearningClient().syncRecorderStatus();
 
             window.setTimeout(() => {
                 resumePendingExecution().catch((error) => {
