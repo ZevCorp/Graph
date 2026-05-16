@@ -33,3 +33,7 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+
+# Local downloaded page artifacts
+/Servicio a domicilio o recoge en una de nuestras tiendas.html
+/Servicio a domicilio o recoge en una de nuestras tiendas_files/

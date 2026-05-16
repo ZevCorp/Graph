@@ -1387,17 +1387,28 @@
             return null;
         }
 
+        const getNormalizedOptionParts = (option) => ({
+            value: normalizeChoiceText(option.value),
+            label: normalizeChoiceText(option.label || option.textContent || ''),
+            text: normalizeChoiceText(option.textContent || '')
+        });
+
         return optionsList.find((option) =>
-            normalizeChoiceText(option.value) === normalizedRequested
-            || normalizeChoiceText(option.label || option.textContent || '') === normalizedRequested
-            || normalizeChoiceText(option.textContent || '') === normalizedRequested
+            getNormalizedOptionParts(option).value === normalizedRequested
+            || getNormalizedOptionParts(option).label === normalizedRequested
+            || getNormalizedOptionParts(option).text === normalizedRequested
         ) || optionsList.find((option) =>
-            normalizeChoiceText(option.value).includes(normalizedRequested)
-            || normalizeChoiceText(option.label || option.textContent || '').includes(normalizedRequested)
-            || normalizeChoiceText(option.textContent || '').includes(normalizedRequested)
-            || normalizedRequested.includes(normalizeChoiceText(option.value))
-            || normalizedRequested.includes(normalizeChoiceText(option.label || option.textContent || ''))
-            || normalizedRequested.includes(normalizeChoiceText(option.textContent || ''))
+            {
+                const parts = getNormalizedOptionParts(option);
+                return (
+                    (parts.value && parts.value.includes(normalizedRequested))
+                    || (parts.label && parts.label.includes(normalizedRequested))
+                    || (parts.text && parts.text.includes(normalizedRequested))
+                    || (parts.value && normalizedRequested.includes(parts.value))
+                    || (parts.label && normalizedRequested.includes(parts.label))
+                    || (parts.text && normalizedRequested.includes(parts.text))
+                );
+            }
         );
     }
 
@@ -1419,9 +1430,13 @@
         }));
     }
 
+    function waitMs(duration) {
+        return new Promise((resolve) => window.setTimeout(resolve, duration));
+    }
+
     async function performSelectInteractionSequence(element) {
         element.scrollIntoView({ block: 'center', inline: 'nearest' });
-        await new Promise((resolve) => window.setTimeout(resolve, 40));
+        await waitMs(40);
         element.focus?.();
         dispatchMouseLikeEvent(element, 'pointerdown');
         dispatchMouseLikeEvent(element, 'mousedown');
@@ -1430,6 +1445,108 @@
         dispatchMouseLikeEvent(element, 'click');
         dispatchKeyboardLikeEvent(element, 'keydown', 'ArrowDown');
         dispatchKeyboardLikeEvent(element, 'keyup', 'ArrowDown');
+    }
+
+    function getSelectedOptionSnapshot(element) {
+        if (!(element instanceof HTMLSelectElement)) {
+            return {
+                value: `${element?.value || ''}`,
+                label: ''
+            };
+        }
+        const option = element.options[element.selectedIndex] || null;
+        return {
+            value: `${element.value || ''}`,
+            label: option ? `${option.label || option.textContent || ''}`.trim() : ''
+        };
+    }
+
+    function applyNativeSelectValue(element, selected) {
+        const optionsList = Array.from(element.options || []);
+        const selectedIndex = optionsList.findIndex((option) => option.value === selected.value);
+        if (selectedIndex >= 0) {
+            element.selectedIndex = selectedIndex;
+            optionsList.forEach((option, index) => {
+                option.selected = index === selectedIndex;
+            });
+        }
+        element.value = selected.value;
+    }
+
+    async function dispatchSelectCommitEvents(element) {
+        fireDomEvent(element, 'input');
+        fireDomEvent(element, 'change');
+        dispatchKeyboardLikeEvent(element, 'keydown', 'Enter');
+        dispatchKeyboardLikeEvent(element, 'keyup', 'Enter');
+        await waitMs(30);
+        fireDomEvent(element, 'blur');
+    }
+
+    async function verifyNativeSelectApplied(element, selected, timeoutMs = 1200) {
+        const startedAt = Date.now();
+        const normalizedTargetValue = normalizeChoiceText(selected?.value || '');
+        const normalizedTargetLabel = normalizeChoiceText(selected?.label || selected?.text || '');
+
+        while (Date.now() - startedAt < timeoutMs) {
+            const snapshot = getSelectedOptionSnapshot(element);
+            const currentValue = normalizeChoiceText(snapshot.value);
+            const currentLabel = normalizeChoiceText(snapshot.label);
+            if (
+                (normalizedTargetValue && currentValue === normalizedTargetValue)
+                || (normalizedTargetLabel && currentLabel === normalizedTargetLabel)
+            ) {
+                return true;
+            }
+            await waitMs(60);
+        }
+
+        return false;
+    }
+
+    async function applyNativeSelectWithKeyboardFallback(element, selected) {
+        if (typeof element.showPicker === 'function') {
+            try {
+                element.showPicker();
+                emitExtensionLog('info', 'Invoked showPicker() for native select.', {
+                    selector: element.id ? `#${element.id}` : '',
+                    currentValue: element.value || ''
+                });
+                await waitMs(80);
+            } catch (error) {
+                emitExtensionLog('info', 'showPicker() was not allowed for native select.', {
+                    selector: element.id ? `#${element.id}` : '',
+                    message: error?.message || 'showPicker failed'
+                });
+            }
+        }
+
+        const optionsList = Array.from(element.options || []);
+        const targetIndex = optionsList.findIndex((option) => option.value === selected.value);
+        if (targetIndex < 0) {
+            return false;
+        }
+
+        element.focus?.();
+        const startingIndex = Math.max(0, element.selectedIndex);
+        const directionKey = targetIndex >= startingIndex ? 'ArrowDown' : 'ArrowUp';
+        const moveCount = Math.abs(targetIndex - startingIndex);
+
+        for (let index = 0; index < moveCount; index += 1) {
+            dispatchKeyboardLikeEvent(element, 'keydown', directionKey);
+            if (directionKey === 'ArrowDown' && element.selectedIndex < optionsList.length - 1) {
+                element.selectedIndex += 1;
+            } else if (directionKey === 'ArrowUp' && element.selectedIndex > 0) {
+                element.selectedIndex -= 1;
+            }
+            applyNativeSelectValue(element, optionsList[element.selectedIndex] || selected);
+            dispatchKeyboardLikeEvent(element, 'keyup', directionKey);
+            fireDomEvent(element, 'input');
+            await waitMs(35);
+        }
+
+        applyNativeSelectValue(element, selected);
+        await dispatchSelectCommitEvents(element);
+        return verifyNativeSelectApplied(element, selected, 1200);
     }
 
     async function waitForMatchingSelectOption(element, candidates, timeoutMs = EXECUTION_WAIT_TIMEOUT_MS) {
@@ -1470,20 +1587,33 @@
         }
 
         await performSelectInteractionSequence(element);
-        const optionsList = Array.from(element.options || []);
-        const selectedIndex = optionsList.findIndex((option) => option.value === selected.value);
-        if (selectedIndex >= 0) {
-            element.selectedIndex = selectedIndex;
-            if (optionsList[selectedIndex]) {
-                optionsList[selectedIndex].selected = true;
-            }
+        applyNativeSelectValue(element, selected);
+        await dispatchSelectCommitEvents(element);
+
+        let applied = await verifyNativeSelectApplied(element, selected, 1000);
+        if (!applied) {
+            emitExtensionLog('info', 'Semantic native select apply did not stick, trying keyboard fallback.', {
+                selector: step.selector || '',
+                label: step.label || '',
+                targetValue: selected.value,
+                targetLabel: selected.label || selected.text || ''
+            });
+            applied = await applyNativeSelectWithKeyboardFallback(element, selected);
         }
-        element.value = selected.value;
-        fireDomEvent(element, 'input');
-        fireDomEvent(element, 'change');
-        dispatchKeyboardLikeEvent(element, 'keydown', 'Enter');
-        dispatchKeyboardLikeEvent(element, 'keyup', 'Enter');
-        fireDomEvent(element, 'blur');
+
+        if (!applied) {
+            const snapshot = getSelectedOptionSnapshot(element);
+            emitExtensionLog('error', 'Native select value did not persist after fallback.', {
+                selector: step.selector || '',
+                label: step.label || '',
+                targetValue: selected.value,
+                targetLabel: selected.label || selected.text || '',
+                currentValue: snapshot.value,
+                currentLabel: snapshot.label
+            });
+            throw new Error(`No pude confirmar la seleccion para ${describeStep(step)}.`);
+        }
+
         emitExtensionLog('info', 'Applied select step.', {
             selector: step.selector || '',
             label: step.label || '',
