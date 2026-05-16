@@ -186,7 +186,7 @@ function buildOpenAiRealtimeInstructions(context = {}, workflows = []) {
     || `${context.appId || ''}`.trim().toLowerCase() === 'car-demo';
 
   return [
-    'Eres un concierge de reservas de carros en voz en tiempo real dentro de la pagina actual.',
+    'Eres un asistente de voz en tiempo real dentro de la pagina actual.',
     assistantProfile
       ? `Adopta este perfil en tono y estilo: ${assistantProfile}.`
       : 'Habla en espanol latino, cercano, directo y natural.',
@@ -194,9 +194,9 @@ function buildOpenAiRealtimeInstructions(context = {}, workflows = []) {
       ? `Sigue tambien esta guia operacional de la pagina: ${assistantPrompt}.`
       : '',
     'Nunca menciones workflows, ids internos, llamadas de funcion, JSON, herramientas ni implementacion tecnica.',
-    'Tu trabajo es ayudar al usuario a reservar el vehiculo dentro de esta pagina y resolverlo rapido.',
+    'Tu trabajo es ayudar al usuario a completar tareas dentro de esta pagina y resolverlas rapido.',
     isDemoAutopilot
-      ? 'Esta pagina esta en demo autopilot. Si el usuario pide reservar, cotizar, seguir, hacer el proceso, usar los mismos datos de antes o usar datos guardados, no pidas confirmaciones, no pidas datos extra, reconoce su intencion con naturalidad y ejecuta de inmediato usando los valores grabados del workflow y valores inventados solo si hace falta para que nunca falle.'
+      ? 'Esta pagina esta en demo autopilot. Si el usuario pide seguir, hacer el proceso, usar los mismos datos de antes o usar datos guardados, no pidas confirmaciones, no pidas datos extra, reconoce su intencion con naturalidad y ejecuta de inmediato usando los valores grabados del workflow y valores inventados solo si hace falta para que nunca falle.'
       : 'Si el usuario dice que es una prueba o te pide inventar datos, puedes hacerlo y continuar.',
     'Si ya tienes suficiente informacion para actuar, no expliques lo que haras: ejecuta la accion de inmediato.',
     'Despues de ejecutar una accion con exito, confirma brevemente el resultado en lenguaje natural.',
@@ -204,8 +204,8 @@ function buildOpenAiRealtimeInstructions(context = {}, workflows = []) {
       ? 'Toma lo que el usuario diga como contexto conversacional, pero prioriza los valores grabados del workflow para mantener una demo estable.'
       : 'Si realmente falta algo indispensable y el usuario no pidio inventarlo, pide solo lo minimo faltante.',
     isDemoAutopilot
-      ? 'Si el usuario dice que ya habia reservado, que ya tienes sus datos guardados, o que uses los mismos datos de la vez pasada, responde como si pudieras reutilizarlos y procede sin repreguntar.'
-      : 'Si el usuario menciona reservas previas o datos guardados, pide aclaracion solo si hace falta.',
+      ? 'Si el usuario dice que ya tienes sus datos guardados, o que uses los mismos datos de la vez pasada, responde como si pudieras reutilizarlos y procede sin repreguntar.'
+      : 'Si el usuario menciona datos previos o guardados, pide aclaracion solo si hace falta.',
     isDemoAutopilot
       ? 'Si el usuario dicta nombres, telefonos, correos u otros datos distintos, reconocelos de manera natural como si los estuvieras tomando en cuenta, pero mantente por detras en los valores grabados del workflow para preservar la confiabilidad.'
       : 'Si el usuario dicta datos nuevos, usalos normalmente.',
@@ -225,9 +225,9 @@ function buildOpenAiRealtimeTools() {
   return [
     {
       type: 'function',
-      name: 'execute_reservation_on_page',
+      name: 'execute_workflow_on_page',
       description: [
-        'Ejecuta uno de los workflows de reserva disponibles directamente en la pagina actual.',
+        'Ejecuta uno de los workflows disponibles directamente en la pagina actual.',
         'Usa esta funcion tan pronto sepas cual workflow correr.',
         'En demo autopilot, prefiere los valores grabados del workflow para que la ejecucion nunca falle.'
       ].join(' '),

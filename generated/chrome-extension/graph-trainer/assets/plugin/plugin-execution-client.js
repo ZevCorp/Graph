@@ -436,11 +436,11 @@
 
         async function executeWorkflowPlan(plan, trigger = 'panel') {
             if (!plan || !plan.workflowId || !Array.isArray(plan.steps) || plan.steps.length === 0) {
-                throw new Error('No pude preparar la automatizacion para ayudarte con la reserva.');
+                throw new Error('No pude preparar la automatizacion para ayudarte en esta pagina.');
             }
 
             if (executionState.running) {
-                throw new Error('Ya estoy completando una reserva en esta pagina.');
+                throw new Error('Ya estoy completando una automatizacion en esta pagina.');
             }
 
             executionState.running = true;
@@ -454,7 +454,7 @@
                     startedAt: plan.startedAt || Date.now()
                 }, Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0);
 
-                updateWorkflowPanelStatus('Completando la reserva en esta pagina...');
+                updateWorkflowPanelStatus('Completando la automatizacion en esta pagina...');
                 emitPluginEvent('workflow.execution.started', {
                     workflowId: currentPlan.workflowId,
                     trigger,
@@ -522,8 +522,8 @@
 
                 clearPendingExecution();
                 runtime()?.clearSpotlight?.();
-                updateWorkflowPanelStatus('Reserva completada en esta pagina.');
-                runtime()?.speak('Listo, termine de completar la reserva aqui mismo.', { mode: 'idle' });
+                updateWorkflowPanelStatus('Automatizacion completada en esta pagina.');
+                runtime()?.speak('Listo, termine de completar la tarea aqui mismo.', { mode: 'idle' });
                 emitExtensionLog('info', 'Workflow execution finished on page.', {
                     workflowId: currentPlan.workflowId,
                     trigger

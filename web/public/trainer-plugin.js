@@ -1167,7 +1167,7 @@
         return true;
     }
 
-    function appendAgentMessage(role, text, meta, pushHistory = true) {
+    function appendAgentMessage(role, text, meta, pushHistory = true, options = {}) {
         const agentChatLog = document.getElementById('console-chat-log');
         if (!agentChatLog) return;
 
@@ -1190,10 +1190,19 @@
         agentChatLog.scrollTop = agentChatLog.scrollHeight;
 
         if (role === 'assistant' && text) {
-            runtime()?.speak(text, { mode: 'assistant', audible: true });
+            const shouldSpeakAudibly = options.audible === undefined
+                ? !voiceState.active
+                : Boolean(options.audible);
+            runtime()?.speak(text, { mode: 'assistant', audible: shouldSpeakAudibly });
         } else if (role === 'user' && text) {
             runtime()?.showUserSpeech?.(text);
         }
+    }
+
+    function isPageExecutionFunctionName(functionName) {
+        const normalized = `${functionName || ''}`.trim();
+        return normalized === 'execute_workflow_on_page'
+            || normalized === 'execute_reservation_on_page';
     }
 
     function statusField() {
@@ -1815,8 +1824,8 @@
             try {
                 await executeWorkflowPlan(payload.executionPlan, trigger);
             } catch (error) {
-                appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                updateWorkflowPanelStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                updateWorkflowPanelStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
                 throw error;
             }
         }
@@ -1864,7 +1873,7 @@
 
     async function executeVoiceFunctionCall(call) {
         const functionName = `${call?.name || ''}`.trim();
-        if (functionName !== 'execute_reservation_on_page') {
+        if (!isPageExecutionFunctionName(functionName)) {
             await respondToVoiceFunctionCall(call, JSON.stringify({
                 ok: false,
                 error: `Funcion no soportada en cliente: ${functionName || 'unknown'}`
@@ -1889,12 +1898,12 @@
         if (!workflowId) {
             await respondToVoiceFunctionCall(call, JSON.stringify({
                 ok: false,
-                error: 'Falto workflowId para ejecutar la reserva.'
+                error: 'Falto workflowId para ejecutar el workflow.'
             }));
             return;
         }
 
-        updateVoiceStatus('Ejecutando la reserva en esta pagina...');
+        updateVoiceStatus('Ejecutando el workflow en esta pagina...');
         runtime()?.speak('Voy a resolverlo aqui mismo en la pagina.', { mode: 'executing' });
 
         try {
@@ -1911,7 +1920,7 @@
             await respondToVoiceFunctionCall(call, JSON.stringify({
                 ok: false,
                 workflowId,
-                error: error.message || 'No pude completar la reserva en esta pagina.'
+                error: error.message || 'No pude completar la automatizacion en esta pagina.'
             }));
             throw error;
         }
@@ -1933,14 +1942,14 @@
             await executeWorkflowPlan(pending, pending.trigger || 'resume');
         } catch (error) {
             clearPendingExecution();
-            updateWorkflowPanelStatus(error.message || 'No pude retomar la reserva en esta pagina.');
-            appendAgentMessage('assistant', error.message || 'No pude retomar la reserva en esta pagina.', null, false);
+            updateWorkflowPanelStatus(error.message || 'No pude retomar la automatizacion en esta pagina.');
+            appendAgentMessage('assistant', error.message || 'No pude retomar la automatizacion en esta pagina.', null, false);
         }
     }
 
     async function executeWorkflowFromPanel(workflowId) {
-        updateWorkflowPanelStatus('Empezando la reserva...');
-        runtime()?.speak('Voy a encargarme de la reserva y moverme por la pagina por ti.', { mode: 'executing' });
+        updateWorkflowPanelStatus('Empezando la automatizacion...');
+        runtime()?.speak('Voy a moverme por la pagina y encargarme de esta tarea por ti.', { mode: 'executing' });
         const executionPlan = await fetchExecutionPlan(workflowId, {});
         await executeWorkflowPlan(executionPlan, 'panel');
     }
@@ -2337,9 +2346,9 @@
         openChatPanel();
         updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
         if (!effectivePhoneSessionId) {
-            runtime()?.speak('Te escucho. Habla con naturalidad y me encargo de la reserva cuando tenga lo necesario.', { mode: 'listening' });
+            runtime()?.speak('Te escucho. Habla con naturalidad y me encargo de la tarea cuando tenga lo necesario.', { mode: 'listening' });
         } else {
-            runtime()?.speak('Estoy retomando el audio de tu telefono para seguir con la reserva.', { mode: 'listening' });
+            runtime()?.speak('Estoy retomando el audio de tu telefono para seguir con la tarea.', { mode: 'listening' });
         }
 
         const socket = new WebSocket(getRealtimeSocketUrl());
@@ -2479,14 +2488,14 @@
             if (payload.type === 'user_turn') {
                 voiceLog('server_event_user_turn', payload.text);
                 appendAgentMessage('user', payload.text);
-                updateVoiceStatus('Pensando y preparando la reserva...');
+                updateVoiceStatus('Pensando y preparando la tarea...');
                 runtime()?.showUserSpeech?.(payload.text);
                 return;
             }
 
             if (payload.type === 'thinking') {
                 voiceLog('server_event_thinking');
-                updateVoiceStatus('Pensando y preparando la reserva...');
+                updateVoiceStatus('Pensando y preparando la tarea...');
                 return;
             }
 
@@ -2501,8 +2510,8 @@
                 if (payload.executionPlan) {
                     executeWorkflowPlan(payload.executionPlan, 'voice').catch((error) => {
                         voiceLog('browser_execution_error', error.message || 'plan execution failed');
-                        appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                        updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                        appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                        updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
                     });
                 }
                 return;
@@ -2520,8 +2529,8 @@
                 try {
                     await handleVoiceFunctionRequests(payload.functions || []);
                 } catch (error) {
-                    appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                    updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                    appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                    updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
                 }
                 return;
             }
@@ -2729,7 +2738,7 @@
         }
         voiceState.processedFunctionCalls.add(callId);
 
-        if (functionName !== 'execute_reservation_on_page') {
+        if (!isPageExecutionFunctionName(functionName)) {
             await respondToRealtimeFunctionCall(callId, {
                 ok: false,
                 error: `Funcion no soportada en cliente: ${functionName || 'unknown'}`
@@ -2754,12 +2763,12 @@
         if (!workflowId) {
             await respondToRealtimeFunctionCall(callId, {
                 ok: false,
-                error: 'Falto workflowId para ejecutar la reserva.'
+                error: 'Falto workflowId para ejecutar el workflow.'
             });
             return;
         }
 
-        updateVoiceStatus('Ejecutando la reserva en esta pagina...');
+        updateVoiceStatus('Ejecutando el workflow en esta pagina...');
         runtime()?.speak('Voy a resolverlo aqui mismo en la pagina.', { mode: 'executing' });
 
         try {
@@ -2776,7 +2785,7 @@
             await respondToRealtimeFunctionCall(callId, {
                 ok: false,
                 workflowId,
-                error: error.message || 'No pude completar la reserva en esta pagina.'
+                error: error.message || 'No pude completar la automatizacion en esta pagina.'
             });
             throw error;
         }
@@ -2820,7 +2829,7 @@
             });
             appendAgentMessage('user', transcript);
             runtime()?.showUserSpeech?.(transcript);
-            updateVoiceStatus('Pensando y preparando la reserva...');
+            updateVoiceStatus('Pensando y preparando la tarea...');
             try {
                 cancelActiveVoiceResponse();
             } catch (error) {
@@ -2832,9 +2841,9 @@
                     trigger: 'voice',
                     speakReply: false
                 });
-                updateVoiceStatus('Reserva ejecutada desde el chat del asistente...');
+                updateVoiceStatus('Tarea ejecutada desde el chat del asistente...');
             } catch (error) {
-                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
             }
             return;
         }
@@ -2865,8 +2874,8 @@
             try {
                 await executeRealtimeFunctionCall(payload.item);
             } catch (error) {
-                appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
             }
             return;
         }
@@ -2879,8 +2888,8 @@
                 try {
                     await executeRealtimeFunctionCall(item);
                 } catch (error) {
-                    appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                    updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                    appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                    updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
                 }
             }
             return;
@@ -2980,7 +2989,7 @@
                 mode: 'phone-realtime'
             });
             appendAgentMessage('user', payload.text);
-            updateVoiceStatus('Pensando y preparando la reserva...');
+            updateVoiceStatus('Pensando y preparando la tarea...');
             runtime()?.showUserSpeech?.(payload.text);
             try {
                 cancelActiveVoiceResponse();
@@ -2993,16 +3002,16 @@
                     trigger: 'voice',
                     speakReply: false
                 });
-                updateVoiceStatus('Reserva ejecutada desde el chat del asistente...');
+                updateVoiceStatus('Tarea ejecutada desde el chat del asistente...');
             } catch (error) {
-                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
             }
             return;
         }
 
         if (payload.type === 'thinking') {
             voiceLog('server_event_thinking');
-            updateVoiceStatus('Pensando y preparando la reserva...');
+            updateVoiceStatus('Pensando y preparando la tarea...');
             return;
         }
 
@@ -3036,8 +3045,8 @@
             try {
                 await handleVoiceFunctionRequests(payload.functions || []);
             } catch (error) {
-                appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
             }
             return;
         }
@@ -3071,8 +3080,8 @@
         updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
         runtime()?.speak(
             effectivePhoneSessionId
-                ? 'Estoy retomando el audio de tu telefono para seguir con la reserva.'
-                : 'Te escucho. Habla con naturalidad y yo me encargo de la reserva.',
+                ? 'Estoy retomando el audio de tu telefono para seguir con la tarea.'
+                : 'Te escucho. Habla con naturalidad y yo me encargo de la tarea.',
             { mode: 'listening' }
         );
 
@@ -3227,7 +3236,7 @@
             const message = error.message || 'No pude acceder al microfono o iniciar la voz en tiempo real.';
             voiceLog('openai_realtime_error', message);
             updateVoiceStatus(message);
-            appendAgentMessage('assistant', message, null, false);
+                    appendAgentMessage('assistant', message, null, false);
             stopVoiceConversation({ announce: false });
         }
     }
@@ -3436,7 +3445,7 @@
                 try {
                     await executeWorkflowFromPanel(workflowId);
                 } catch (error) {
-                    updateWorkflowPanelStatus(error.message || 'No pude completar la reserva.');
+                    updateWorkflowPanelStatus(error.message || 'No pude completar la automatizacion.');
                 } finally {
                     button.disabled = false;
                 }
@@ -3545,7 +3554,7 @@
 
             window.setTimeout(() => {
                 resumePendingExecution().catch((error) => {
-                    updateWorkflowPanelStatus(error.message || 'No pude retomar la reserva pendiente.');
+                    updateWorkflowPanelStatus(error.message || 'No pude retomar la automatizacion pendiente.');
                 });
             }, 120);
 

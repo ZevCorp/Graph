@@ -53,7 +53,7 @@
             closeImprovementPanel();
             updateConsoleExpandedState();
             runtime()?.openChatComposer?.({ focus: true });
-            runtime()?.speak?.('Estoy listo para ayudarte con la reserva cuando quieras.', { mode: 'listening' });
+            runtime()?.speak?.('Estoy listo para ayudarte con esta pagina cuando quieras.', { mode: 'listening' });
         }
 
         function openWorkflowPanel() {
@@ -222,7 +222,7 @@
                     try {
                         await executeWorkflowFromPanel(workflowId);
                     } catch (error) {
-                        updateWorkflowPanelStatus(error.message || 'No pude completar la reserva.');
+                        updateWorkflowPanelStatus(error.message || 'No pude completar la automatizacion.');
                     } finally {
                         button.disabled = false;
                     }
