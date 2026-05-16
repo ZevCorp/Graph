@@ -298,6 +298,7 @@ class SurfaceProfileService {
     const fallback = this.buildFallbackProfile(context, pageSnapshot);
     const existing = await this.repository.getSurfaceProfile(
       context.appId,
+      context.sourceOrigin,
       context.sourcePathname,
       context.scope,
       context.ownerId,

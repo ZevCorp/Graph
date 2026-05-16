@@ -43,13 +43,14 @@ class Neo4jWorkflowRepository {
     }
   }
 
-  buildSurfaceProfileId(appId, sourcePathname, scope = 'global', ownerId = '', languageCode = 'es') {
+  buildSurfaceProfileId(appId, sourceOrigin, sourcePathname, scope = 'global', ownerId = '', languageCode = 'es') {
     const normalizedAppId = `${appId || 'page'}`.trim() || 'page';
+    const normalizedOrigin = `${sourceOrigin || 'unknown-origin'}`.trim() || 'unknown-origin';
     const normalizedPath = `${sourcePathname || '/'}`.trim() || '/';
     const normalizedScope = `${scope || 'global'}`.trim() || 'global';
     const normalizedOwnerId = `${ownerId || ''}`.trim() || 'shared';
     const normalizedLanguage = `${languageCode || 'es'}`.trim() || 'es';
-    return `surface:${normalizedScope}:${normalizedAppId}:${normalizedPath}:${normalizedOwnerId}:${normalizedLanguage}`;
+    return `surface:${normalizedScope}:${normalizedAppId}:${normalizedOrigin}:${normalizedPath}:${normalizedOwnerId}:${normalizedLanguage}`;
   }
 
   toNativeNumber(value) {
@@ -194,10 +195,11 @@ class Neo4jWorkflowRepository {
     );
   }
 
-  async getSurfaceProfile(appId, sourcePathname, scope = 'global', ownerId = '', languageCode = 'es') {
+  async getSurfaceProfile(appId, sourceOrigin, sourcePathname, scope = 'global', ownerId = '', languageCode = 'es') {
     const rows = await this.db.run(`
       MATCH (p:SurfaceProfile {
         appId: $appId,
+        sourceOrigin: $sourceOrigin,
         sourcePathname: $sourcePathname,
         scope: $scope,
         ownerId: $ownerId,
@@ -224,6 +226,7 @@ class Neo4jWorkflowRepository {
       LIMIT 1
     `, {
       appId: `${appId || ''}`.trim(),
+      sourceOrigin: `${sourceOrigin || ''}`.trim(),
       sourcePathname: `${sourcePathname || '/'}`.trim() || '/',
       scope: `${scope || 'global'}`.trim() || 'global',
       ownerId: `${ownerId || ''}`.trim(),
@@ -259,12 +262,13 @@ class Neo4jWorkflowRepository {
 
   async upsertSurfaceProfile(profile = {}) {
     const appId = `${profile.appId || ''}`.trim();
+    const sourceOrigin = `${profile.sourceOrigin || ''}`.trim();
     const sourcePathname = `${profile.sourcePathname || '/'}`.trim() || '/';
     const scope = `${profile.scope || 'global'}`.trim() || 'global';
     const ownerId = `${profile.ownerId || ''}`.trim();
     const browserLocale = `${profile.browserLocale || ''}`.trim();
     const languageCode = `${profile.languageCode || 'es'}`.trim() || 'es';
-    const id = profile.id || this.buildSurfaceProfileId(appId, sourcePathname, scope, ownerId, languageCode);
+    const id = profile.id || this.buildSurfaceProfileId(appId, sourceOrigin, sourcePathname, scope, ownerId, languageCode);
 
     await this.db.run(`
       MERGE (p:SurfaceProfile {id: $id})
@@ -288,7 +292,7 @@ class Neo4jWorkflowRepository {
     `, {
       id,
       appId,
-      sourceOrigin: `${profile.sourceOrigin || ''}`.trim(),
+      sourceOrigin,
       sourcePathname,
       sourceTitle: `${profile.sourceTitle || ''}`.trim(),
       scope,
@@ -303,7 +307,7 @@ class Neo4jWorkflowRepository {
       pageSummary: `${profile.pageSummary || ''}`.trim()
     });
 
-    return this.getSurfaceProfile(appId, sourcePathname, scope, ownerId, languageCode);
+    return this.getSurfaceProfile(appId, sourceOrigin, sourcePathname, scope, ownerId, languageCode);
   }
 
   async touchSurfaceProfile(id) {
