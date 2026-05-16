@@ -120,6 +120,16 @@ class SurfaceProfileService {
     };
   }
 
+  isVolatileSurface(context = {}) {
+    const origin = `${context.sourceOrigin || ''}`.trim().toLowerCase();
+    const pathname = this.normalizePathname(context.sourcePathname || '');
+
+    // Google search results can render very different product experiences
+    // under the same /search route, so reusing a persisted profile there
+    // causes cross-contamination between searches like "translate" and "hola".
+    return origin === 'https://www.google.com' && pathname === '/search';
+  }
+
   normalizeLanguageCode(value = '') {
     const normalized = `${value || ''}`.trim().toLowerCase();
     if (!normalized) {
@@ -296,6 +306,15 @@ class SurfaceProfileService {
   async ensureGlobalProfile(rawContext = {}, pageSnapshot = {}) {
     const context = this.buildNormalizedContext(rawContext);
     const fallback = this.buildFallbackProfile(context, pageSnapshot);
+    if (this.isVolatileSurface(context)) {
+      const generatedProfile = await this.generateProfile(context, pageSnapshot);
+      return {
+        surfaceProfile: generatedProfile,
+        generated: true,
+        volatile: true
+      };
+    }
+
     const existing = await this.repository.getSurfaceProfile(
       context.appId,
       context.sourceOrigin,
