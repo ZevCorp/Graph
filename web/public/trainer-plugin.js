@@ -316,11 +316,11 @@
                 height: 20px;
             }
             #btn-record-toggle[data-recording="true"] {
-                background: #1b6b4b;
+                background: #111111;
                 color: white;
             }
             #btn-record-toggle[data-recording="false"] {
-                background: #0f5f8c;
+                background: #111111;
                 color: white;
             }
             .console-chat,
@@ -3595,6 +3595,25 @@
         openImprovementPanel() {
             openImprovementPanel();
             loadImprovementPanel(true);
+        },
+        showFeedbackOverlay() {
+            showFeedbackOverlay();
+        },
+        hideFeedbackOverlay() {
+            hideFeedbackOverlay();
+        },
+        toggleFeedbackOverlay() {
+            toggleFeedbackOverlay();
+            return feedbackOverlayVisible;
+        },
+        getImprovementPanelData() {
+            const suggestions = getMockFeedbackSuggestions();
+            return {
+                title: 'Feedback visible sobre la pagina',
+                status: `${suggestions.length} comentario(s) listos para revisar en la pagina.`,
+                suggestions,
+                footnote: 'Esta capa resume fricciones y oportunidades de claridad detectadas para la experiencia actual. Mas adelante la conectaremos con feedback real y señales observadas en produccion.'
+            };
         }
     };
 })();

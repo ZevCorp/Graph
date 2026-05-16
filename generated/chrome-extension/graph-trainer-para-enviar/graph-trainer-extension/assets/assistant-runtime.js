@@ -351,11 +351,11 @@
                 height: 42px;
                 border: none;
                 border-radius: 999px;
-                background: rgba(20, 27, 34, 0.96);
-                color: #f8fbff;
+                background: rgba(255, 255, 255, 0.98);
+                color: #102033;
                 box-shadow:
                     0 18px 36px rgba(4, 10, 20, 0.32),
-                    0 0 0 1px rgba(255, 255, 255, 0.12);
+                    0 0 0 1px rgba(255, 255, 255, 0.78);
                 z-index: calc(var(--graph-assistant-z, 2147483000) + 3);
                 display: inline-flex;
                 align-items: center;
@@ -368,10 +368,10 @@
                 transform: translateY(-1px);
                 box-shadow:
                     0 22px 42px rgba(4, 10, 20, 0.38),
-                    0 0 0 1px rgba(255, 255, 255, 0.18);
+                    0 0 0 1px rgba(255, 255, 255, 0.88);
             }
             .graph-assistant-chat-toggle[data-active="true"] {
-                background: #102d44;
+                background: rgba(246, 250, 255, 0.98);
             }
             .graph-assistant-chat-toggle svg {
                 width: 18px;
@@ -384,16 +384,7 @@
                 z-index: calc(var(--graph-assistant-z, 2147483000) + 4);
                 width: min(320px, calc(100vw - 32px));
                 display: grid;
-                gap: 10px;
-                padding: 14px;
-                border-radius: 18px;
-                background: rgba(20, 27, 34, 0.96);
-                color: #f8fbff;
-                box-shadow:
-                    0 24px 64px rgba(2, 8, 18, 0.55),
-                    0 0 0 1px rgba(255, 255, 255, 0.12),
-                    0 10px 28px rgba(255, 255, 255, 0.08);
-                backdrop-filter: blur(14px);
+                gap: 8px;
                 opacity: 0;
                 transform: translateY(8px);
                 transition: opacity 180ms ease, transform 180ms ease;
@@ -409,21 +400,30 @@
                 min-height: 48px;
                 max-height: 140px;
                 resize: vertical;
-                border: 1px solid rgba(255, 255, 255, 0.16);
-                border-radius: 14px;
-                padding: 11px 12px;
+                border: none;
+                border-radius: 18px;
+                padding: 12px 14px;
                 box-sizing: border-box;
-                background: rgba(255, 255, 255, 0.08);
+                background: rgba(20, 27, 34, 0.94);
                 color: #f8fbff;
                 font: 500 13px/1.45 "Inter", "Segoe UI", sans-serif;
+                box-shadow:
+                    0 24px 64px rgba(2, 8, 18, 0.55),
+                    0 0 0 1px rgba(255, 255, 255, 0.12),
+                    0 0 34px rgba(255, 255, 255, 0.12),
+                    0 10px 28px rgba(255, 255, 255, 0.08);
+                backdrop-filter: blur(14px);
                 outline: none;
             }
             .graph-assistant-chat-composer textarea::placeholder {
                 color: rgba(248, 251, 255, 0.66);
             }
             .graph-assistant-chat-composer textarea:focus {
-                border-color: rgba(255, 255, 255, 0.34);
-                box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+                box-shadow:
+                    0 24px 64px rgba(2, 8, 18, 0.55),
+                    0 0 0 1px rgba(255, 255, 255, 0.18),
+                    0 0 0 4px rgba(255, 255, 255, 0.06),
+                    0 10px 28px rgba(255, 255, 255, 0.08);
             }
             .graph-assistant-chat-composer-actions {
                 display: flex;
@@ -434,10 +434,13 @@
                 border: none;
                 border-radius: 999px;
                 padding: 9px 14px;
-                background: rgba(255, 255, 255, 0.96);
-                color: #102033;
+                background: rgba(20, 27, 34, 0.94);
+                color: #f8fbff;
                 font: 700 12px/1 "Inter", "Segoe UI", sans-serif;
                 cursor: pointer;
+                box-shadow:
+                    0 18px 36px rgba(4, 10, 20, 0.28),
+                    0 0 0 1px rgba(255, 255, 255, 0.1);
             }
             .graph-assistant-chat-send:disabled {
                 opacity: 0.55;

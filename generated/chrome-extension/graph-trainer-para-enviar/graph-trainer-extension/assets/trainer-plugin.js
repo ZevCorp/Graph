@@ -323,14 +323,6 @@
                 background: #0f5f8c;
                 color: white;
             }
-            #voice-toggle {
-                background: #e7f8ef;
-                color: #18794e;
-            }
-            #voice-toggle[data-active="true"] {
-                background: #18794e;
-                color: white;
-            }
             .console-chat,
             .workflow-panel,
             .improvement-panel {
@@ -861,9 +853,6 @@
             </div>
             <div class="console-toolbar">
                 <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
-                <button class="icon-btn" id="voice-toggle" type="button" title="Conversacion de voz" aria-label="Conversacion de voz" aria-pressed="false" data-active="false">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm6-3a6 6 0 0 1-12 0M12 17v4m-4 0h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
             </div>
             <input id="wf-desc" class="sr-only" value="">
             <textarea id="step-explanation" class="sr-only"></textarea>
@@ -3434,21 +3423,6 @@
                 return;
             }
             await startWorkflow();
-        });
-
-        bindLongPressGesture('voice-toggle', async () => {
-            try {
-                await openPhoneMicPairing();
-            } catch (error) {
-                updateVoiceStatus(error.message || 'No pude preparar el microfono del telefono.');
-                appendAgentMessage('assistant', error.message || 'No pude preparar el microfono del telefono.', null, false);
-            }
-        }, async () => {
-            if (voiceState.active) {
-                stopVoiceConversation();
-                return;
-            }
-            await startVoiceConversation();
         });
 
         document.getElementById('workflow-panel-refresh').addEventListener('click', () => {

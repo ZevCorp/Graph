@@ -96,34 +96,235 @@
       font: 11px/1.45 Consolas, monospace;
       color: #203040;
     }
+    .hidden {
+      display: none !important;
+    }
+    #improvementsView {
+      display: none;
+      margin-top: 4px;
+    }
+    #improvementsView.open {
+      display: block;
+    }
+    .improvement-panel-header,
+    .improvement-panel-empty,
+    .improvement-panel-status,
+    .improvement-panel-footnote {
+      color: #1d2a33;
+      font-size: 13px;
+    }
+    .improvement-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .improvement-panel-header strong {
+      font-size: 14px;
+    }
+    .improvement-panel-header button {
+      border: none;
+      border-radius: 999px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      background: #fff4dd;
+      color: #8a4b08;
+      width: auto;
+      margin-top: 0;
+    }
+    .improvement-panel-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .improvement-panel-actions button {
+      width: auto;
+      margin-top: 0;
+      border: none;
+      border-radius: 999px;
+      padding: 9px 12px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    #popupOverlayToggle {
+      background: #fff1d6;
+      color: #8a4b08;
+    }
+    .improvement-panel-list {
+      max-height: 280px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 4px;
+      margin-bottom: 12px;
+    }
+    .improvement-item {
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 22px;
+      padding: 16px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(252, 249, 245, 0.98) 100%),
+        radial-gradient(circle at top left, rgba(245, 158, 11, 0.12), transparent 36%);
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+      display: grid;
+      gap: 12px;
+    }
+    .improvement-item-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .improvement-item-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(255, 247, 237, 0.95);
+      color: #9a3412;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .improvement-item-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      color: #111827;
+    }
+    .improvement-item-pill {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(17, 24, 39, 0.06);
+      color: #111827;
+    }
+    .improvement-item-pill[data-priority="alta"] {
+      background: rgba(239, 68, 68, 0.1);
+      color: #b91c1c;
+    }
+    .improvement-item-pill[data-priority="media"] {
+      background: rgba(245, 158, 11, 0.14);
+      color: #b45309;
+    }
+    .improvement-item-pill[data-priority="baja"] {
+      background: rgba(59, 130, 246, 0.1);
+      color: #1d4ed8;
+    }
+    .improvement-item-meta {
+      font-size: 13px;
+      color: #4b5563;
+      line-height: 1.6;
+      display: grid;
+      gap: 10px;
+    }
+    .improvement-item-quote {
+      margin: 0;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 250, 245, 0.95);
+      border: 1px solid rgba(245, 158, 11, 0.18);
+      color: #7c2d12;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .improvement-item-quote-label,
+    .improvement-item-recommendation-label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .improvement-item-recommendation {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(248, 250, 252, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      color: #111827;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .improvement-item-target {
+      font-size: 11px;
+      color: #9ca3af;
+      word-break: break-word;
+    }
+    .improvement-panel-footnote {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(248, 250, 252, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      color: #475569;
+      line-height: 1.55;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
-  <h1>Graph Trainer</h1>
-  <p>Enable the trainer on any page and point it to your running Graph backend.</p>
+  <div id="settingsView">
+    <h1>Graph Trainer</h1>
+    <p>Enable the trainer on any page and point it to your running Graph backend.</p>
 
-  <div class="row">
-    <input id="enabled" type="checkbox">
-    <label for="enabled" style="margin: 0; font-weight: 600;">Enable on pages</label>
+    <div class="row">
+      <input id="enabled" type="checkbox">
+      <label for="enabled" style="margin: 0; font-weight: 600;">Enable on pages</label>
+    </div>
+
+    <label for="backendUrl">Backend URL</label>
+    <input id="backendUrl" type="text" placeholder="https://graph-1-hap6.onrender.com">
+
+    <button id="save">Save</button>
+    <div class="button-row">
+      <button id="showImprovements" type="button" class="secondary-button">Mostrar mejoras para la pagina</button>
+    </div>
+    <div class="button-row">
+      <button id="toggleLogs" type="button" class="secondary-button">Show Logs</button>
+      <button id="clearLogs" type="button" class="danger-button">Clear Logs</button>
+    </div>
+    <div id="status"></div>
+    <div id="logPanel" aria-live="polite">
+      <pre id="logOutput">No logs yet.</pre>
+    </div>
+
+    <p>After saving, reload the target tab. The trainer will mount automatically.</p>
   </div>
 
-  <label for="backendUrl">Backend URL</label>
-  <input id="backendUrl" type="text" placeholder="https://graph-1-hap6.onrender.com">
-
-  <button id="save">Save</button>
-  <div class="button-row">
-    <button id="showImprovements" type="button" class="secondary-button">Mostrar mejoras para la pagina</button>
+  <div id="improvementsView" aria-live="polite">
+    <div class="improvement-panel-header">
+      <div>
+        <strong id="popupImprovementsTitle">Feedback visible sobre la pagina</strong>
+        <div class="improvement-panel-status" id="popupImprovementsStatus"></div>
+      </div>
+      <button id="popupImprovementsRefresh" type="button">Actualizar</button>
+    </div>
+    <div class="improvement-panel-actions">
+      <button id="popupOverlayToggle" type="button">Mostrar puntos en la pagina</button>
+    </div>
+    <div class="improvement-panel-list" id="popupImprovementsList"></div>
+    <div class="improvement-panel-empty hidden" id="popupImprovementsEmpty">No hay sugerencias disponibles para esta pagina todavia.</div>
+    <div class="improvement-panel-footnote" id="popupImprovementsFootnote"></div>
   </div>
-  <div class="button-row">
-    <button id="toggleLogs" type="button" class="secondary-button">Show Logs</button>
-    <button id="clearLogs" type="button" class="danger-button">Clear Logs</button>
-  </div>
-  <div id="status"></div>
-  <div id="logPanel" aria-live="polite">
-    <pre id="logOutput">No logs yet.</pre>
-  </div>
-
-  <p>After saving, reload the target tab. The trainer will mount automatically.</p>
 
   <script src="popup.js"></script>
 </body>
