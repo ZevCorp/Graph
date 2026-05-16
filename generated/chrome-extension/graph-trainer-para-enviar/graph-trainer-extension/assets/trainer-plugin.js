@@ -1290,7 +1290,21 @@
     }
 
     function filterWorkflowsForCurrentPage(workflows) {
-        return Array.isArray(workflows) ? workflows : [];
+        const currentOrigin = `${window.location.origin || ''}`.trim();
+        const currentAppId = `${options.appId || ''}`.trim();
+
+        return (Array.isArray(workflows) ? workflows : []).filter((workflow) => {
+            const workflowOrigin = `${workflow?.sourceOrigin || ''}`.trim();
+            const workflowAppId = `${workflow?.appId || ''}`.trim();
+
+            if (currentOrigin && workflowOrigin) {
+                return workflowOrigin === currentOrigin;
+            }
+            if (currentAppId && workflowAppId) {
+                return workflowAppId === currentAppId;
+            }
+            return true;
+        });
     }
 
     function formatTimestamp(value) {

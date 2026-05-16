@@ -3,6 +3,7 @@ window.WorkflowRecorder = (() => {
   let statusId = null;
   let stepOrder = 0;
   let recordQueue = Promise.resolve();
+  let recordedSteps = [];
   const lastFieldEvents = new Map();
   const focusedSelectValues = new Map();
 
@@ -260,6 +261,7 @@ window.WorkflowRecorder = (() => {
 
     await requireApiClient().appendWorkflowStep(payload);
 
+    recordedSteps.push(payload);
     appendActivity(payload);
     pluginEvents()?.emit?.('learning.step.captured', { step: payload });
     if (payload.actionType === 'select') {
@@ -296,6 +298,7 @@ window.WorkflowRecorder = (() => {
     isRecording = status.recording;
     statusId = status.id;
     stepOrder = 0;
+    recordedSteps = [];
     lastFieldEvents.clear();
     focusedSelectValues.clear();
 
@@ -396,6 +399,22 @@ window.WorkflowRecorder = (() => {
 
   installListeners();
 
+  function hasMeaningfulRecordedSteps() {
+    return recordedSteps.some((step) => {
+      const actionType = `${step?.actionType || ''}`.trim().toLowerCase();
+      if (!actionType || actionType === 'navigation') {
+        return false;
+      }
+      if (actionType === 'input' || actionType === 'select') {
+        return Boolean(`${step?.value || step?.selectedValue || ''}`.trim());
+      }
+      if (actionType === 'click') {
+        return Boolean(`${step?.selector || ''}`.trim());
+      }
+      return true;
+    });
+  }
+
   return {
     async startWorkflow(description, context = {}) {
       const desc = (description || '').trim();
@@ -408,6 +427,7 @@ window.WorkflowRecorder = (() => {
 
       isRecording = true;
       stepOrder = 0;
+      recordedSteps = [];
       lastFieldEvents.clear();
       focusedSelectValues.clear();
       recordQueue = Promise.resolve();
@@ -425,8 +445,15 @@ window.WorkflowRecorder = (() => {
     },
 
     async stopWorkflow(redirectTo) {
+      const workflowId = statusId;
       await requireApiClient().stopWorkflow();
+      if (workflowId && !hasMeaningfulRecordedSteps()) {
+        await requireApiClient().deleteWorkflow(workflowId).catch(() => {});
+      }
       isRecording = false;
+      statusId = null;
+      stepOrder = 0;
+      recordedSteps = [];
       lastFieldEvents.clear();
       focusedSelectValues.clear();
       if (statusField()) statusField().innerText = 'Saved';
@@ -444,7 +471,9 @@ window.WorkflowRecorder = (() => {
     async resetWorkflow() {
       await requireApiClient().resetWorkflow();
       isRecording = false;
+      statusId = null;
       stepOrder = 0;
+      recordedSteps = [];
       lastFieldEvents.clear();
       focusedSelectValues.clear();
       if (statusField()) statusField().innerText = 'Idle';
