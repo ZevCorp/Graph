@@ -33,6 +33,9 @@
             longPressTimer: null,
             longPressTriggered: false
         },
+        chat: {
+            open: false
+        },
         face: {
             mode: 'idle',
             blinkFactor: 1,
@@ -342,6 +345,104 @@
                 width: 18px;
                 height: 18px;
             }
+            .graph-assistant-chat-toggle {
+                position: fixed;
+                width: 42px;
+                height: 42px;
+                border: none;
+                border-radius: 999px;
+                background: rgba(20, 27, 34, 0.96);
+                color: #f8fbff;
+                box-shadow:
+                    0 18px 36px rgba(4, 10, 20, 0.32),
+                    0 0 0 1px rgba(255, 255, 255, 0.12);
+                z-index: calc(var(--graph-assistant-z, 2147483000) + 3);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                pointer-events: auto;
+                transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+            }
+            .graph-assistant-chat-toggle:hover {
+                transform: translateY(-1px);
+                box-shadow:
+                    0 22px 42px rgba(4, 10, 20, 0.38),
+                    0 0 0 1px rgba(255, 255, 255, 0.18);
+            }
+            .graph-assistant-chat-toggle[data-active="true"] {
+                background: #102d44;
+            }
+            .graph-assistant-chat-toggle svg {
+                width: 18px;
+                height: 18px;
+            }
+            .graph-assistant-chat-composer {
+                position: fixed;
+                left: 16px;
+                top: 16px;
+                z-index: calc(var(--graph-assistant-z, 2147483000) + 4);
+                width: min(320px, calc(100vw - 32px));
+                display: grid;
+                gap: 10px;
+                padding: 14px;
+                border-radius: 18px;
+                background: rgba(20, 27, 34, 0.96);
+                color: #f8fbff;
+                box-shadow:
+                    0 24px 64px rgba(2, 8, 18, 0.55),
+                    0 0 0 1px rgba(255, 255, 255, 0.12),
+                    0 10px 28px rgba(255, 255, 255, 0.08);
+                backdrop-filter: blur(14px);
+                opacity: 0;
+                transform: translateY(8px);
+                transition: opacity 180ms ease, transform 180ms ease;
+                pointer-events: none;
+            }
+            .graph-assistant-chat-composer[data-visible="true"] {
+                opacity: 1;
+                transform: translateY(0);
+                pointer-events: auto;
+            }
+            .graph-assistant-chat-composer textarea {
+                width: 100%;
+                min-height: 48px;
+                max-height: 140px;
+                resize: vertical;
+                border: 1px solid rgba(255, 255, 255, 0.16);
+                border-radius: 14px;
+                padding: 11px 12px;
+                box-sizing: border-box;
+                background: rgba(255, 255, 255, 0.08);
+                color: #f8fbff;
+                font: 500 13px/1.45 "Inter", "Segoe UI", sans-serif;
+                outline: none;
+            }
+            .graph-assistant-chat-composer textarea::placeholder {
+                color: rgba(248, 251, 255, 0.66);
+            }
+            .graph-assistant-chat-composer textarea:focus {
+                border-color: rgba(255, 255, 255, 0.34);
+                box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+            }
+            .graph-assistant-chat-composer-actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+            }
+            .graph-assistant-chat-send {
+                border: none;
+                border-radius: 999px;
+                padding: 9px 14px;
+                background: rgba(255, 255, 255, 0.96);
+                color: #102033;
+                font: 700 12px/1 "Inter", "Segoe UI", sans-serif;
+                cursor: pointer;
+            }
+            .graph-assistant-chat-send:disabled {
+                opacity: 0.55;
+                cursor: wait;
+            }
             .graph-assistant-avatar {
                 width: var(--graph-assistant-glass-size);
                 height: var(--graph-assistant-glass-size);
@@ -508,6 +609,33 @@
             document.body.appendChild(micButton);
         }
 
+        let chatButton = document.getElementById('graph-assistant-chat-toggle');
+        if (!chatButton) {
+            chatButton = document.createElement('button');
+            chatButton.id = 'graph-assistant-chat-toggle';
+            chatButton.className = 'graph-assistant-chat-toggle';
+            chatButton.type = 'button';
+            chatButton.dataset.active = 'false';
+            chatButton.setAttribute('aria-label', 'Abrir chat del asistente');
+            chatButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H8.5L4 19V5Z" fill="currentColor"/></svg>';
+            document.body.appendChild(chatButton);
+        }
+
+        let chatComposer = document.getElementById('graph-assistant-chat-composer');
+        if (!chatComposer) {
+            chatComposer = document.createElement('div');
+            chatComposer.id = 'graph-assistant-chat-composer';
+            chatComposer.className = 'graph-assistant-chat-composer';
+            chatComposer.dataset.visible = 'false';
+            chatComposer.innerHTML = `
+                <textarea id="graph-assistant-chat-input" rows="2" placeholder="Escribe tu mensaje..."></textarea>
+                <div class="graph-assistant-chat-composer-actions">
+                    <button id="graph-assistant-chat-send" class="graph-assistant-chat-send" type="button">Enviar</button>
+                </div>
+            `;
+            document.body.appendChild(chatComposer);
+        }
+
         let spotlight = document.getElementById('graph-assistant-spotlight');
         if (!spotlight) {
             spotlight = document.createElement('div');
@@ -523,6 +651,10 @@
             bubbleText: document.getElementById('graph-assistant-bubble-text'),
             userBubble,
             micButton,
+            chatButton,
+            chatComposer,
+            chatInput: document.getElementById('graph-assistant-chat-input'),
+            chatSendButton: document.getElementById('graph-assistant-chat-send'),
             label: document.getElementById('graph-assistant-label'),
             spotlight
         };
@@ -591,6 +723,9 @@
         return Boolean(
             element?.closest?.('#graph-assistant-shell')
             || element?.closest?.('#graph-assistant-bubble')
+            || element?.closest?.('#graph-assistant-chat-toggle')
+            || element?.closest?.('#graph-assistant-chat-composer')
+            || element?.closest?.('#graph-assistant-bubble-mic')
             || element?.closest?.('#graph-assistant-spotlight')
         );
     }
@@ -676,6 +811,31 @@
         userBubble.textContent = text || '';
         userBubble.dataset.visible = text ? 'true' : 'false';
         window.requestAnimationFrame(positionBubbleNearShell);
+    }
+
+    function setChatComposerVisible(visible, options = {}) {
+        const { chatComposer, chatButton, chatInput } = ensureElements();
+        if (!chatComposer || !chatButton) {
+            return;
+        }
+        state.chat.open = Boolean(visible);
+        chatComposer.dataset.visible = visible ? 'true' : 'false';
+        chatButton.dataset.active = visible ? 'true' : 'false';
+        positionBubbleNearShell();
+        if (visible && options.focus !== false) {
+            window.setTimeout(() => {
+                chatInput?.focus();
+            }, 20);
+        }
+    }
+
+    function submitChatComposer() {
+        const { chatInput, chatSendButton } = ensureElements();
+        const message = `${chatInput?.value || ''}`.trim();
+        if (!message || !chatSendButton || chatSendButton.disabled) {
+            return;
+        }
+        emit('chat-submit', { message });
     }
 
     function bindDragHandlers() {
@@ -896,6 +1056,8 @@
         const bubble = document.getElementById('graph-assistant-bubble');
         const userBubble = document.getElementById('graph-assistant-user-bubble');
         const micButton = document.getElementById('graph-assistant-bubble-mic');
+        const chatButton = document.getElementById('graph-assistant-chat-toggle');
+        const chatComposer = document.getElementById('graph-assistant-chat-composer');
         if (!shell || !bubble) {
             return;
         }
@@ -923,12 +1085,38 @@
             userBubble.style.top = `${userTop}px`;
         }
 
+        const buttonSize = 42;
+        const buttonGap = 10;
+        const controlsWidth = (buttonSize * 2) + buttonGap;
+        const controlsLeft = clamp(
+            rawLeft + (bubbleRect.width / 2) - (controlsWidth / 2),
+            padding,
+            window.innerWidth - controlsWidth - padding
+        );
+        const controlsTop = clamp(rawTop + bubbleRect.height - 4, padding, window.innerHeight - buttonSize - padding);
+
+        if (chatButton) {
+            chatButton.style.left = `${controlsLeft}px`;
+            chatButton.style.top = `${controlsTop}px`;
+        }
         if (micButton) {
-            const buttonSize = 42;
-            const buttonLeft = clamp(rawLeft + (bubbleRect.width / 2) - (buttonSize / 2), padding, window.innerWidth - buttonSize - padding);
-            const buttonTop = clamp(rawTop + bubbleRect.height - 4, padding, window.innerHeight - buttonSize - padding);
-            micButton.style.left = `${buttonLeft}px`;
-            micButton.style.top = `${buttonTop}px`;
+            micButton.style.left = `${controlsLeft + buttonSize + buttonGap}px`;
+            micButton.style.top = `${controlsTop}px`;
+        }
+        if (chatComposer && chatComposer.dataset.visible === 'true') {
+            const composerRect = chatComposer.getBoundingClientRect();
+            const composerLeft = clamp(
+                rawLeft,
+                padding,
+                Math.max(padding, window.innerWidth - composerRect.width - padding)
+            );
+            const composerTop = clamp(
+                controlsTop - composerRect.height - 12,
+                padding,
+                Math.max(padding, window.innerHeight - composerRect.height - padding)
+            );
+            chatComposer.style.left = `${composerLeft}px`;
+            chatComposer.style.top = `${composerTop}px`;
         }
     }
 
@@ -977,7 +1165,7 @@
         mount(config = {}) {
             state.options = { ...DEFAULTS, ...config };
             ensureStyles();
-            const { label, micButton } = ensureElements();
+            const { label, micButton, chatButton, chatInput, chatSendButton } = ensureElements();
             bindDragHandlers();
             document.documentElement.style.setProperty('--graph-assistant-accent', state.options.accentColor);
             document.documentElement.style.setProperty('--graph-assistant-z', `${state.options.zIndex}`);
@@ -1005,6 +1193,27 @@
                         return;
                     }
                     emit('voice-button', {});
+                });
+            }
+            if (chatButton && chatButton.dataset.bound !== 'true') {
+                chatButton.dataset.bound = 'true';
+                chatButton.addEventListener('click', () => {
+                    setChatComposerVisible(!state.chat.open, { focus: true });
+                    emit('chat-toggle', { open: state.chat.open });
+                });
+            }
+            if (chatSendButton && chatSendButton.dataset.bound !== 'true') {
+                chatSendButton.dataset.bound = 'true';
+                chatSendButton.addEventListener('click', submitChatComposer);
+            }
+            if (chatInput && chatInput.dataset.bound !== 'true') {
+                chatInput.dataset.bound = 'true';
+                chatInput.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) {
+                        return;
+                    }
+                    event.preventDefault();
+                    submitChatComposer();
                 });
             }
             showBubble(state.options.idleMessage || DEFAULTS.idleMessage);
@@ -1035,6 +1244,31 @@
         },
         clearUserSpeech() {
             renderUserBubbleText('');
+        },
+        openChatComposer(config = {}) {
+            if (!state.mounted) {
+                api.mount();
+            }
+            setChatComposerVisible(true, config);
+        },
+        closeChatComposer() {
+            setChatComposerVisible(false, { focus: false });
+        },
+        clearChatComposer() {
+            const { chatInput } = ensureElements();
+            if (chatInput) {
+                chatInput.value = '';
+            }
+        },
+        setChatComposerBusy(active) {
+            const { chatInput, chatSendButton } = ensureElements();
+            if (chatInput) {
+                chatInput.disabled = Boolean(active);
+            }
+            if (chatSendButton) {
+                chatSendButton.disabled = Boolean(active);
+                chatSendButton.textContent = active ? 'Enviando...' : 'Enviar';
+            }
         },
         setVoiceButtonActive(active) {
             const { micButton } = ensureElements();

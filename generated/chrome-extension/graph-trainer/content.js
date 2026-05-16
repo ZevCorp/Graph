@@ -44,6 +44,18 @@ function injectInlineScript(code) {
   script.remove();
 }
 
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type !== 'graph:open-improvements') {
+    return false;
+  }
+
+  injectInlineScript(`
+    window.TrainerPlugin?.openImprovementPanel?.();
+  `);
+  sendResponse({ ok: true });
+  return false;
+});
+
 function writeLog(entry) {
   const storage = getLocalStorage();
   return new Promise((resolve) => {

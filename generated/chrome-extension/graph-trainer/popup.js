@@ -88,6 +88,7 @@ async function init() {
   const enabledEl = document.getElementById('enabled');
   const backendUrlEl = document.getElementById('backendUrl');
   const saveButton = document.getElementById('save');
+  const showImprovementsButton = document.getElementById('showImprovements');
   const toggleLogsButton = document.getElementById('toggleLogs');
   const clearLogsButton = document.getElementById('clearLogs');
   const statusEl = document.getElementById('status');
@@ -108,6 +109,25 @@ async function init() {
 
     await saveSettings(nextSettings);
     statusEl.textContent = 'Saved. Reload the target tab.';
+    window.setTimeout(() => {
+      statusEl.textContent = '';
+    }, 1800);
+  });
+
+  showImprovementsButton.addEventListener('click', async () => {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!activeTab?.id) {
+      statusEl.textContent = 'No pude encontrar la pestaña activa.';
+      return;
+    }
+
+    try {
+      await chrome.tabs.sendMessage(activeTab.id, { type: 'graph:open-improvements' });
+      statusEl.textContent = 'Panel de mejoras abierto en la pagina.';
+    } catch (error) {
+      statusEl.textContent = 'No pude abrir mejoras en esta pestaña.';
+    }
+
     window.setTimeout(() => {
       statusEl.textContent = '';
     }, 1800);

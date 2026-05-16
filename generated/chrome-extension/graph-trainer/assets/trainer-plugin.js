@@ -323,26 +323,6 @@
                 background: #0f5f8c;
                 color: white;
             }
-            #pitch-generate {
-                background: #fff4dd;
-                color: #8a4b08;
-            }
-            #pitch-generate[data-active="true"] {
-                background: #8a4b08;
-                color: white;
-            }
-            #agent-send {
-                background: #e8f1f7;
-                color: #0f5f8c;
-            }
-            #voice-toggle {
-                background: #e7f8ef;
-                color: #18794e;
-            }
-            #voice-toggle[data-active="true"] {
-                background: #18794e;
-                color: white;
-            }
             .console-chat,
             .workflow-panel,
             .improvement-panel {
@@ -383,16 +363,6 @@
                 margin-top: 6px;
                 font-size: 11px;
                 opacity: 0.8;
-            }
-            #agent-message {
-                width: 100%;
-                min-height: 44px;
-                max-height: 120px;
-                resize: vertical;
-                border: 1px solid #c8d3dd;
-                border-radius: 14px;
-                padding: 12px;
-                font: inherit;
             }
             .voice-status {
                 min-height: 18px;
@@ -880,19 +850,9 @@
                         <span class="assistant-phone-mic-pairing-url" id="assistant-phone-mic-url"></span>
                     </div>
                 </div>
-                <textarea id="agent-message" rows="1" placeholder=""></textarea>
             </div>
             <div class="console-toolbar">
-                <button class="icon-btn" id="pitch-generate" type="button" title="Generate pitch artifacts" aria-label="Generate pitch artifacts">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l1.8 4.7L18.5 8l-4 2.9 1.5 4.8-4-2.9-4 2.9 1.5-4.8-4-2.9 4.7-1.3L12 2z" fill="currentColor"/></svg>
-                </button>
                 <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
-                <button class="icon-btn" id="voice-toggle" type="button" title="Conversacion de voz" aria-label="Conversacion de voz" aria-pressed="false" data-active="false">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm6-3a6 6 0 0 1-12 0M12 17v4m-4 0h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                <button class="icon-btn" id="agent-send" type="button" title="Open AI chat" aria-label="Open AI chat">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3V5z" fill="currentColor"/></svg>
-                </button>
             </div>
             <input id="wf-desc" class="sr-only" value="">
             <textarea id="step-explanation" class="sr-only"></textarea>
@@ -921,13 +881,11 @@
 
     function updateConsoleExpandedState() {
         const consoleEl = document.getElementById('teaching-console');
-        const chat = document.getElementById('console-chat');
         const panel = document.getElementById('workflow-panel');
         const improvementPanel = document.getElementById('improvement-panel');
-        if (!consoleEl || !chat || !panel || !improvementPanel) return;
+        if (!consoleEl || !panel || !improvementPanel) return;
 
-        const shouldExpand = chat.classList.contains('open')
-            || panel.classList.contains('open')
+        const shouldExpand = panel.classList.contains('open')
             || improvementPanel.classList.contains('open');
         consoleEl.classList.toggle('compact-open', shouldExpand);
     }
@@ -947,27 +905,18 @@
     }
 
     function openChatPanel() {
-        const chat = document.getElementById('console-chat');
-        const textarea = document.getElementById('agent-message');
-        if (!chat) return;
-
         closeWorkflowPanel();
         closeImprovementPanel();
-        chat.classList.add('open');
         updateConsoleExpandedState();
+        runtime()?.openChatComposer?.({ focus: true });
         runtime()?.speak('Estoy listo para ayudarte con la reserva cuando quieras.', { mode: 'listening' });
-
-        if (textarea) {
-            textarea.focus();
-        }
     }
 
     function openWorkflowPanel() {
         const panel = document.getElementById('workflow-panel');
-        const chat = document.getElementById('console-chat');
         const improvementPanel = document.getElementById('improvement-panel');
-        if (!panel || !chat || !improvementPanel) return;
-        chat.classList.remove('open');
+        if (!panel || !improvementPanel) return;
+        runtime()?.closeChatComposer?.();
         improvementPanel.classList.remove('open');
         panel.classList.add('open');
         updateConsoleExpandedState();
@@ -975,10 +924,9 @@
 
     function openImprovementPanel() {
         const panel = document.getElementById('improvement-panel');
-        const chat = document.getElementById('console-chat');
         const workflowPanel = document.getElementById('workflow-panel');
-        if (!panel || !chat || !workflowPanel) return;
-        chat.classList.remove('open');
+        if (!panel || !workflowPanel) return;
+        runtime()?.closeChatComposer?.();
         workflowPanel.classList.remove('open');
         panel.classList.add('open');
         updateConsoleExpandedState();
@@ -1127,6 +1075,8 @@
 
         if (role === 'assistant' && text) {
             runtime()?.speak(text, { mode: 'assistant', audible: true });
+        } else if (role === 'user' && text) {
+            runtime()?.showUserSpeech?.(text);
         }
     }
 
@@ -1875,10 +1825,30 @@
         }
 
         if (focusInput) {
-            document.getElementById('agent-message')?.focus();
+            runtime()?.openChatComposer?.({ focus: true });
         }
 
         return payload;
+    }
+
+    async function submitAssistantChatMessage(message, options = {}) {
+        const normalizedMessage = `${message || ''}`.trim();
+        if (!normalizedMessage) {
+            return null;
+        }
+
+        runtime()?.setChatComposerBusy?.(true);
+        try {
+            const payload = await sendMessageToAgentBackend(normalizedMessage, {
+                appendUser: true,
+                focusInput: true,
+                trigger: options.trigger || 'chat'
+            });
+            runtime()?.clearChatComposer?.();
+            return payload;
+        } finally {
+            runtime()?.setChatComposerBusy?.(false);
+        }
     }
 
     async function respondToVoiceFunctionCall(call, content) {
@@ -3455,62 +3425,6 @@
             await startWorkflow();
         });
 
-        bindLongPressGesture('pitch-generate', toggleImprovementPanel, async () => {
-            toggleFeedbackOverlay();
-        });
-
-        bindLongPressGesture('voice-toggle', async () => {
-            try {
-                await openPhoneMicPairing();
-            } catch (error) {
-                updateVoiceStatus(error.message || 'No pude preparar el microfono del telefono.');
-                appendAgentMessage('assistant', error.message || 'No pude preparar el microfono del telefono.', null, false);
-            }
-        }, async () => {
-            if (voiceState.active) {
-                stopVoiceConversation();
-                return;
-            }
-            await startVoiceConversation();
-        });
-
-        document.getElementById('agent-send').addEventListener('click', async () => {
-            const chat = document.getElementById('console-chat');
-            const textarea = document.getElementById('agent-message');
-
-            if (!chat.classList.contains('open')) {
-                openChatPanel();
-                return;
-            }
-
-            const message = textarea.value.trim();
-            if (!message) {
-                chat.classList.remove('open');
-                updateConsoleExpandedState();
-                return;
-            }
-
-            textarea.value = '';
-            try {
-                await sendMessageToAgentBackend(message, {
-                    appendUser: true,
-                    focusInput: true,
-                    trigger: 'chat'
-                });
-            } catch (error) {
-                // The helper already surfaced the error in chat.
-            }
-        });
-
-        document.getElementById('agent-message').addEventListener('keydown', (event) => {
-            if (event.key !== 'Enter' || event.shiftKey || event.isComposing) {
-                return;
-            }
-
-            event.preventDefault();
-            document.getElementById('agent-send').click();
-        });
-
         document.getElementById('workflow-panel-refresh').addEventListener('click', () => {
             loadWorkflowPanel(true);
         });
@@ -3621,13 +3535,21 @@
                         appendAgentMessage('assistant', error.message || 'No pude preparar el microfono del telefono.', null, false);
                     }
                 });
+                runtime()?.subscribe?.('chat-submit', async (payload) => {
+                    try {
+                        await submitAssistantChatMessage(payload?.message || '', {
+                            trigger: 'chat'
+                        });
+                    } catch (error) {
+                        // The helper already surfaced the error in chat.
+                    }
+                });
                 pluginEvents()?.on?.('learning.context.captured', (payload) => {
                     persistLearningContextNote(payload?.note || null);
                 });
                 runtimeTouchBound = true;
             }
 
-            document.getElementById('agent-message').placeholder = options.aiPlaceholder;
             document.getElementById('wf-desc').value = options.workflowDescription || '';
             surfaceProfileHydration = null;
             hydrateSurfaceProfile().catch(() => {});
