@@ -44,15 +44,66 @@ function injectInlineScript(code) {
   script.remove();
 }
 
+function requestPageImprovementData() {
+  return new Promise((resolve) => {
+    const requestId = `graph-improvements-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const handleMessage = (event) => {
+      if (event.source !== window) {
+        return;
+      }
+      const payload = event.data;
+      if (!payload || payload.source !== 'graph-trainer-extension' || payload.type !== 'improvements-data' || payload.requestId !== requestId) {
+        return;
+      }
+      window.removeEventListener('message', handleMessage);
+      resolve(payload.payload || null);
+    };
+
+    window.addEventListener('message', handleMessage);
+    injectInlineScript(`
+      (() => {
+        const payload = window.TrainerPlugin?.getImprovementPanelData?.() || null;
+        window.TrainerPlugin?.showFeedbackOverlay?.();
+        window.postMessage({
+          source: 'graph-trainer-extension',
+          type: 'improvements-data',
+          requestId: ${JSON.stringify(requestId)},
+          payload
+        }, '*');
+      })();
+    `);
+
+    window.setTimeout(() => {
+      window.removeEventListener('message', handleMessage);
+      resolve(null);
+    }, 1500);
+  });
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type !== 'graph:open-improvements') {
+  if (message?.type === 'graph:open-improvements') {
+    requestPageImprovementData()
+      .then((payload) => {
+        sendResponse({ ok: Boolean(payload), payload });
+      })
+      .catch(() => {
+        sendResponse({ ok: false, payload: null });
+      });
+    return true;
+  }
+
+  if (message?.type === 'graph:toggle-improvements-overlay') {
+    injectInlineScript(`
+      window.postMessage({
+        source: 'graph-trainer-extension',
+        type: 'improvements-overlay-toggled',
+        value: window.TrainerPlugin?.toggleFeedbackOverlay?.()
+      }, '*');
+    `);
+    sendResponse({ ok: true });
     return false;
   }
 
-  injectInlineScript(`
-    window.TrainerPlugin?.openImprovementPanel?.();
-  `);
-  sendResponse({ ok: true });
   return false;
 });
 
@@ -120,6 +171,7 @@ async function bootstrap() {
     'assets/plugin/plugin-context.js',
     'assets/plugin/plugin-api.js',
     'assets/plugin/plugin-learning-bridge.js',
+    'assets/plugin/plugin-workflow-overlay-bridge.js',
     'assets/trainer-plugin.js',
     'bootstrap.js'
   ];

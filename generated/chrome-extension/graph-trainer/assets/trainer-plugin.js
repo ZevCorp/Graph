@@ -26,8 +26,11 @@
     let runtimeTouchBound = false;
     let assistantPhonePairingBound = false;
     let feedbackOverlayVisible = false;
+    let workflowOverlayVisible = false;
+    let workflowOverlayWorkflow = null;
     let assistantPhonePairingFrame = null;
     let surfaceProfileHydration = null;
+    let workflowPanelEntries = [];
     const voiceState = {
         active: false,
         peerConnection: null,
@@ -57,6 +60,20 @@
     const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
     const EXECUTION_WAIT_TIMEOUT_MS = 15000;
     const EXECUTION_STEP_DELAY_MS = 180;
+    const trustedHtmlPolicy = (() => {
+        if (!window.trustedTypes?.createPolicy) {
+            return null;
+        }
+        try {
+            return window.trustedTypes.createPolicy('graph-trainer-plugin-html', {
+                createHTML(value) {
+                    return value;
+                }
+            });
+        } catch (error) {
+            return null;
+        }
+    })();
 
     function voiceLog(event, details) {
         if (details !== undefined) {
@@ -64,6 +81,14 @@
             return;
         }
         console.log(`[VoiceUI] ${event}`);
+    }
+
+    function setElementHtml(element, html) {
+        if (!element) {
+            return;
+        }
+        const safeHtml = trustedHtmlPolicy ? trustedHtmlPolicy.createHTML(html) : html;
+        element.innerHTML = safeHtml;
     }
 
     function pluginHost() {
@@ -316,8 +341,8 @@
                 height: 20px;
             }
             #btn-record-toggle[data-recording="true"] {
-                background: #111111;
-                color: white;
+                background: #bbf7d0;
+                color: #111111;
             }
             #btn-record-toggle[data-recording="false"] {
                 background: #111111;
@@ -354,9 +379,10 @@
                 color: #1d2a33;
             }
             .chat-bubble.user {
-                background: #0f5f8c;
-                color: white;
+                background: #ffffff;
+                color: #102033;
                 align-self: flex-end;
+                box-shadow: 0 20px 44px rgba(5, 10, 20, 0.14);
             }
             .chat-meta {
                 display: block;
@@ -488,8 +514,13 @@
                 font-weight: 700;
             }
             .workflow-panel-header button {
-                background: #edf4fa;
-                color: #0f5f8c;
+                width: 34px;
+                height: 34px;
+                padding: 0;
+                border-radius: 999px;
+                background: #ffffff;
+                color: #111111;
+                box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);
             }
             .improvement-panel-header button {
                 background: #fff4dd;
@@ -674,12 +705,26 @@
                 justify-content: flex-end;
                 gap: 8px;
             }
+            .workflow-item-actions button {
+                min-width: 40px;
+                height: 40px;
+                padding: 0 12px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+            }
+            .workflow-item-actions button svg {
+                width: 16px;
+                height: 16px;
+                flex: 0 0 auto;
+            }
             .workflow-item-actions .run-btn {
                 background: #0f5f8c;
                 color: white;
             }
-            .workflow-item-actions .copy-btn {
-                background: #e7eff6;
+            .workflow-item-actions .view-btn {
+                background: #eef4f8;
                 color: #21415a;
             }
             .workflow-item-actions .delete-btn {
@@ -801,14 +846,14 @@
         consoleEl = document.createElement('section');
         consoleEl.className = 'console';
         consoleEl.id = 'teaching-console';
-        consoleEl.innerHTML = `
+        setElementHtml(consoleEl, `
             <div class="workflow-panel" id="workflow-panel" aria-live="polite">
                 <div class="workflow-panel-header">
                     <div>
-                        <strong>Workflows de esta pagina</strong>
-                        <div class="workflow-panel-status" id="workflow-panel-status">Manten el lapiz oprimido para ver los flujos grabados aqui.</div>
+                        <strong>Workflows aprendidos</strong>
+                        <div class="workflow-panel-status" id="workflow-panel-status">Manten el lapiz oprimido para ver los flujos aprendidos.</div>
                     </div>
-                    <button id="workflow-panel-refresh" type="button">Actualizar</button>
+                    <button id="workflow-panel-close" type="button" aria-label="Cerrar workflows">×</button>
                 </div>
                 <div class="workflow-panel-list" id="workflow-panel-list"></div>
                 <div class="workflow-panel-empty" id="workflow-panel-empty" hidden>No hay workflows grabados para esta pagina todavia.</div>
@@ -859,7 +904,7 @@
             <div id="recording-status" class="sr-only">Idle</div>
             <button id="btn-start" class="sr-only" type="button">Start</button>
             <button id="btn-stop" class="sr-only" type="button">Stop</button>
-        `;
+        `);
         document.body.appendChild(consoleEl);
         ensureFeedbackOverlay();
         return consoleEl;
@@ -874,6 +919,20 @@
         overlay = document.createElement('div');
         overlay.className = 'feedback-overlay';
         overlay.id = 'feedback-overlay';
+        overlay.hidden = true;
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+
+    function ensureWorkflowOverlay() {
+        let overlay = document.getElementById('workflow-overlay');
+        if (overlay) {
+            return overlay;
+        }
+
+        overlay = document.createElement('div');
+        overlay.className = 'feedback-overlay';
+        overlay.id = 'workflow-overlay';
         overlay.hidden = true;
         document.body.appendChild(overlay);
         return overlay;
@@ -971,9 +1030,16 @@
         return adapter.getImprovementSuggestions(getPageContext()) || [];
     }
 
-    function resolveFeedbackAnchors(suggestions) {
-        return (suggestions || []).map((suggestion, index) => {
-            const element = document.querySelector(suggestion.selector) || document.body;
+    function resolveOverlayAnchors(items) {
+        return (items || []).map((item, index) => {
+            let element = document.body;
+            if (item?.selector) {
+                try {
+                    element = document.querySelector(item.selector) || document.body;
+                } catch (error) {
+                    element = document.body;
+                }
+            }
             const rect = element.getBoundingClientRect();
             const safeHeight = Math.max(rect.height, 24);
             const safeWidth = Math.max(rect.width, 24);
@@ -982,12 +1048,39 @@
             const side = rect.left > window.innerWidth * 0.56 ? 'left' : 'right';
 
             return {
-                ...suggestion,
+                ...item,
                 order: index + 1,
                 top,
                 left,
                 side
             };
+        });
+    }
+
+    function renderCardsOverlay(overlay, entries) {
+        if (!overlay) {
+            return;
+        }
+        overlay.style.width = `${Math.max(document.body.scrollWidth, document.documentElement.scrollWidth)}px`;
+        overlay.style.height = `${Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)}px`;
+        overlay.replaceChildren();
+
+        entries.forEach((entry) => {
+            const item = document.createElement('div');
+            item.className = 'feedback-pin';
+            item.dataset.side = entry.side;
+            item.style.top = `${entry.top}px`;
+            item.style.left = `${entry.left}px`;
+            setElementHtml(item, `
+                <div class="feedback-dot">${entry.order}</div>
+                <div class="feedback-card">
+                    <div class="feedback-card-eyebrow">${escapeHtml(entry.area || 'Momento detectado')}</div>
+                    <strong>${escapeHtml(entry.title || 'Comentario')}</strong>
+                    <blockquote>${escapeHtml(entry.evidence || entry.summary || '')}</blockquote>
+                    <small>${escapeHtml(entry.opportunity || '')}</small>
+                </div>
+            `);
+            overlay.appendChild(item);
         });
     }
 
@@ -1006,28 +1099,7 @@
 
     function renderFeedbackOverlay() {
         const overlay = ensureFeedbackOverlay();
-        const suggestions = resolveFeedbackAnchors(getMockFeedbackSuggestions());
-        overlay.style.width = `${Math.max(document.body.scrollWidth, document.documentElement.scrollWidth)}px`;
-        overlay.style.height = `${Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)}px`;
-        overlay.innerHTML = '';
-
-        suggestions.forEach((suggestion) => {
-            const item = document.createElement('div');
-            item.className = 'feedback-pin';
-            item.dataset.side = suggestion.side;
-            item.style.top = `${suggestion.top}px`;
-            item.style.left = `${suggestion.left}px`;
-            item.innerHTML = `
-                <div class="feedback-dot">${suggestion.order}</div>
-                <div class="feedback-card">
-                    <div class="feedback-card-eyebrow">${escapeHtml(suggestion.area || 'Momento detectado')}</div>
-                    <strong>${escapeHtml(suggestion.title || 'Comentario')}</strong>
-                    <blockquote>${escapeHtml(suggestion.evidence || suggestion.summary || '')}</blockquote>
-                    <small>${escapeHtml(suggestion.opportunity || '')}</small>
-                </div>
-            `;
-            overlay.appendChild(item);
-        });
+        renderCardsOverlay(overlay, resolveOverlayAnchors(getMockFeedbackSuggestions()));
     }
 
     function showFeedbackOverlay() {
@@ -1049,6 +1121,43 @@
             return;
         }
         showFeedbackOverlay();
+    }
+
+    function getWorkflowOverlayItems(workflow) {
+        return window.GraphWorkflowOverlayBridge?.buildOverlayItems?.(workflow || null) || [];
+    }
+
+    function renderWorkflowOverlay() {
+        if (!workflowOverlayWorkflow) {
+            return;
+        }
+        renderCardsOverlay(ensureWorkflowOverlay(), resolveOverlayAnchors(getWorkflowOverlayItems(workflowOverlayWorkflow)));
+    }
+
+    function showWorkflowOverlay(workflow) {
+        if (!workflow) {
+            return;
+        }
+        workflowOverlayVisible = true;
+        workflowOverlayWorkflow = workflow;
+        renderWorkflowOverlay();
+        ensureWorkflowOverlay().hidden = false;
+        updateWorkflowPanelStatus(`Mostrando pasos de ${workflow.description || workflow.id}.`);
+    }
+
+    function hideWorkflowOverlay() {
+        workflowOverlayVisible = false;
+        workflowOverlayWorkflow = null;
+        ensureWorkflowOverlay().hidden = true;
+    }
+
+    function toggleWorkflowOverlay(workflow) {
+        if (workflowOverlayVisible && workflowOverlayWorkflow?.id === workflow?.id) {
+            hideWorkflowOverlay();
+            return false;
+        }
+        showWorkflowOverlay(workflow);
+        return true;
     }
 
     function appendAgentMessage(role, text, meta, pushHistory = true) {
@@ -1181,7 +1290,7 @@
     }
 
     function filterWorkflowsForCurrentPage(workflows) {
-        return window.GraphPluginContext?.filterWorkflows?.(workflows || [], options) || [];
+        return Array.isArray(workflows) ? workflows : [];
     }
 
     function formatTimestamp(value) {
@@ -1196,10 +1305,9 @@
     }
 
     function setWorkflowPanelLoadingState(isLoading) {
-        const refresh = document.getElementById('workflow-panel-refresh');
-        if (refresh) {
-            refresh.disabled = isLoading;
-            refresh.textContent = isLoading ? 'Cargando...' : 'Actualizar';
+        const closeButton = document.getElementById('workflow-panel-close');
+        if (closeButton) {
+            closeButton.disabled = isLoading;
         }
     }
 
@@ -1979,7 +2087,7 @@
         const empty = document.getElementById('improvement-panel-empty');
         if (!list || !empty) return;
 
-        list.innerHTML = '';
+        list.replaceChildren();
 
         if (!suggestions.length) {
             empty.hidden = false;
@@ -1994,7 +2102,7 @@
             const item = document.createElement('article');
             item.className = 'improvement-item';
             const priority = `${suggestion.priority || 'media'}`.toLowerCase();
-            item.innerHTML = `
+            setElementHtml(item, `
                 <div class="improvement-item-header">
                     <div>
                         <div class="improvement-item-eyebrow">${suggestion.area || 'Momento de la experiencia'}</div>
@@ -2015,7 +2123,7 @@
                     <div><strong>Origen:</strong> ${suggestion.source || 'Plugin'}</div>
                 </div>
                 <div class="improvement-item-target">Anclado a: ${suggestion.selector || 'pagina actual'}</div>
-            `;
+            `);
             list.appendChild(item);
         });
     }
@@ -2025,21 +2133,22 @@
         const empty = document.getElementById('workflow-panel-empty');
         if (!list || !empty) return;
 
-        list.innerHTML = '';
+        workflowPanelEntries = Array.isArray(workflows) ? workflows.slice() : [];
+        list.replaceChildren();
 
         if (!workflows.length) {
             empty.hidden = false;
-            updateWorkflowPanelStatus('No hay workflows grabados para esta pagina.');
+            updateWorkflowPanelStatus('No hay workflows disponibles todavia.');
             return;
         }
 
         empty.hidden = true;
-        updateWorkflowPanelStatus(`${workflows.length} workflow(s) grabados en esta pagina.`);
+        updateWorkflowPanelStatus(`${workflows.length} workflow(s) disponibles.`);
 
         workflows.forEach((workflow) => {
             const item = document.createElement('article');
             item.className = 'workflow-item';
-            item.innerHTML = `
+            setElementHtml(item, `
                 <h4 class="workflow-item-title">${workflow.description || workflow.id}</h4>
                 <div class="workflow-item-meta">
                     <div><strong>ID:</strong> ${workflow.id}</div>
@@ -2048,11 +2157,16 @@
                     <div>${workflow.summary || 'Sin resumen todavia.'}</div>
                 </div>
                 <div class="workflow-item-actions">
-                    <button class="copy-btn" type="button" data-action="copy-id" data-workflow-id="${workflow.id}">Copiar ID</button>
-                    <button class="delete-btn" type="button" data-action="delete-workflow" data-workflow-id="${workflow.id}">Borrar</button>
+                    <button class="view-btn" type="button" data-action="view-workflow" data-workflow-id="${workflow.id}" aria-label="Ver workflow">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" fill="currentColor"/></svg>
+                        <span>Ver</span>
+                    </button>
+                    <button class="delete-btn" type="button" data-action="delete-workflow" data-workflow-id="${workflow.id}" aria-label="Borrar workflow">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 7h2v8h-2v-8Zm4 0h2v8h-2v-8ZM7 10h2v8H7v-8Z" fill="currentColor"/></svg>
+                    </button>
                     <button class="run-btn" type="button" data-action="run-workflow" data-workflow-id="${workflow.id}">Ejecutar</button>
                 </div>
-            `;
+            `);
             list.appendChild(item);
         });
     }
@@ -2064,7 +2178,7 @@
 
         workflowPanelLoaded = true;
         setWorkflowPanelLoadingState(true);
-        updateWorkflowPanelStatus('Buscando workflows de esta pagina...');
+        updateWorkflowPanelStatus('Buscando workflows disponibles...');
 
         try {
             const payload = await requireApiClient().listWorkflows();
@@ -2074,14 +2188,18 @@
             updateWorkflowPanelStatus(error.message || 'No se pudo cargar el panel.');
             const list = document.getElementById('workflow-panel-list');
             const empty = document.getElementById('workflow-panel-empty');
-            if (list) list.innerHTML = '';
+            if (list) list.replaceChildren();
             if (empty) {
                 empty.hidden = false;
-                empty.textContent = 'No fue posible cargar los workflows de esta pagina.';
+                empty.textContent = 'No fue posible cargar los workflows disponibles.';
             }
         } finally {
             setWorkflowPanelLoadingState(false);
         }
+    }
+
+    function getWorkflowEntryById(workflowId) {
+        return workflowPanelEntries.find((workflow) => workflow.id === workflowId) || null;
     }
 
     async function loadImprovementPanel(force = false) {
@@ -2102,7 +2220,7 @@
             updateImprovementPanelStatus(error.message || 'No se pudo cargar el panel de mejoras.');
             const list = document.getElementById('improvement-panel-list');
             const empty = document.getElementById('improvement-panel-empty');
-            if (list) list.innerHTML = '';
+            if (list) list.replaceChildren();
             if (empty) {
                 empty.hidden = false;
                 empty.textContent = 'No fue posible cargar las sugerencias de mejora de esta pagina.';
@@ -3425,8 +3543,8 @@
             await startWorkflow();
         });
 
-        document.getElementById('workflow-panel-refresh').addEventListener('click', () => {
-            loadWorkflowPanel(true);
+        document.getElementById('workflow-panel-close').addEventListener('click', () => {
+            closeWorkflowPanel();
         });
 
         document.getElementById('improvement-panel-refresh').addEventListener('click', () => {
@@ -3443,10 +3561,16 @@
             if (feedbackOverlayVisible) {
                 renderFeedbackOverlay();
             }
+            if (workflowOverlayVisible) {
+                renderWorkflowOverlay();
+            }
         }, { passive: true });
         window.addEventListener('resize', () => {
             if (feedbackOverlayVisible) {
                 renderFeedbackOverlay();
+            }
+            if (workflowOverlayVisible) {
+                renderWorkflowOverlay();
             }
         });
         updateFeedbackOverlayButton();
@@ -3458,16 +3582,6 @@
             const workflowId = button.getAttribute('data-workflow-id');
             const action = button.getAttribute('data-action');
             if (!workflowId || !action) return;
-
-            if (action === 'copy-id') {
-                try {
-                    await navigator.clipboard.writeText(workflowId);
-                    updateWorkflowPanelStatus(`ID copiado: ${workflowId}`);
-                } catch (error) {
-                    updateWorkflowPanelStatus(`No se pudo copiar ${workflowId}.`);
-                }
-                return;
-            }
 
             if (action === 'run-workflow') {
                 button.disabled = true;
@@ -3481,6 +3595,16 @@
                 return;
             }
 
+            if (action === 'view-workflow') {
+                const workflow = getWorkflowEntryById(workflowId);
+                if (!workflow) {
+                    updateWorkflowPanelStatus(`No encontré el workflow ${workflowId}.`);
+                    return;
+                }
+                toggleWorkflowOverlay(workflow);
+                return;
+            }
+
             if (action === 'delete-workflow') {
                 const confirmed = window.confirm(`¿Borrar el workflow ${workflowId}? Esta accion no se puede deshacer.`);
                 if (!confirmed) {
@@ -3489,6 +3613,9 @@
 
                 button.disabled = true;
                 try {
+                    if (workflowOverlayWorkflow?.id === workflowId) {
+                        hideWorkflowOverlay();
+                    }
                     await deleteWorkflowFromPanel(workflowId);
                     workflowPanelLoaded = false;
                     await loadWorkflowPanel(true);
@@ -3563,6 +3690,7 @@
             improvementPanelLoaded = false;
             closeWorkflowPanel();
             closeImprovementPanel();
+            hideWorkflowOverlay();
             updateConsoleExpandedState();
 
             if (options.autoSyncStatus && window.WorkflowRecorder?.syncStatus) {
@@ -3595,6 +3723,15 @@
         openImprovementPanel() {
             openImprovementPanel();
             loadImprovementPanel(true);
+        },
+        showWorkflowOverlayById(workflowId) {
+            const workflow = getWorkflowEntryById(workflowId);
+            if (workflow) {
+                showWorkflowOverlay(workflow);
+            }
+        },
+        hideWorkflowOverlay() {
+            hideWorkflowOverlay();
         },
         showFeedbackOverlay() {
             showFeedbackOverlay();

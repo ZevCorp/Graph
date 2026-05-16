@@ -171,6 +171,7 @@ async function bootstrap() {
     'assets/plugin/plugin-context.js',
     'assets/plugin/plugin-api.js',
     'assets/plugin/plugin-learning-bridge.js',
+    'assets/plugin/plugin-workflow-overlay-bridge.js',
     'assets/trainer-plugin.js',
     'bootstrap.js'
   ];

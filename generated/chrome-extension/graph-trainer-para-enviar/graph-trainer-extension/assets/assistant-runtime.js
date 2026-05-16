@@ -44,6 +44,20 @@
             blinkRestoreTimer: null
         }
     };
+    const trustedHtmlPolicy = (() => {
+        if (!window.trustedTypes?.createPolicy) {
+            return null;
+        }
+        try {
+            return window.trustedTypes.createPolicy('graph-assistant-runtime-html', {
+                createHTML(value) {
+                    return value;
+                }
+            });
+        } catch (error) {
+            return null;
+        }
+    })();
 
     const FACE_PRESETS = {
         smile: {
@@ -86,6 +100,14 @@
             mouthOpenness: 0
         }
     };
+
+    function setElementHtml(element, html) {
+        if (!element) {
+            return;
+        }
+        const safeHtml = trustedHtmlPolicy ? trustedHtmlPolicy.createHTML(html) : html;
+        element.innerHTML = safeHtml;
+    }
 
     function quadraticBezier(start, control, end) {
         return `M${start.x},${start.y} Q${control.x},${control.y} ${end.x},${end.y}`;
@@ -299,7 +321,7 @@
                 max-width: min(280px, calc(100vw - 152px));
                 padding: 10px 12px;
                 border-radius: 16px;
-                background: rgba(246, 250, 255, 0.97);
+                background: rgba(255, 255, 255, 0.98);
                 color: #102033;
                 font: 600 12px/1.4 "Inter", "Segoe UI", sans-serif;
                 box-shadow: 0 20px 44px rgba(5, 10, 20, 0.24);
@@ -371,7 +393,7 @@
                     0 0 0 1px rgba(255, 255, 255, 0.88);
             }
             .graph-assistant-chat-toggle[data-active="true"] {
-                background: rgba(246, 250, 255, 0.98);
+                background: rgba(255, 255, 255, 0.98);
             }
             .graph-assistant-chat-toggle svg {
                 width: 18px;
@@ -404,26 +426,23 @@
                 border-radius: 18px;
                 padding: 12px 14px;
                 box-sizing: border-box;
-                background: rgba(20, 27, 34, 0.94);
-                color: #f8fbff;
+                background: rgba(255, 255, 255, 0.98);
+                color: #102033;
                 font: 500 13px/1.45 "Inter", "Segoe UI", sans-serif;
                 box-shadow:
-                    0 24px 64px rgba(2, 8, 18, 0.55),
-                    0 0 0 1px rgba(255, 255, 255, 0.12),
-                    0 0 34px rgba(255, 255, 255, 0.12),
-                    0 10px 28px rgba(255, 255, 255, 0.08);
+                    0 20px 44px rgba(5, 10, 20, 0.24),
+                    0 0 0 1px rgba(255, 255, 255, 0.8);
                 backdrop-filter: blur(14px);
                 outline: none;
             }
             .graph-assistant-chat-composer textarea::placeholder {
-                color: rgba(248, 251, 255, 0.66);
+                color: rgba(16, 32, 51, 0.5);
             }
             .graph-assistant-chat-composer textarea:focus {
                 box-shadow:
-                    0 24px 64px rgba(2, 8, 18, 0.55),
-                    0 0 0 1px rgba(255, 255, 255, 0.18),
-                    0 0 0 4px rgba(255, 255, 255, 0.06),
-                    0 10px 28px rgba(255, 255, 255, 0.08);
+                    0 20px 44px rgba(5, 10, 20, 0.24),
+                    0 0 0 1px rgba(15, 95, 140, 0.18),
+                    0 0 0 4px rgba(15, 95, 140, 0.08);
             }
             .graph-assistant-chat-composer-actions {
                 display: flex;
@@ -433,14 +452,22 @@
             .graph-assistant-chat-send {
                 border: none;
                 border-radius: 999px;
-                padding: 9px 14px;
-                background: rgba(20, 27, 34, 0.94);
-                color: #f8fbff;
-                font: 700 12px/1 "Inter", "Segoe UI", sans-serif;
+                width: 40px;
+                height: 40px;
+                padding: 0;
+                background: rgba(255, 255, 255, 0.98);
+                color: #102033;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
                 cursor: pointer;
                 box-shadow:
-                    0 18px 36px rgba(4, 10, 20, 0.28),
-                    0 0 0 1px rgba(255, 255, 255, 0.1);
+                    0 18px 36px rgba(4, 10, 20, 0.18),
+                    0 0 0 1px rgba(255, 255, 255, 0.8);
+            }
+            .graph-assistant-chat-send svg {
+                width: 16px;
+                height: 16px;
             }
             .graph-assistant-chat-send:disabled {
                 opacity: 0.55;
@@ -558,7 +585,7 @@
             shell.id = 'graph-assistant-shell';
             shell.className = 'graph-assistant-shell';
             shell.dataset.state = 'idle';
-            shell.innerHTML = `
+            setElementHtml(shell, `
                 <div class="graph-assistant-avatar" aria-hidden="true">
                     <div class="graph-assistant-face-frame">
                         <div class="graph-assistant-face-slot" data-face-slot="true">
@@ -577,7 +604,7 @@
                     </div>
                     <div class="graph-assistant-label" id="graph-assistant-label">Graph</div>
                 </div>
-            `;
+            `);
             document.body.appendChild(shell);
         }
 
@@ -587,7 +614,7 @@
             bubble.id = 'graph-assistant-bubble';
             bubble.className = 'graph-assistant-bubble';
             bubble.dataset.visible = 'true';
-            bubble.innerHTML = '<span class="graph-assistant-bubble-text" id="graph-assistant-bubble-text"></span>';
+            setElementHtml(bubble, '<span class="graph-assistant-bubble-text" id="graph-assistant-bubble-text"></span>');
             document.body.appendChild(bubble);
         }
 
@@ -608,7 +635,7 @@
             micButton.type = 'button';
             micButton.dataset.active = 'false';
             micButton.setAttribute('aria-label', 'Hablar con el asistente');
-            micButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.08A7 7 0 0 1 5 12a1 1 0 1 1 2 0 5 5 0 1 0 10 0Z" fill="currentColor"/></svg>';
+            setElementHtml(micButton, '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.08A7 7 0 0 1 5 12a1 1 0 1 1 2 0 5 5 0 1 0 10 0Z" fill="currentColor"/></svg>');
             document.body.appendChild(micButton);
         }
 
@@ -620,7 +647,7 @@
             chatButton.type = 'button';
             chatButton.dataset.active = 'false';
             chatButton.setAttribute('aria-label', 'Abrir chat del asistente');
-            chatButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H8.5L4 19V5Z" fill="currentColor"/></svg>';
+            setElementHtml(chatButton, '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H8.5L4 19V5Z" fill="currentColor"/></svg>');
             document.body.appendChild(chatButton);
         }
 
@@ -630,12 +657,14 @@
             chatComposer.id = 'graph-assistant-chat-composer';
             chatComposer.className = 'graph-assistant-chat-composer';
             chatComposer.dataset.visible = 'false';
-            chatComposer.innerHTML = `
+            setElementHtml(chatComposer, `
                 <textarea id="graph-assistant-chat-input" rows="2" placeholder="Escribe tu mensaje..."></textarea>
                 <div class="graph-assistant-chat-composer-actions">
-                    <button id="graph-assistant-chat-send" class="graph-assistant-chat-send" type="button">Enviar</button>
+                    <button id="graph-assistant-chat-send" class="graph-assistant-chat-send" type="button" aria-label="Enviar mensaje">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 20.5 4l-4.7 16-3.8-5-5-3.5Z" fill="currentColor"/></svg>
+                    </button>
                 </div>
-            `;
+            `);
             document.body.appendChild(chatComposer);
         }
 
@@ -1077,17 +1106,6 @@
         const maxLeft = window.innerWidth - bubbleRect.width - padding;
         const maxTop = window.innerHeight - bubbleRect.height - padding;
 
-        bubble.style.left = `${clamp(rawLeft, padding, Math.max(padding, maxLeft))}px`;
-        bubble.style.top = `${clamp(rawTop, padding, Math.max(padding, maxTop))}px`;
-
-        if (userBubble && userBubble.dataset.visible === 'true') {
-            const userRect = userBubble.getBoundingClientRect();
-            const userLeft = clamp(rawLeft, padding, Math.max(padding, window.innerWidth - userRect.width - padding));
-            const userTop = clamp(rawTop - userRect.height - 12, padding, Math.max(padding, window.innerHeight - userRect.height - padding));
-            userBubble.style.left = `${userLeft}px`;
-            userBubble.style.top = `${userTop}px`;
-        }
-
         const buttonSize = 42;
         const buttonGap = 10;
         const controlsWidth = (buttonSize * 2) + buttonGap;
@@ -1096,7 +1114,44 @@
             padding,
             window.innerWidth - controlsWidth - padding
         );
-        const controlsTop = clamp(rawTop + bubbleRect.height - 4, padding, window.innerHeight - buttonSize - padding);
+        const controlsTop = clamp(rawTop + bubbleRect.height + 10, padding, window.innerHeight - buttonSize - padding);
+
+        let currentBottom = controlsTop - 12;
+
+        if (chatComposer && chatComposer.dataset.visible === 'true') {
+            const composerRect = chatComposer.getBoundingClientRect();
+            const composerWidth = Math.max(composerRect.width, 120);
+            const composerHeight = Math.max(composerRect.height, 42);
+            const composerLeft = clamp(rawLeft, padding, Math.max(padding, window.innerWidth - composerWidth - padding));
+            const composerTop = clamp(currentBottom - composerHeight, padding, Math.max(padding, window.innerHeight - composerHeight - padding));
+            chatComposer.style.left = `${composerLeft}px`;
+            chatComposer.style.top = `${composerTop}px`;
+            currentBottom = composerTop - 12;
+        }
+
+        const messageItems = [];
+        if (bubble.dataset.visible === 'true') {
+            messageItems.push(bubble);
+        }
+        if (userBubble && userBubble.dataset.visible === 'true') {
+            messageItems.push(userBubble);
+        }
+
+        messageItems.forEach((item) => {
+            const itemRect = item.getBoundingClientRect();
+            const itemWidth = Math.max(itemRect.width, 120);
+            const itemHeight = Math.max(itemRect.height, 42);
+            const itemLeft = clamp(rawLeft, padding, Math.max(padding, window.innerWidth - itemWidth - padding));
+            const itemTop = clamp(currentBottom - itemHeight, padding, Math.max(padding, window.innerHeight - itemHeight - padding));
+            item.style.left = `${itemLeft}px`;
+            item.style.top = `${itemTop}px`;
+            currentBottom = itemTop - 12;
+        });
+
+        if (bubble.dataset.visible !== 'true') {
+            bubble.style.left = `${clamp(rawLeft, padding, Math.max(padding, maxLeft))}px`;
+            bubble.style.top = `${clamp(rawTop, padding, Math.max(padding, maxTop))}px`;
+        }
 
         if (chatButton) {
             chatButton.style.left = `${controlsLeft}px`;
@@ -1105,21 +1160,6 @@
         if (micButton) {
             micButton.style.left = `${controlsLeft + buttonSize + buttonGap}px`;
             micButton.style.top = `${controlsTop}px`;
-        }
-        if (chatComposer && chatComposer.dataset.visible === 'true') {
-            const composerRect = chatComposer.getBoundingClientRect();
-            const composerLeft = clamp(
-                rawLeft,
-                padding,
-                Math.max(padding, window.innerWidth - composerRect.width - padding)
-            );
-            const composerTop = clamp(
-                controlsTop - composerRect.height - 12,
-                padding,
-                Math.max(padding, window.innerHeight - composerRect.height - padding)
-            );
-            chatComposer.style.left = `${composerLeft}px`;
-            chatComposer.style.top = `${composerTop}px`;
         }
     }
 
@@ -1270,7 +1310,12 @@
             }
             if (chatSendButton) {
                 chatSendButton.disabled = Boolean(active);
-                chatSendButton.textContent = active ? 'Enviando...' : 'Enviar';
+                setElementHtml(
+                    chatSendButton,
+                    active
+                        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+                        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 20.5 4l-4.7 16-3.8-5-5-3.5Z" fill="currentColor"/></svg>'
+                );
             }
         },
         setVoiceButtonActive(active) {
