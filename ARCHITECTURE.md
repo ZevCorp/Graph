@@ -1,69 +1,79 @@
 # Architecture
 
-This document explains the main architectural concepts behind Graph.
+This document explains the current architecture of Graph as it exists today.
 
-The most important idea is that Graph is being shaped as a reusable learning and replay system, not as a medical demo with some automation attached.
+Graph is a reusable learning-and-replay system. The demos matter, but they are not the product boundary. The product boundary is:
+
+1. learn a workflow from real page interaction
+2. persist it with enough semantics to replay it later
+3. discover the right workflow for the current page and user request
+4. execute it through an assistant-driven runtime
 
 ## System Goal
 
-Graph learns workflows from real user interactions and later reuses them through an assistant-driven runtime.
+Graph should behave like a page-attachable assistant plugin that can:
 
-The target product shape is a plugin-style architecture that can be attached to multiple page/app contexts while preserving the same learning core.
+- learn how to use a page
+- remember those workflows globally
+- adapt its assistant behavior to the page it is mounted on
+- replay learned workflows with minimal user friction
+
+Today the product shape is:
+
+- a shared workflow core
+- a browser runtime/plugin layer
+- a central backend with Neo4j + LLM orchestration
+- demos and extension packaging on top
 
 ## Architectural Principles
 
 ### 1. The learning loop is the product
 
-The critical path is:
+The critical loop is:
 
-1. record interaction
+1. capture interaction
 2. persist workflow
-3. infer variables and options
-4. regenerate workflow catalog
-5. discover a workflow for the current context
-6. replay it successfully
+3. infer variables/options
+4. rebuild catalog
+5. select workflow for current page context
+6. replay successfully
 
-If a change weakens this loop, it is architectural debt.
+Any refactor that weakens this loop is architectural debt.
 
-### 2. Demos are integrations, not the core
+### 2. Workflows are global by default
 
-The medical demo and the car-rental demo are examples that exercise the system.
+Today workflows are intentionally shared across users.
 
-They should not define the long-term boundaries of the product.
+That means:
 
-### 3. The plugin layer owns page-specific behavior
+- if a page has already been taught, everyone can benefit
+- the system gets stronger as more workflows are learned
 
-Anything that depends on a specific page or app should live in the page/plugin layer when possible:
+We are leaving room for future private workflows, but they are not active in the current product model.
 
-- page form persistence
-- assistant personality
-- page context
-- runtime widget injection
+### 3. Surface behavior is page-scoped
 
-### 4. The core should stay generic
+The assistant tone, welcome message, system prompt addendum, and page summary belong to the page surface, not to the workflow engine.
 
-The core should not assume:
+### 4. The runtime should be capability-based
 
-- EMR semantics
-- car-rental semantics
-- a specific frontend framework
-- a single DOM structure
+The browser plugin runtime is moving away from a single giant `trainer-plugin.js` file and toward capability modules:
 
-The core should think in terms of:
-
-- workflows
-- steps
-- variables
-- contexts
+- learning
 - execution
+- voice
+- surface profile hydration
+- trainer shell / UI orchestration
+
+This is the main architectural evolution of the current codebase.
 
 ## Layered View
 
-## 1. Core Domain and Application Layer
+## 1. Domain and Application Layer
 
 Primary responsibility:
 
-- represent workflows
+- represent workflows and steps
 - choose workflows
 - execute workflows
 - preserve the learning loop
@@ -76,25 +86,21 @@ Key files:
 - [src/application/use-cases/WorkflowCatalog.js](C:/Users/User/Desktop/Graph/src/application/use-cases/WorkflowCatalog.js)
 - [src/application/use-cases/WorkflowExecutor.js](C:/Users/User/Desktop/Graph/src/application/use-cases/WorkflowExecutor.js)
 - [src/application/use-cases/AgentChat.js](C:/Users/User/Desktop/Graph/src/application/use-cases/AgentChat.js)
+- [src/application/use-cases/SurfaceProfileService.js](C:/Users/User/Desktop/Graph/src/application/use-cases/SurfaceProfileService.js)
 
-Main responsibilities:
+### Workflow
 
-- create workflows and steps
-- infer execution variables
-- keep workflows discoverable
-- choose a workflow from a user request
-- execute workflows with provided or inferred values
+`Workflow` is the aggregate root for learned behavior.
 
-### Workflow Entity
+Today it contains:
 
-`Workflow` is the aggregate that ties together:
+- workflow metadata
+- page context
+- context notes
+- ordered steps
+- inferred variables derived from steps
 
-- human-readable purpose
-- execution steps
-- variable prompts
-- page/application context
-
-Today a workflow may carry:
+Important fields:
 
 - `id`
 - `description`
@@ -102,317 +108,539 @@ Today a workflow may carry:
 - `status`
 - `appId`
 - `sourceUrl`
+- `sourceOrigin`
 - `sourcePathname`
 - `sourceTitle`
+- `contextNotes`
 - `steps`
 
-This context is essential for keeping workflows separated across demos and future plugin surfaces.
+The important architectural idea is that the workflow is not just “a macro”. It is a page-scoped, semantically enriched replay artifact.
 
-### Step Entity
+### Step
 
 `Step` is the execution primitive.
 
-Today it models actions such as:
+Current action types:
 
 - `navigation`
 - `click`
 - `input`
 - `select`
 
-It also stores information that keeps replay explainable and robust:
+Important step fields:
 
-- selector
-- label
-- value
-- selected option
-- allowed options
-- step order
+- `selector`
+- `label`
+- `value`
+- `selectedValue`
+- `selectedLabel`
+- `allowedOptions`
+- `stepOrder`
 
-### Agent Chat
+This is what lets Graph execute with more structure than a naive click recorder.
+
+### WorkflowLearner
+
+`WorkflowLearner` is the current application service for recording sessions.
+
+It is responsible for:
+
+- starting a workflow session
+- appending steps
+- appending `contextNotes`
+- finishing the workflow
+- generating a summary
+- triggering catalog rebuild
+
+Current limit:
+
+- it still owns a publication side-effect by rebuilding the catalog directly when a session finishes
+
+### WorkflowCatalog
+
+`WorkflowCatalog` rebuilds full workflows from row-oriented storage and exposes them as replay-ready objects.
+
+It currently also writes the markdown catalog file, which is convenient but still somewhat coupled.
+
+### WorkflowExecutor
+
+`WorkflowExecutor` is the backend execution planner.
+
+In browser mode, it returns an execution plan that the browser runtime applies step by step.
+
+In server mode, it can execute directly through Playwright.
+
+### AgentChat
 
 `AgentChat` is the workflow-selection layer.
 
 It is responsible for:
 
-- filtering workflows for the current page/app context
-- injecting assistant personality into the prompt
-- asking the LLM to choose a workflow and missing values
+- filtering workflows for the current page
+- injecting assistant personality and prompt guidance
+- deciding whether enough information exists to run now
+- filling missing variables through the LLM when needed
 
-This is where page-specific personality affects the assistant's conversational behavior, but the workflow engine itself remains generic.
+This is where the assistant becomes page-aware without hardcoding page semantics into the workflow core.
+
+### SurfaceProfileService
+
+`SurfaceProfileService` is the page-context authoring layer.
+
+It ensures that each page surface can have a global profile describing:
+
+- assistant personality
+- assistant runtime copy
+- workflow description
+- system prompt addendum
+- page summary
+- language-specific greeting behavior
+
+Profiles are currently global per:
+
+- `appId`
+- `sourcePathname`
+- `scope`
+- `ownerId`
+- `languageCode`
+
+Today we use `scope = global` and empty `ownerId`.
 
 ## 2. Infrastructure Layer
 
 Primary responsibility:
 
-- persist workflows
-- talk to LLM provider
-- run Playwright
-- write generated catalog artifacts
+- persistence
+- LLM transport
+- execution backend
+- generated artifacts
 
 Key files:
 
 - [src/infrastructure/repositories/Neo4jWorkflowRepository.js](C:/Users/User/Desktop/Graph/src/infrastructure/repositories/Neo4jWorkflowRepository.js)
 - [src/infrastructure/LLMProvider.js](C:/Users/User/Desktop/Graph/src/infrastructure/LLMProvider.js)
 - [src/infrastructure/PlaywrightRunner.js](C:/Users/User/Desktop/Graph/src/infrastructure/PlaywrightRunner.js)
+- [src/infrastructure/VoiceRealtimeGateway.js](C:/Users/User/Desktop/Graph/src/infrastructure/VoiceRealtimeGateway.js)
 - [src/infrastructure/file-system/MarkdownCatalogWriter.js](C:/Users/User/Desktop/Graph/src/infrastructure/file-system/MarkdownCatalogWriter.js)
 
 ### Neo4j Repository
 
-Neo4j is the persistence layer for workflows and steps.
+Neo4j is the persistence layer for:
 
-It stores:
+- workflows
+- steps
+- workflow `contextNotes`
+- surface profiles
 
-- workflow metadata
-- workflow context
-- step sequence
-- select metadata
+This is important: Graph does **not** execute workflows by sending Cypher scripts to Neo4j.
 
-This layer should stay storage-focused and not absorb product behavior.
+Neo4j is only being used as the persistence graph.
+
+The application runs normal JavaScript services, and those services read/write workflow data through repository methods that internally use Cypher queries.
+
+Current graph shape:
+
+- `(:Workflow)`
+- `(:Step)`
+- `(:SurfaceProfile)`
+- relationship: `(:Workflow)-[:HAS_STEP]->(:Step)`
+
+So the “graph” today is mostly:
+
+- one workflow node
+- many ordered step nodes attached to it
+- separate surface-profile nodes for page behavior
+
+Step ordering is stored as `stepOrder`, not as a linked-list style relationship between step nodes.
 
 ### LLM Provider
 
-The LLM provider is intentionally isolated from application logic.
+`LLMProvider` isolates:
 
-Its responsibilities are:
+- provider transport
+- model invocation
+- JSON-object prompting
+- auth/config handling
 
-- transport
-- model selection
-- JSON-response handling
-- provider-specific auth/config
+This lets application services ask for:
 
-Today it is configured primarily for OpenRouter, with fallback support patterns for OpenAI-style usage.
+- summary generation
+- workflow decision
+- page profile generation
+
+without knowing provider details.
 
 ### Playwright Runner
 
-The Playwright runner executes workflows against the browser.
+`PlaywrightRunner` is the backend execution path.
 
-Important current capabilities:
+Important current behaviors:
 
 - locator resolution
 - input filling
-- select-option application
-- LLM-assisted selection of empty visible `select` elements when needed
+- select option application
+- empty-select interpretation support
 
-This layer should remain execution-oriented, not decision-oriented. Decision-making should stay in application logic or the LLM prompt layer.
+The browser runtime and Playwright runner are conceptually parallel execution surfaces:
 
-## 3. Page Plugin Layer
+- browser runtime executes inside the page for extension/plugin behavior
+- Playwright runner executes from backend/server mode
+
+### Voice Realtime Gateway
+
+`VoiceRealtimeGateway` is the server-side realtime voice transport/orchestration layer.
+
+It helps bridge browser voice flows with backend-assisted decision and execution logic.
+
+## 3. Browser Runtime / Plugin Layer
 
 Primary responsibility:
 
-- connect the generic learning system to a specific page
+- connect the generic learning system to a real web page
 
 Key files:
 
-- [web/public/recorder.js](C:/Users/User/Desktop/Graph/web/public/recorder.js)
 - [web/public/assistant-runtime.js](C:/Users/User/Desktop/Graph/web/public/assistant-runtime.js)
+- [web/public/recorder.js](C:/Users/User/Desktop/Graph/web/public/recorder.js)
 - [web/public/trainer-plugin.js](C:/Users/User/Desktop/Graph/web/public/trainer-plugin.js)
 - [web/public/page-state.js](C:/Users/User/Desktop/Graph/web/public/page-state.js)
+- [web/public/plugin/plugin-events.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-events.js)
+- [web/public/plugin/plugin-host.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-host.js)
+- [web/public/plugin/plugin-api.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-api.js)
+- [web/public/plugin/plugin-context.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-context.js)
+- [web/public/plugin/plugin-learning-bridge.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-learning-bridge.js)
+- [web/public/plugin/plugin-learning-client.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-learning-client.js)
+- [web/public/plugin/plugin-execution-client.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-execution-client.js)
+- [web/public/plugin/plugin-surface-profile-client.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-surface-profile-client.js)
+- [web/public/plugin/plugin-voice-client.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-voice-client.js)
+- [web/public/plugin/plugin-trainer-shell.js](C:/Users/User/Desktop/Graph/web/public/plugin/plugin-trainer-shell.js)
 
-This is the most important architectural evolution in the repo.
+### Assistant Runtime
 
-Originally, a lot of page behavior lived directly in the medical demo.
+`assistant-runtime.js` is the visual body of the assistant.
 
-Now there is a generic plugin-style layer that owns:
+Its responsibilities:
 
-- floating assistant runtime
-- floating trainer UI
-- workflow start/stop triggers
-- agent chat request wiring
-- page context propagation
-- page-level assistant personality
-- generic page-state persistence
+- render the floating assistant shell
+- move near selectors
+- spotlight page regions
+- show conversation copy
+- expose APIs like:
+  - `speak`
+  - `moveToSelector`
+  - `handleAutomationEvent`
+  - `startTour`
+  - `pinBottomRight`
+  - `openChatComposer`
 
-### Floating Assistant Runtime
-
-`assistant-runtime.js` is the new reusable UI core for the plugin.
-
-Its responsibility is not workflow learning itself. Its job is to be the visual and conversational body of the product inside any page:
-
-- render the floating assistant
-- move toward active fields or controls
-- spotlight page regions during guided tours
-- expose a stable runtime API that other subsystems can call
-
-This matters because multiple future systems need the same surface:
-
-- workflow execution guidance
-- pitch/improvement tours
-- real-time assistant conversation
-- future memory capture and omnichannel CRM actions
-
-By keeping that body separate from `trainer-plugin.js`, we avoid turning the trainer toolbar into the entire product runtime.
+It should remain UI/runtime focused, not workflow-decision focused.
 
 ### Recorder
 
-The recorder captures DOM actions with enough semantic structure to replay them later.
-
-It is intentionally moving away from demo-specific assumptions.
+`recorder.js` captures DOM interactions with enough semantics to replay them later.
 
 Current responsibilities:
 
-- capture clicks
-- capture text entry
-- capture select changes
-- attach labels and selector metadata
+- detect clicks
+- detect input changes
+- detect select changes
+- capture labels and selectors
+- capture allowed options for selects
 - send steps to the backend
+- emit learning lifecycle events
 
 ### Trainer Plugin
 
-The trainer plugin is the runtime mount point for page-specific behavior.
+`trainer-plugin.js` is still the composition root for the browser runtime.
 
-It is configured per page with values like:
+Its job today is increasingly:
+
+- mount page configuration
+- wire capabilities together
+- wire assistant-runtime subscriptions
+- keep compatibility with existing runtime behavior
+
+It is no longer the only place where product behavior lives. That is the key architectural improvement.
+
+### Capability Modules
+
+The runtime is now split into capability modules:
+
+#### `plugin-context.js`
+
+Builds normalized page context and lightweight page snapshots.
+
+It is responsible for:
 
 - `appId`
-- `workflowDescription`
-- `assistantProfile`
+- `sourceOrigin`
+- `sourcePathname`
+- `browserLocale`
+- `languageCode`
+- workflow filtering hooks
+- page snapshot capture for surface-profile generation
 
-This design is the current bridge toward a future real plugin.
+#### `plugin-api.js`
 
-After the floating assistant split, `trainer-plugin.js` should increasingly become orchestration glue:
+Defines the browser-facing API client for:
 
-- mount page-scoped configuration
-- connect UI controls to backend APIs
-- pass context into the assistant runtime
-- trigger tours and workflow execution
+- workflow start/stop/steps
+- workflow context notes
+- workflow execution planning
+- assistant chat
+- pitch generation
+- voice session endpoints
+- surface-profile ensure
 
-It should not become the permanent home for voice, memory, CRM sync, or execution telemetry logic.
+#### `plugin-host.js`
+
+Abstracts the host platform.
+
+Today it normalizes:
+
+- `apiBaseUrl`
+- `fetchImpl`
+- local storage namespace
+- session storage namespace
+- platform identity such as `chrome-extension` vs `web-page`
+
+This is one of the foundations for extension packaging and future host-specific adapters.
+
+#### `plugin-events.js`
+
+Simple event bus for plugin-level events.
+
+Examples:
+
+- `learning.session.started`
+- `learning.context.captured`
+- `workflow.execution.started`
+- `voice.transcript.captured`
+- `surface.profile.hydrated`
+
+#### `plugin-learning-bridge.js`
+
+Bridges voice transcripts into learning sessions.
+
+It listens for:
+
+- learning session start/finish
+- captured voice transcripts
+
+and emits:
+
+- `learning.context.captured`
+
+This is how “teach while speaking” is modeled today.
+
+#### `plugin-learning-client.js`
+
+Owns the learning-session controls on the browser side:
+
+- start workflow recording
+- stop workflow recording
+- reset workflow recording
+- sync recorder status into the UI
+
+#### `plugin-execution-client.js`
+
+Owns browser-side execution behavior:
+
+- pending execution persistence
+- URL normalization and resume logic
+- DOM element resolution
+- replay of `click`, `input`, `select`
+- runtime automation notifications
+- browser-side step execution loop
+
+It is the module that actually moves through the page during extension/plugin replay.
+
+#### `plugin-surface-profile-client.js`
+
+Owns surface-profile hydration:
+
+- build page context
+- persist learning context notes
+- ensure a surface profile exists for the current page
+- merge profile output into runtime options
+
+#### `plugin-voice-client.js`
+
+Owns the public browser voice controls:
+
+- start voice conversation
+- stop voice conversation
+- open phone microphone pairing
+- process voice complaints
+- restore stored phone session
+
+The deep realtime implementation still partially lives in `trainer-plugin.js`, but the public control surface is now split out.
+
+#### `plugin-trainer-shell.js`
+
+Owns the visible trainer shell behavior.
+
+It currently handles:
+
+- open/close workflow panel
+- open/close improvement panel
+- open chat panel
+- update panel expansion state
+- update workflow/improvement/voice status text
+- voice button state
+- long-press binding for the learning button
+- panel-level click handling for:
+  - execute workflow
+  - view workflow overlay
+  - delete workflow
+
+Architecturally, this is the UI-shell layer for the trainer, not the workflow engine itself.
 
 ### Page State
 
-`page-state.js` is a generic local form persistence helper.
+`page-state.js` remains the generic local form persistence helper.
 
-It replaced the older, more demo-specific `EMRState` idea with a reusable mechanism keyed by `storageKey`.
-
-## 4. Demo and Integration Layer
+## 4. Demo and Packaging Layer
 
 Primary responsibility:
 
-- exercise the system in realistic scenarios
+- provide realistic surfaces
+- package the runtime for browser use
 
 Current surfaces:
 
 - medical demo pages
 - injected car-rental demo
+- Chrome extension build output
 
-### Medical Demo
+### Chrome Extension
 
-Files:
+Source:
 
-- [web/public/index.html](C:/Users/User/Desktop/Graph/web/public/index.html)
-- [web/public/page1.html](C:/Users/User/Desktop/Graph/web/public/page1.html)
-- [web/public/page2.html](C:/Users/User/Desktop/Graph/web/public/page2.html)
+- [chrome-extension-src/graph-trainer](C:/Users/User/Desktop/Graph/chrome-extension-src/graph-trainer)
 
-Characteristics:
+Build script:
 
-- uses `appId: medical-demo`
-- mounts the generic trainer plugin
-- supplies a neutral assistant profile
+- [scripts/build-chrome-extension.js](C:/Users/User/Desktop/Graph/scripts/build-chrome-extension.js)
 
-### Car Demo
+Built output:
 
-Served from:
+- [generated/chrome-extension/graph-trainer](C:/Users/User/Desktop/Graph/generated/chrome-extension/graph-trainer)
 
-- `http://localhost:3000/examples/car-demo`
+The extension injects:
 
-Source material:
+- recorder
+- assistant runtime
+- capability modules
+- trainer plugin bootstrap
 
-- [Demo de carros/Alquiler de Carros en Medellín _ Rent a Car Medellín 24h.html](<C:/Users/User/Desktop/Graph/Demo de carros/Alquiler de Carros en Medellín _ Rent a Car Medellín 24h.html>)
-
-Characteristics:
-
-- uses `appId: car-demo`
-- trainer is injected from the server
-- assistant profile is sales-oriented and more human/casual
+into arbitrary pages.
 
 ## Runtime Flow
 
-The current runtime can be described as:
+### Learning flow
 
 ```text
-Page/App
-  -> Assistant Runtime
-  -> Trainer Plugin
-    -> Recorder
-      -> API
-        -> WorkflowLearner
-          -> Neo4j
-            -> Catalog regeneration
-
-User message
-  -> Trainer Plugin chat
-    -> API
-      -> AgentChat
-        -> context filter
-        -> personality-aware prompt
-        -> workflow decision
-          -> WorkflowExecutor
-            -> PlaywrightRunner
-              -> Assistant Runtime automation events
-
-Pitch generation
-  -> Trainer Plugin
-    -> GeneratePitchArtifacts
-      -> pitchpersonality.md
-      -> future-improvement.md
-      -> improvement-tour.json
-        -> Assistant Runtime guided tour
+User on page
+  -> Trainer shell long-press / record control
+    -> learning-client
+      -> recorder
+        -> /api/workflow/start
+        -> /api/step
+        -> /api/workflow/context-note
+        -> /api/workflow/stop
+          -> WorkflowLearner
+            -> Neo4j
+            -> catalog rebuild
 ```
 
-## Context and Personality
+### Assistant execution flow
 
-Two newer architectural features matter a lot:
+```text
+User asks for something
+  -> assistant runtime chat
+  -> trainer-plugin orchestration
+  -> /api/agent/chat
+    -> AgentChat
+      -> WorkflowCatalog
+      -> context filter
+      -> page personality
+      -> workflow decision
+  -> /api/workflows/:id/plan
+    -> WorkflowExecutor
+  -> execution-client
+    -> browser step replay
+    -> assistant runtime movement + spotlight
+```
 
-### Page Context
+### Surface-profile flow
 
-Workflows are associated with the page/app where they were learned.
+```text
+Page mounts
+  -> surface-profile-client
+    -> capture page snapshot
+    -> /api/surface-profile/ensure
+      -> SurfaceProfileService
+      -> Neo4j SurfaceProfile
+  -> trainer options updated
+  -> assistant greeting / behavior updated for page + language
+```
 
-This prevents cross-demo pollution.
+## Current Graph Model
 
-Today the main context discriminator is `appId`.
+Today Neo4j is used as a persistence graph, not as an execution language.
 
-### Assistant Personality
+Current node types:
 
-Assistant personality is configured at the plugin layer and passed into the agent decision flow.
+- `Workflow`
+- `Step`
+- `SurfaceProfile`
 
-That means:
+Current relationship types:
 
-- personality is page-level
-- personality is not hardcoded globally
-- different demos can feel different without forking the workflow engine
+- `HAS_STEP`
 
-This is the right shape for future plugin work, where each mounted surface can provide its own conversational style.
+Conceptually:
 
-## Why This Architecture Matters
+```text
+(Workflow)-[:HAS_STEP]->(Step)
 
-This architecture is the simplest form that still supports future growth.
+(SurfaceProfile) is stored separately and looked up by
+appId + pathname + scope + ownerId + languageCode
+```
 
-It gives us:
+Important implications:
 
-- a generic learning core
-- a reusable page integration layer
-- context-aware workflow separation
-- page-specific assistant behavior
-- the ability to add new demos without rewriting the engine
+- workflows are stored as graph data, but replay is driven by JavaScript services
+- Cypher is only used by repository methods
+- there is no user-facing “workflow shell language”
+- step order is explicit numeric data, not inferred from graph topology
 
 ## Current Limits
 
-The architecture is intentionally still incomplete.
+The architecture is much better aligned than before, but still incomplete.
 
-Not yet solved at a mature level:
+Main current limits:
 
-- workflow segmentation into reusable sub-blocks
-- robust ranking among many similar workflows in the same page
-- packaging as a true browser plugin/extension
-- Electron-specific adapters
-- framework-specific edge cases like shadow DOM or highly dynamic SPA transitions
+- `web/public/trainer-plugin.js` is still too large, even after capability extraction
+- `web/server.js` still owns too much orchestration and still uses `currentWorkflowId`
+- workflow and surface-profile persistence still live together in one Neo4j repository
+- catalog publication is still coupled to learning/catalog services
+- the private workflow model is not activated yet
 
 ## Recommended Direction
 
-Near-term work should continue to strengthen:
+Near-term architecture work should continue to strengthen:
 
-1. the generic plugin layer
-2. context-aware workflow discovery
-3. page-ready DOM surfaces with stable selectors
-4. assistant-runtime APIs that other product capabilities can reuse
+1. making `trainer-plugin.js` a true composition root
+2. extracting `LearningSessionService` from `web/server.js`
+3. splitting `WorkflowRepository` and `SurfaceProfileRepository`
+4. formalizing one shared context contract end-to-end
+5. preparing workflow visibility fields for future private workflows
 
-and avoid pushing product logic back into demo-specific files when a generic extension point exists.
+That path preserves the current product shape:
+
+- global workflows first
+- page-aware assistant behavior
+- extension/plugin runtime
+- future optional private memory and private workflows

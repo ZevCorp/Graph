@@ -200,6 +200,77 @@
         return client;
     }
 
+    function voiceClient() {
+        return window.GraphPluginVoiceClient?.create?.({
+            voiceState,
+            voiceLog,
+            runtime,
+            openChatPanel,
+            updateVoiceStatus,
+            setVoiceButton,
+            setPhonePairingVisible,
+            getStoredPhoneSessionId,
+            setStoredPhoneSessionId,
+            getRealtimeSocketUrl,
+            getPageContext,
+            requireApiClient,
+            appendAgentMessage,
+            getAgentHistory: () => agentHistory.slice(-10),
+            playLinear16Audio,
+            handleRemoteVoiceSocketMessage,
+            handleRealtimeServerEvent,
+            resetRealtimeTranscriptState,
+            getRealtimeDataChannel,
+            sendRealtimeEvent,
+            getExecutionMode: () => 'openai-realtime',
+            updateImprovementPanelStatus,
+            startVoiceConversationImpl: async (config = {}) => startVoiceConversationImpl(config),
+            stopVoiceConversationImpl: (options = {}) => stopVoiceConversationImpl(options)
+        }) || null;
+    }
+
+    function requireVoiceClient() {
+        const client = voiceClient();
+        if (!client) {
+            throw new Error('No hay cliente de voz configurado para este plugin.');
+        }
+        return client;
+    }
+
+    function trainerShell() {
+        return window.GraphPluginTrainerShell?.create?.({
+            runtime,
+            longPressMs: LONG_PRESS_MS,
+            isWorkflowOverlayVisible: () => workflowOverlayVisible,
+            isFeedbackOverlayVisible: () => feedbackOverlayVisible,
+            renderWorkflowOverlay,
+            renderFeedbackOverlay,
+            loadWorkflowPanel,
+            loadImprovementPanel,
+            toggleFeedbackOverlay,
+            runPitchGeneration,
+            executeWorkflowFromPanel,
+            getWorkflowEntryById,
+            toggleWorkflowOverlay,
+            hideWorkflowOverlay,
+            deleteWorkflowFromPanel,
+            markWorkflowPanelDirty: () => {
+                workflowPanelLoaded = false;
+            },
+            onStartWorkflow: startWorkflow,
+            onStopWorkflow: stopWorkflow,
+            onWorkflowRecordingCheck: () => window.WorkflowRecorder.isRecording()
+        }) || null;
+    }
+
+    function requireTrainerShell() {
+        const shell = trainerShell();
+        if (!shell) {
+            throw new Error('No hay trainer shell configurado para este plugin.');
+        }
+        return shell;
+    }
+
     function getSurfaceAdapter() {
         return options?.adapter || window.GraphPluginAdapters?.resolve?.(options) || null;
     }
@@ -918,78 +989,35 @@
     }
 
     function updateConsoleExpandedState() {
-        const consoleEl = document.getElementById('teaching-console');
-        const panel = document.getElementById('workflow-panel');
-        const improvementPanel = document.getElementById('improvement-panel');
-        if (!consoleEl || !panel || !improvementPanel) return;
-
-        const shouldExpand = panel.classList.contains('open')
-            || improvementPanel.classList.contains('open');
-        consoleEl.classList.toggle('compact-open', shouldExpand);
+        return requireTrainerShell().updateConsoleExpandedState();
     }
 
     function closeWorkflowPanel() {
-        const panel = document.getElementById('workflow-panel');
-        if (!panel) return;
-        panel.classList.remove('open');
-        updateConsoleExpandedState();
+        return requireTrainerShell().closeWorkflowPanel();
     }
 
     function closeImprovementPanel() {
-        const panel = document.getElementById('improvement-panel');
-        if (!panel) return;
-        panel.classList.remove('open');
-        updateConsoleExpandedState();
+        return requireTrainerShell().closeImprovementPanel();
     }
 
     function openChatPanel() {
-        closeWorkflowPanel();
-        closeImprovementPanel();
-        updateConsoleExpandedState();
-        runtime()?.openChatComposer?.({ focus: true });
-        runtime()?.speak('Estoy listo para ayudarte con la reserva cuando quieras.', { mode: 'listening' });
+        return requireTrainerShell().openChatPanel();
     }
 
     function openWorkflowPanel() {
-        const panel = document.getElementById('workflow-panel');
-        const improvementPanel = document.getElementById('improvement-panel');
-        if (!panel || !improvementPanel) return;
-        runtime()?.closeChatComposer?.();
-        improvementPanel.classList.remove('open');
-        panel.classList.add('open');
-        updateConsoleExpandedState();
+        return requireTrainerShell().openWorkflowPanel();
     }
 
     function openImprovementPanel() {
-        const panel = document.getElementById('improvement-panel');
-        const workflowPanel = document.getElementById('workflow-panel');
-        if (!panel || !workflowPanel) return;
-        runtime()?.closeChatComposer?.();
-        workflowPanel.classList.remove('open');
-        panel.classList.add('open');
-        updateConsoleExpandedState();
+        return requireTrainerShell().openImprovementPanel();
     }
 
     function toggleWorkflowPanel() {
-        const panel = document.getElementById('workflow-panel');
-        if (!panel) return;
-        if (panel.classList.contains('open')) {
-            closeWorkflowPanel();
-            return;
-        }
-        openWorkflowPanel();
-        loadWorkflowPanel(true);
+        return requireTrainerShell().toggleWorkflowPanel();
     }
 
     function toggleImprovementPanel() {
-        const panel = document.getElementById('improvement-panel');
-        if (!panel) return;
-        if (panel.classList.contains('open')) {
-            closeImprovementPanel();
-            return;
-        }
-        openImprovementPanel();
-        loadImprovementPanel(true);
+        return requireTrainerShell().toggleImprovementPanel();
     }
 
     function escapeHtml(value) {
@@ -1173,33 +1201,19 @@
     }
 
     function updateWorkflowPanelStatus(text) {
-        const status = document.getElementById('workflow-panel-status');
-        if (status) {
-            status.textContent = text;
-        }
+        return requireTrainerShell().updateWorkflowPanelStatus(text);
     }
 
     function updateImprovementPanelStatus(text) {
-        const status = document.getElementById('improvement-panel-status');
-        if (status) {
-            status.textContent = text;
-        }
+        return requireTrainerShell().updateImprovementPanelStatus(text);
     }
 
     function updateVoiceStatus(text) {
-        const status = document.getElementById('voice-status');
-        if (status) {
-            status.textContent = text || '';
-        }
+        return requireTrainerShell().updateVoiceStatus(text);
     }
 
     function setVoiceButton(active) {
-        const button = document.getElementById('voice-toggle');
-        if (!button) return;
-        button.dataset.active = active ? 'true' : 'false';
-        button.setAttribute('aria-pressed', active ? 'true' : 'false');
-        button.title = active ? 'Detener conversacion de voz' : 'Conversacion de voz';
-        runtime()?.setVoiceButtonActive?.(active);
+        return requireTrainerShell().setVoiceButton(active);
     }
 
     function setPhonePairingVisible(visible) {
@@ -2309,7 +2323,7 @@
         });
     }
 
-    async function startVoiceConversation(config = {}) {
+    async function startVoiceConversationImpl(config = {}) {
         if (voiceState.active) {
             voiceLog('start_ignored_already_active');
             return;
@@ -2540,7 +2554,7 @@
         });
     }
 
-    function stopVoiceConversation(options = {}) {
+    function stopVoiceConversationImpl(options = {}) {
         voiceLog('stop_voice_conversation', {
             announce: options.announce !== false,
             active: voiceState.active,
@@ -3298,42 +3312,20 @@
         }
     }
 
+    async function startVoiceConversation(config = {}) {
+        return requireVoiceClient().startVoiceConversation(config);
+    }
+
+    function stopVoiceConversation(options = {}) {
+        return requireVoiceClient().stopVoiceConversation(options);
+    }
+
     async function openPhoneMicPairing() {
-        openChatPanel();
-        updateVoiceStatus('Preparando QR para usar el telefono como microfono...');
-        setPhonePairingVisible(true);
-        const requestedId = getStoredPhoneSessionId() || `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
-
-        const payload = await requireApiClient().createPhoneSession({
-            context: getPageContext(),
-            requestedId
-        });
-
-        voiceState.phoneSession = payload;
-        setStoredPhoneSessionId(payload.id);
-        voiceLog('phone_session_created', {
-            id: payload.id,
-            phoneUrl: payload.phoneUrl
-        });
-        const qr = document.getElementById('phone-mic-qr');
-        const url = document.getElementById('phone-mic-url');
-        const floatingQr = document.getElementById('assistant-phone-mic-qr');
-        const floatingUrl = document.getElementById('assistant-phone-mic-url');
-        if (qr) qr.src = payload.qrDataUrl;
-        if (url) url.textContent = payload.phoneUrl;
-        if (floatingQr) floatingQr.src = payload.qrDataUrl;
-        if (floatingUrl) floatingUrl.textContent = payload.phoneUrl;
-
-        updateVoiceStatus('Escanea el QR con el telefono. Luego toca "Activar microfono" en el telefono.');
-        await startVoiceConversation({ phoneSessionId: payload.id });
+        return requireVoiceClient().openPhoneMicPairing();
     }
 
     async function processVoiceComplaints() {
-        updateImprovementPanelStatus('Procesando quejas reales capturadas por voz...');
-        return requireApiClient().processVoiceComplaints({
-            ...getPageContext(),
-            workflowDescription: options.workflowDescription || ''
-        });
+        return requireVoiceClient().processVoiceComplaints(options.workflowDescription || '');
     }
 
     async function startWorkflow() {
@@ -3484,18 +3476,17 @@
         });
     }
 
+    function bindControlsDelegated() {
+        requireTrainerShell().bindControls();
+        updateFeedbackOverlayButton();
+    }
+
     window.TrainerPlugin = {
         mount(config = {}) {
             options = buildMountOptions(config);
             ensureStyles();
             ensureConsole();
-            if (!voiceState.phoneSession?.id) {
-                const storedPhoneSessionId = getStoredPhoneSessionId();
-                if (storedPhoneSessionId) {
-                    voiceState.phoneSession = { id: storedPhoneSessionId };
-                    voiceLog('restored_phone_session_id', storedPhoneSessionId);
-                }
-            }
+            requireVoiceClient().restoreStoredPhoneSession();
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
             if (!runtimeTouchBound) {
                 runtime()?.subscribe?.('touched', () => {
@@ -3539,7 +3530,7 @@
             hydrateSurfaceProfile().catch(() => {});
 
             if (!mounted) {
-                bindControls();
+                bindControlsDelegated();
                 mounted = true;
             }
 
