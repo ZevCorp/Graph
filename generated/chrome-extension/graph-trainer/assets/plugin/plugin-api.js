@@ -78,6 +78,16 @@
                     })
                 });
             },
+            ensureSurfaceProfile(context, pageSnapshot) {
+                return createJsonRequest(baseUrl, '/api/surface-profile/ensure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        context: context || {},
+                        pageSnapshot: pageSnapshot || {}
+                    })
+                });
+            },
             getExecutionPlan(workflowId, variables, context) {
                 return createJsonRequest(baseUrl, `/api/workflows/${encodeURIComponent(workflowId)}/plan`, {
                     method: 'POST',

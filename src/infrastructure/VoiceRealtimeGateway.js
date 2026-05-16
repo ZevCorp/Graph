@@ -183,6 +183,7 @@ class VoiceRealtimeGateway {
     const assistantProfile = context.assistantProfile && typeof context.assistantProfile === 'object'
       ? JSON.stringify(context.assistantProfile)
       : '';
+    const assistantPrompt = `${context.assistantPrompt || ''}`.trim();
     const workflowSummaries = workflows.map((workflow) => this.summarizeWorkflow(workflow));
 
     return [
@@ -190,6 +191,9 @@ class VoiceRealtimeGateway {
       assistantProfile
         ? `Adopt this page-specific profile in tone and style: ${assistantProfile}.`
         : 'Use warm, direct, human Spanish for Latin America.',
+      assistantPrompt
+        ? `Also follow this page-specific operational guidance: ${assistantPrompt}.`
+        : '',
       'Never mention workflows, function calls, technical modes, ids, JSON, or internal tooling.',
       'You are here to help the user reserve or request a car on the current page.',
       'Keep the interaction conversational, fast, and service-oriented.',

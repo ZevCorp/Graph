@@ -20,6 +20,7 @@ const WorkflowExecutor = require('../src/application/use-cases/WorkflowExecutor'
 const AgentChat = require('../src/application/use-cases/AgentChat');
 const GeneratePitchArtifacts = require('../src/application/use-cases/GeneratePitchArtifacts');
 const ConversationInsights = require('../src/application/use-cases/ConversationInsights');
+const SurfaceProfileService = require('../src/application/use-cases/SurfaceProfileService');
 
 const GetGraphVisualization = require('../src/application/use-cases/GetGraphVisualization');
 
@@ -48,6 +49,7 @@ const conversationInsights = new ConversationInsights(
   llmProvider,
   path.join(process.cwd(), 'generated', 'conversation-insights')
 );
+const surfaceProfileService = new SurfaceProfileService(repository, llmProvider);
 const getGraphVisualization = new GetGraphVisualization(repository);
 
 app.use(bodyParser.json());
@@ -178,6 +180,7 @@ function buildOpenAiRealtimeInstructions(context = {}, workflows = []) {
   const assistantProfile = context.assistantProfile && typeof context.assistantProfile === 'object'
     ? JSON.stringify(context.assistantProfile)
     : '';
+  const assistantPrompt = `${context.assistantPrompt || ''}`.trim();
   const workflowSummaries = workflows.map((workflow) => summarizeRealtimeWorkflow(workflow));
   const isDemoAutopilot = `${context.demoMode || ''}`.trim().toLowerCase() === 'autopilot'
     || `${context.appId || ''}`.trim().toLowerCase() === 'car-demo';
@@ -187,6 +190,9 @@ function buildOpenAiRealtimeInstructions(context = {}, workflows = []) {
     assistantProfile
       ? `Adopta este perfil en tono y estilo: ${assistantProfile}.`
       : 'Habla en espanol latino, cercano, directo y natural.',
+    assistantPrompt
+      ? `Sigue tambien esta guia operacional de la pagina: ${assistantPrompt}.`
+      : '',
     'Nunca menciones workflows, ids internos, llamadas de funcion, JSON, herramientas ni implementacion tecnica.',
     'Tu trabajo es ayudar al usuario a reservar el vehiculo dentro de esta pagina y resolverlo rapido.',
     isDemoAutopilot
@@ -909,6 +915,26 @@ app.post('/api/voice/complaints/process', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error(`[Voice Complaints] Process Error: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/surface-profile/ensure', async (req, res) => {
+  try {
+    const context = {
+      appId: req.body?.context?.appId || '',
+      sourceUrl: req.body?.context?.sourceUrl || '',
+      sourceOrigin: req.body?.context?.sourceOrigin || '',
+      sourcePathname: req.body?.context?.sourcePathname || '',
+      sourceTitle: req.body?.context?.sourceTitle || '',
+      scope: req.body?.context?.scope || 'global',
+      ownerId: req.body?.context?.ownerId || ''
+    };
+
+    const result = await surfaceProfileService.ensureGlobalProfile(context, req.body?.pageSnapshot || {});
+    res.json(result);
+  } catch (err) {
+    console.error(`[Surface Profile] Ensure Error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });

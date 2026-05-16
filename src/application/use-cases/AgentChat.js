@@ -268,6 +268,7 @@ class AgentChat {
     const assistantProfileText = assistantProfile
       ? JSON.stringify(assistantProfile)
       : '';
+    const assistantPromptText = `${context.assistantPrompt || ''}`.trim();
 
     const messages = [
       {
@@ -277,6 +278,9 @@ class AgentChat {
           assistantProfileText
             ? `Adopt this page-specific assistant profile while you reply and decide what information is missing: ${assistantProfileText}.`
             : 'Use a concise, helpful, neutral tone.',
+          assistantPromptText
+            ? `Also follow this page-specific operational guidance: ${assistantPromptText}.`
+            : '',
           'Never mention workflow ids, internal automation, technical modes, or implementation details to the user.',
           'Speak in the language of the service being offered, such as helping with a reservation, form, or request.',
           'Your job is to read the user request and the workflow catalog, then decide whether one workflow should be executed.',

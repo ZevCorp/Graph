@@ -13,6 +13,44 @@ class Neo4jWorkflowRepository {
     return '[]';
   }
 
+  parseJsonArray(rawValue) {
+    if (Array.isArray(rawValue)) {
+      return rawValue;
+    }
+    if (!rawValue || typeof rawValue !== 'string') {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(rawValue);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  parseJsonObject(rawValue) {
+    if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+      return rawValue;
+    }
+    if (!rawValue || typeof rawValue !== 'string') {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(rawValue);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  buildSurfaceProfileId(appId, sourcePathname, scope = 'global', ownerId = '') {
+    const normalizedAppId = `${appId || 'page'}`.trim() || 'page';
+    const normalizedPath = `${sourcePathname || '/'}`.trim() || '/';
+    const normalizedScope = `${scope || 'global'}`.trim() || 'global';
+    const normalizedOwnerId = `${ownerId || ''}`.trim() || 'shared';
+    return `surface:${normalizedScope}:${normalizedAppId}:${normalizedPath}:${normalizedOwnerId}`;
+  }
+
   toNativeNumber(value) {
     if (value && typeof value.toNumber === 'function') return value.toNumber();
     return Number(value);
@@ -152,6 +190,116 @@ class Neo4jWorkflowRepository {
         id: workflowId,
         contextNotes: JSON.stringify(currentNotes)
       }
+    );
+  }
+
+  async getSurfaceProfile(appId, sourcePathname, scope = 'global', ownerId = '') {
+    const rows = await this.db.run(`
+      MATCH (p:SurfaceProfile {
+        appId: $appId,
+        sourcePathname: $sourcePathname,
+        scope: $scope,
+        ownerId: $ownerId
+      })
+      RETURN p.id as id,
+             p.appId as appId,
+             p.sourceOrigin as sourceOrigin,
+             p.sourcePathname as sourcePathname,
+             p.sourceTitle as sourceTitle,
+             p.scope as scope,
+             p.ownerId as ownerId,
+             p.workflowDescription as workflowDescription,
+             p.assistantProfile as assistantProfile,
+             p.assistantRuntime as assistantRuntime,
+             p.welcomeMessage as welcomeMessage,
+             p.systemPromptAddendum as systemPromptAddendum,
+             p.pageSummary as pageSummary,
+             p.createdAt as createdAt,
+             p.updatedAt as updatedAt,
+             p.lastSeenAt as lastSeenAt
+      LIMIT 1
+    `, {
+      appId: `${appId || ''}`.trim(),
+      sourcePathname: `${sourcePathname || '/'}`.trim() || '/',
+      scope: `${scope || 'global'}`.trim() || 'global',
+      ownerId: `${ownerId || ''}`.trim()
+    });
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      appId: row.appId || '',
+      sourceOrigin: row.sourceOrigin || '',
+      sourcePathname: row.sourcePathname || '/',
+      sourceTitle: row.sourceTitle || '',
+      scope: row.scope || 'global',
+      ownerId: row.ownerId || '',
+      workflowDescription: row.workflowDescription || '',
+      assistantProfile: this.parseJsonObject(row.assistantProfile) || null,
+      assistantRuntime: this.parseJsonObject(row.assistantRuntime) || null,
+      welcomeMessage: row.welcomeMessage || '',
+      systemPromptAddendum: row.systemPromptAddendum || '',
+      pageSummary: row.pageSummary || '',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      lastSeenAt: row.lastSeenAt
+    };
+  }
+
+  async upsertSurfaceProfile(profile = {}) {
+    const appId = `${profile.appId || ''}`.trim();
+    const sourcePathname = `${profile.sourcePathname || '/'}`.trim() || '/';
+    const scope = `${profile.scope || 'global'}`.trim() || 'global';
+    const ownerId = `${profile.ownerId || ''}`.trim();
+    const id = profile.id || this.buildSurfaceProfileId(appId, sourcePathname, scope, ownerId);
+
+    await this.db.run(`
+      MERGE (p:SurfaceProfile {id: $id})
+      ON CREATE SET p.createdAt = timestamp()
+      SET p.appId = $appId,
+          p.sourceOrigin = $sourceOrigin,
+          p.sourcePathname = $sourcePathname,
+          p.sourceTitle = $sourceTitle,
+          p.scope = $scope,
+          p.ownerId = $ownerId,
+          p.workflowDescription = $workflowDescription,
+          p.assistantProfile = $assistantProfile,
+          p.assistantRuntime = $assistantRuntime,
+          p.welcomeMessage = $welcomeMessage,
+          p.systemPromptAddendum = $systemPromptAddendum,
+          p.pageSummary = $pageSummary,
+          p.updatedAt = timestamp(),
+          p.lastSeenAt = timestamp()
+    `, {
+      id,
+      appId,
+      sourceOrigin: `${profile.sourceOrigin || ''}`.trim(),
+      sourcePathname,
+      sourceTitle: `${profile.sourceTitle || ''}`.trim(),
+      scope,
+      ownerId,
+      workflowDescription: `${profile.workflowDescription || ''}`.trim(),
+      assistantProfile: JSON.stringify(profile.assistantProfile || null),
+      assistantRuntime: JSON.stringify(profile.assistantRuntime || null),
+      welcomeMessage: `${profile.welcomeMessage || ''}`.trim(),
+      systemPromptAddendum: `${profile.systemPromptAddendum || ''}`.trim(),
+      pageSummary: `${profile.pageSummary || ''}`.trim()
+    });
+
+    return this.getSurfaceProfile(appId, sourcePathname, scope, ownerId);
+  }
+
+  async touchSurfaceProfile(id) {
+    if (!id) {
+      return;
+    }
+    await this.db.run(
+      'MATCH (p:SurfaceProfile {id: $id}) SET p.lastSeenAt = timestamp(), p.updatedAt = coalesce(p.updatedAt, timestamp())',
+      { id }
     );
   }
 

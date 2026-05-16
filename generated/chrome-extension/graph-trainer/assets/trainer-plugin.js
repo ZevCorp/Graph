@@ -27,6 +27,7 @@
     let assistantPhonePairingBound = false;
     let feedbackOverlayVisible = false;
     let assistantPhonePairingFrame = null;
+    let surfaceProfileHydration = null;
     const voiceState = {
         active: false,
         peerConnection: null,
@@ -173,8 +174,88 @@
                 ? normalizePathname(window.location.pathname)
                 : window.location.pathname,
             sourceTitle: document.title,
-            assistantProfile: options.assistantProfile || null
+            assistantProfile: options.assistantProfile || null,
+            assistantPrompt: options.assistantPrompt || '',
+            surfaceProfileId: options.surfaceProfile?.id || '',
+            surfaceProfileScope: options.surfaceProfile?.scope || 'global',
+            ownerId: options.surfaceProfile?.ownerId || ''
         };
+    }
+
+    function isGenericWorkflowDescription(value) {
+        const normalized = `${value || ''}`.trim();
+        return !normalized || /^workflow on /i.test(normalized);
+    }
+
+    function applySurfaceProfileToOptions(surfaceProfile) {
+        if (!surfaceProfile || typeof surfaceProfile !== 'object') {
+            return;
+        }
+
+        options.surfaceProfile = surfaceProfile;
+
+        if (surfaceProfile.assistantProfile && typeof surfaceProfile.assistantProfile === 'object') {
+            options.assistantProfile = surfaceProfile.assistantProfile;
+        }
+
+        if (`${surfaceProfile.systemPromptAddendum || ''}`.trim()) {
+            options.assistantPrompt = `${surfaceProfile.systemPromptAddendum || ''}`.trim();
+        }
+
+        if (surfaceProfile.assistantRuntime && typeof surfaceProfile.assistantRuntime === 'object') {
+            options.assistantRuntime = {
+                ...options.assistantRuntime,
+                ...surfaceProfile.assistantRuntime
+            };
+        }
+
+        if (isGenericWorkflowDescription(options.workflowDescription) && `${surfaceProfile.workflowDescription || ''}`.trim()) {
+            options.workflowDescription = `${surfaceProfile.workflowDescription || ''}`.trim();
+        }
+
+        if (`${surfaceProfile.welcomeMessage || ''}`.trim()) {
+            options.assistantRuntime = {
+                ...options.assistantRuntime,
+                idleMessage: `${surfaceProfile.welcomeMessage || ''}`.trim()
+            };
+        }
+    }
+
+    async function hydrateSurfaceProfile() {
+        if (surfaceProfileHydration) {
+            return surfaceProfileHydration;
+        }
+
+        surfaceProfileHydration = (async () => {
+            try {
+                const context = getPageContext();
+                const pageSnapshot = window.GraphPluginContext?.capturePageSnapshot?.() || {};
+                const payload = await requireApiClient().ensureSurfaceProfile(context, pageSnapshot);
+                const surfaceProfile = payload?.surfaceProfile || null;
+                if (!surfaceProfile) {
+                    return null;
+                }
+
+                applySurfaceProfileToOptions(surfaceProfile);
+                runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
+
+                const descriptionField = document.getElementById('wf-desc');
+                if (descriptionField && isGenericWorkflowDescription(descriptionField.value)) {
+                    descriptionField.value = options.workflowDescription || '';
+                }
+
+                emitPluginEvent('surface.profile.hydrated', {
+                    surfaceProfileId: surfaceProfile.id || '',
+                    generated: Boolean(payload?.generated)
+                });
+                return surfaceProfile;
+            } catch (error) {
+                console.warn('[SurfaceProfile] Could not hydrate surface profile:', error.message || error);
+                return null;
+            }
+        })();
+
+        return surfaceProfileHydration;
     }
 
     function ensureStyles() {
@@ -3518,7 +3599,7 @@
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
             if (!runtimeTouchBound) {
                 runtime()?.subscribe?.('touched', () => {
-                    const greeting = 'Hola, puedo ayudarte a reservar un vehiculo. Solo dime que necesitas y yo me encargo.';
+                    const greeting = `${options.assistantRuntime?.idleMessage || 'Puedo ayudarte en esta pagina. Solo dime que necesitas y yo me encargo.'}`.trim();
                     runtime()?.speak(greeting, { mode: 'listening' });
                     playAssistantGreeting(greeting).catch(() => {});
                 });
@@ -3545,6 +3626,8 @@
 
             document.getElementById('agent-message').placeholder = options.aiPlaceholder;
             document.getElementById('wf-desc').value = options.workflowDescription || '';
+            surfaceProfileHydration = null;
+            hydrateSurfaceProfile().catch(() => {});
 
             if (!mounted) {
                 bindControls();
