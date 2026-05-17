@@ -79,11 +79,42 @@
     })();
 
     function voiceLog(event, details) {
+        const payload = {
+            event: `${event || ''}`.trim(),
+            ...(details !== undefined ? { details } : {})
+        };
         if (details !== undefined) {
             console.log(`[VoiceUI] ${event}`, details);
-            return;
+        } else {
+            console.log(`[VoiceUI] ${event}`);
         }
-        console.log(`[VoiceUI] ${event}`);
+        try {
+            document.dispatchEvent(new CustomEvent('graph-trainer-extension-log', {
+                detail: {
+                    level: 'info',
+                    scope: 'voice',
+                    message: `${event || 'voice_event'}`.trim() || 'voice_event',
+                    details: payload
+                }
+            }));
+        } catch (error) {
+            // Ignore logging bridge issues.
+        }
+
+        try {
+            window.postMessage({
+                source: 'graph-trainer-extension',
+                type: 'log',
+                detail: {
+                    level: 'info',
+                    scope: 'voice',
+                    message: `${event || 'voice_event'}`.trim() || 'voice_event',
+                    details: payload
+                }
+            }, '*');
+        } catch (error) {
+            // Ignore logging bridge issues.
+        }
     }
 
     function setElementHtml(element, html) {

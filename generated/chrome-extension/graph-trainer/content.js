@@ -2,6 +2,7 @@ const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
 const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_LIMIT = 200;
 const EXECUTION_LOG_SCOPES = new Set(['execution']);
+const VOICE_LOG_SCOPES = new Set(['voice']);
 const SELECTED_ELEMENT_STORAGE_KEY = 'graphTrainerSelectedElement';
 
 let inspectModeActive = false;
@@ -284,6 +285,10 @@ function shouldPersistLogEntry(entry = {}) {
   }
 
   if (EXECUTION_LOG_SCOPES.has(scope)) {
+    return true;
+  }
+
+  if (VOICE_LOG_SCOPES.has(scope)) {
     return true;
   }
 

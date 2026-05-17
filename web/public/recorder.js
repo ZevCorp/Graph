@@ -251,6 +251,7 @@ window.WorkflowRecorder = (() => {
     const rawTarget = event?.target instanceof Element ? event.target : null;
     const candidates = collectInteractiveCandidatesFromEvent(event)
       .filter((candidate) => !candidate.closest?.('.console'))
+      .filter((candidate) => !isAssistantSurface(candidate))
       .filter((candidate) => !isRecorderControl(candidate))
       .filter((candidate) => !(candidate instanceof HTMLSelectElement || candidate instanceof HTMLOptionElement));
 
@@ -453,8 +454,30 @@ window.WorkflowRecorder = (() => {
     );
   }
 
+  function isAssistantSurface(element) {
+    if (!(element instanceof Element)) {
+      return false;
+    }
+
+    return Boolean(element.closest(
+      '#graph-assistant-shell, ' +
+      '#graph-assistant-bubble, ' +
+      '#graph-assistant-user-bubble, ' +
+      '#graph-assistant-bubble-mic, ' +
+      '#graph-assistant-chat-toggle, ' +
+      '#graph-assistant-chat-composer, ' +
+      '#graph-assistant-spotlight, ' +
+      '#teaching-console, ' +
+      '#workflow-overlay, ' +
+      '#feedback-overlay, ' +
+      '#voice-toggle, ' +
+      '#phone-mic-pairing, ' +
+      '#assistant-phone-mic-pairing'
+    ));
+  }
+
   function shouldSkipFieldEvent(element, actionType) {
-    if (!element || isRecorderControl(element)) return true;
+    if (!element || isRecorderControl(element) || isAssistantSurface(element)) return true;
     const selector = selectorForElement(element);
     const signature = [
       actionType,
@@ -673,7 +696,7 @@ window.WorkflowRecorder = (() => {
       const target = event.target;
       const isField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
       if (!isField) return;
-      if (isRecorderControl(target)) return;
+      if (isRecorderControl(target) || isAssistantSurface(target)) return;
       if (target instanceof HTMLSelectElement) {
         emitExtensionLog('info', 'Native select change event received.', {
           selector: selectorForElement(target),
@@ -688,7 +711,7 @@ window.WorkflowRecorder = (() => {
       if (!isRecording) return;
       const target = event.target;
       if (!(target instanceof HTMLSelectElement)) return;
-      if (isRecorderControl(target)) return;
+      if (isRecorderControl(target) || isAssistantSurface(target)) return;
       emitExtensionLog('info', 'Native select input event received.', {
         selector: selectorForElement(target),
         label: labelForElement(target),
@@ -701,7 +724,7 @@ window.WorkflowRecorder = (() => {
       if (!isRecording) return;
       const target = event.target;
       if (!(target instanceof HTMLSelectElement)) return;
-      if (isRecorderControl(target)) return;
+      if (isRecorderControl(target) || isAssistantSurface(target)) return;
       emitExtensionLog('info', 'Select focus observed.', {
         selector: selectorForElement(target),
         label: labelForElement(target),
@@ -715,7 +738,7 @@ window.WorkflowRecorder = (() => {
       if (!isRecording) return;
       const target = event.target;
       if (!(target instanceof HTMLSelectElement)) return;
-      if (isRecorderControl(target)) return;
+      if (isRecorderControl(target) || isAssistantSurface(target)) return;
       const changed = didSelectValueChange(target);
       emitExtensionLog('info', 'Select blur observed.', {
         selector: selectorForElement(target),

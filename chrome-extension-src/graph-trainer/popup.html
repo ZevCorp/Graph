@@ -102,6 +102,32 @@
       font: 11px/1.45 Consolas, monospace;
       color: #203040;
     }
+    #voiceLogPanel {
+      display: none;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #c7d7e6;
+      border-radius: 10px;
+      background: #ffffff;
+    }
+    #voiceLogPanel.open {
+      display: block;
+    }
+    #voiceLogSummary {
+      margin: 0 0 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #4c5c6c;
+    }
+    #voiceLogOutput {
+      margin: 0;
+      max-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 11px/1.45 Consolas, monospace;
+      color: #203040;
+    }
     .diagnostics-chat {
       margin-top: 12px;
       border-top: 1px solid #e4edf5;
@@ -375,6 +401,7 @@
     </div>
     <div class="button-row">
       <button id="toggleLogs" type="button" class="secondary-button">Ver diagnostico</button>
+      <button id="toggleVoiceLogs" type="button" class="secondary-button">Ver logs de voz</button>
       <button id="clearLogs" type="button" class="danger-button">Limpiar</button>
     </div>
     <div id="status"></div>
@@ -402,6 +429,10 @@
     </div>
 
     <p>Despues de guardar, recarga la pestaña objetivo. El trainer se montara automaticamente.</p>
+    <div id="voiceLogPanel" aria-live="polite">
+      <p id="voiceLogSummary">Sin logs de voz en tiempo real todavia.</p>
+      <pre id="voiceLogOutput">No hay logs de voz en tiempo real todavia.</pre>
+    </div>
   </div>
 
   <div id="improvementsView" aria-live="polite">
