@@ -382,6 +382,9 @@
                 align-items: center;
                 justify-content: center;
                 gap: 10px;
+                position: relative;
+                width: 100%;
+                padding-top: 6px;
             }
             .console button.icon-btn {
                 width: 46px;
@@ -489,28 +492,40 @@
                 font-weight: 700;
             }
             .assistant-phone-mic-pairing {
-                position: fixed;
+                position: absolute;
                 display: none;
-                width: min(320px, calc(100vw - 32px));
-                padding: 12px;
-                border-radius: 20px;
-                background: rgba(255, 255, 255, 0.97);
-                border: 1px solid rgba(15, 95, 140, 0.14);
-                box-shadow: 0 28px 60px rgba(12, 28, 43, 0.22);
+                right: 0;
+                bottom: calc(100% + 12px);
+                width: min(336px, calc(100vw - 24px));
+                padding: 14px;
+                border-radius: 24px;
+                background:
+                    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 254, 0.98) 100%),
+                    radial-gradient(circle at top right, rgba(15, 95, 140, 0.12), transparent 42%);
+                border: 1px solid rgba(15, 95, 140, 0.18);
+                box-shadow: 0 30px 60px rgba(12, 28, 43, 0.18);
                 backdrop-filter: blur(18px);
-                z-index: 2147483004;
+                z-index: 30;
                 grid-template-columns: 108px 1fr;
                 gap: 12px;
                 align-items: center;
+                transform-origin: bottom right;
+                transform: translateY(12px) scale(0.92);
+                opacity: 0;
+                pointer-events: none;
             }
             .assistant-phone-mic-pairing.open {
                 display: grid;
+                transform: translateY(0) scale(1);
+                opacity: 1;
+                pointer-events: auto;
             }
             .assistant-phone-mic-pairing img {
                 width: 108px;
                 height: 108px;
                 border-radius: 12px;
                 background: #fff;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
             }
             .assistant-phone-mic-pairing-text {
                 display: grid;
@@ -527,6 +542,18 @@
                 overflow-wrap: anywhere;
                 color: #0f5f8c;
                 font-weight: 700;
+            }
+            .assistant-phone-mic-pairing[data-docked="toolbar"]::after {
+                content: "";
+                position: absolute;
+                right: 22px;
+                bottom: -8px;
+                width: 18px;
+                height: 18px;
+                background: #f8fbfe;
+                border-right: 1px solid rgba(15, 95, 140, 0.18);
+                border-bottom: 1px solid rgba(15, 95, 140, 0.18);
+                transform: rotate(45deg);
             }
             .workflow-panel {
                 padding-top: 2px;
@@ -947,7 +974,10 @@
                         <span class="phone-mic-pairing-url" id="phone-mic-url"></span>
                     </div>
                 </div>
-                <div class="assistant-phone-mic-pairing" id="assistant-phone-mic-pairing" aria-live="polite">
+            </div>
+            <div class="console-toolbar">
+                <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
+                <div class="assistant-phone-mic-pairing" id="assistant-phone-mic-pairing" data-docked="toolbar" aria-live="polite">
                     <img id="assistant-phone-mic-qr" alt="QR para conectar el telefono como microfono">
                     <div class="assistant-phone-mic-pairing-text">
                         <strong>Usa tu telefono como microfono</strong>
@@ -955,9 +985,6 @@
                         <span class="assistant-phone-mic-pairing-url" id="assistant-phone-mic-url"></span>
                     </div>
                 </div>
-            </div>
-            <div class="console-toolbar">
-                <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
             </div>
             <input id="wf-desc" class="sr-only" value="">
             <textarea id="step-explanation" class="sr-only"></textarea>
@@ -1272,8 +1299,18 @@
 
     function positionAssistantPhonePairing() {
         const panel = document.getElementById('assistant-phone-mic-pairing');
+        if (!panel || !panel.classList.contains('open')) {
+            return;
+        }
+
+        if (panel.dataset.docked === 'toolbar') {
+            panel.style.left = '';
+            panel.style.top = '';
+            return;
+        }
+
         const shell = document.getElementById('graph-assistant-shell');
-        if (!panel || !shell || !panel.classList.contains('open')) {
+        if (!shell) {
             return;
         }
 
@@ -1294,6 +1331,10 @@
     }
 
     function scheduleAssistantPhonePairingPosition() {
+        const panel = document.getElementById('assistant-phone-mic-pairing');
+        if (panel?.dataset.docked === 'toolbar') {
+            return;
+        }
         if (assistantPhonePairingFrame) {
             return;
         }
