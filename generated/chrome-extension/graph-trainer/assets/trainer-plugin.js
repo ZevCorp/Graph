@@ -29,8 +29,10 @@
     let assistantPhonePairingFrame = null;
     let surfaceProfileHydration = null;
     let workflowPanelEntries = [];
+    let voiceLifecycleBound = false;
     const voiceState = {
         active: false,
+        mode: null,
         peerConnection: null,
         dataChannel: null,
         stream: null,
@@ -58,6 +60,7 @@
     };
     const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
     const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
+    const VOICE_RESUME_STORAGE_KEY = 'graph-voice-resume-state';
     const EXECUTION_WAIT_TIMEOUT_MS = 15000;
     const EXECUTION_STEP_DELAY_MS = 180;
     const trustedHtmlPolicy = (() => {
@@ -123,6 +126,47 @@
             return;
         }
         pluginHost()?.localStore?.set(PHONE_MIC_SESSION_STORAGE_KEY, id);
+    }
+
+    function getStoredVoiceResumeState() {
+        const raw = pluginHost()?.sessionStore?.get(VOICE_RESUME_STORAGE_KEY) || '';
+        if (!raw) {
+            return null;
+        }
+        try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') {
+                return null;
+            }
+            return parsed;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function setStoredVoiceResumeState(payload) {
+        if (!payload) {
+            pluginHost()?.sessionStore?.remove(VOICE_RESUME_STORAGE_KEY);
+            return;
+        }
+        pluginHost()?.sessionStore?.set(VOICE_RESUME_STORAGE_KEY, JSON.stringify(payload));
+    }
+
+    function clearStoredVoiceResumeState() {
+        pluginHost()?.sessionStore?.remove(VOICE_RESUME_STORAGE_KEY);
+    }
+
+    function persistVoiceResumeState() {
+        if (!voiceState.mode) {
+            return;
+        }
+        setStoredVoiceResumeState({
+            mode: voiceState.mode,
+            phoneSessionId: voiceState.mode === 'phone'
+                ? (voiceState.phoneSession?.id || getStoredPhoneSessionId() || '')
+                : '',
+            savedAt: Date.now()
+        });
     }
 
     function isVoiceSessionActive() {
@@ -1602,6 +1646,34 @@
         }
     }
 
+    async function resumeVoiceAfterNavigation() {
+        const pendingExecution = readPendingExecution();
+        const resumeState = getStoredVoiceResumeState();
+        if (!pendingExecution || !resumeState || isVoiceSessionActive()) {
+            return;
+        }
+
+        const savedAt = Number(resumeState.savedAt || 0);
+        if (!Number.isFinite(savedAt) || Date.now() - savedAt > 120000) {
+            clearStoredVoiceResumeState();
+            return;
+        }
+
+        try {
+            voiceLog('resuming_voice_after_navigation', {
+                mode: resumeState.mode || '',
+                hasPendingExecution: true
+            });
+            await startVoiceConversation(resumeState.mode === 'phone'
+                ? { phoneSessionId: resumeState.phoneSessionId || getStoredPhoneSessionId() || null }
+                : {});
+        } catch (error) {
+            voiceLog('resume_voice_after_navigation_error', error.message || 'resume failed');
+        } finally {
+            clearStoredVoiceResumeState();
+        }
+    }
+
     async function executeWorkflowFromPanel(workflowId) {
         updateWorkflowPanelStatus('Empezando la automatizacion...');
         runtime()?.speak('Voy a moverme por la pagina y encargarme de esta tarea por ti.', { mode: 'executing' });
@@ -2753,6 +2825,8 @@
 
         try {
             if (effectivePhoneSessionId) {
+                voiceState.mode = 'phone';
+                persistVoiceResumeState();
                 const socket = new WebSocket(getRealtimeSocketUrl());
                 socket.binaryType = 'arraybuffer';
                 voiceState.socket = socket;
@@ -2883,6 +2957,8 @@
             voiceState.dataChannel = dataChannel;
             voiceState.remoteAudio = remoteAudio;
             voiceState.phoneSession = null;
+            voiceState.mode = 'local';
+            persistVoiceResumeState();
             voiceState.active = true;
             setVoiceButton(true);
             updateVoiceStatus('Escuchando...');
@@ -2913,6 +2989,11 @@
             active: voiceState.active,
             usingPhoneSession: Boolean(voiceState.socket)
         });
+        if (options.preserveResume === true) {
+            persistVoiceResumeState();
+        } else {
+            clearStoredVoiceResumeState();
+        }
         clearVoicePlayback();
         const shouldAnnounce = options.announce !== false && voiceState.active;
 
@@ -2976,6 +3057,7 @@
         voiceState.source = null;
         voiceState.silenceGain = null;
         voiceState.remoteAudio = null;
+        voiceState.mode = null;
         resetRealtimeTranscriptState();
         setVoiceButton(false);
         if (options.clearStatus !== false) {
@@ -3087,6 +3169,9 @@
             requireLearningClient().syncRecorderStatus();
 
             window.setTimeout(() => {
+                resumeVoiceAfterNavigation().catch((error) => {
+                    voiceLog('resume_voice_after_navigation_mount_error', error.message || 'resume failed');
+                });
                 resumePendingExecution().catch((error) => {
                     updateWorkflowPanelStatus(error.message || 'No pude retomar la automatizacion pendiente.');
                 });
@@ -3096,6 +3181,21 @@
                 window.addEventListener('resize', positionAssistantPhonePairing, { passive: true });
                 window.addEventListener('scroll', positionAssistantPhonePairing, { passive: true });
                 assistantPhonePairingBound = true;
+            }
+
+            if (!voiceLifecycleBound) {
+                window.addEventListener('pagehide', () => {
+                    if (!isVoiceSessionActive()) {
+                        clearStoredVoiceResumeState();
+                        return;
+                    }
+                    if (executionState.running || readPendingExecution()) {
+                        persistVoiceResumeState();
+                        return;
+                    }
+                    clearStoredVoiceResumeState();
+                });
+                voiceLifecycleBound = true;
             }
         },
         appendAgentMessage,
