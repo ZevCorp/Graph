@@ -80,17 +80,44 @@ window.WorkflowRecorder = (() => {
       : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5-4-4L4 16v4zm12-13 2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
 
+  function escapeAttributeSelectorValue(value) {
+    return `${value || ''}`
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\f/g, '\\f');
+  }
+
+  function buildAttributeSelector(attributeName, attributeValue, tagName = '') {
+    const normalizedAttributeName = `${attributeName || ''}`.trim();
+    const normalizedAttributeValue = `${attributeValue || ''}`;
+    const normalizedTagName = `${tagName || ''}`.trim().toLowerCase();
+    if (!normalizedAttributeName || !normalizedAttributeValue) {
+      return normalizedTagName || '';
+    }
+
+    const prefix = normalizedTagName || '';
+    return `${prefix}[${normalizedAttributeName}="${escapeAttributeSelectorValue(normalizedAttributeValue)}"]`;
+  }
+
   function selectorForElement(element) {
     if (!element) return '';
-    if (element.dataset && element.dataset.testid) return `[data-testid="${element.dataset.testid}"]`;
+    if (element.dataset && element.dataset.testid) {
+      return buildAttributeSelector('data-testid', element.dataset.testid);
+    }
     if (element.tagName === 'A' && element.getAttribute('href')) {
-      return `a[href="${element.getAttribute('href')}"]`;
+      return buildAttributeSelector('href', element.getAttribute('href'), 'a');
     }
     if (element.tagName === 'BUTTON' && element.type) {
-      return `button[type="${element.type}"]`;
+      return buildAttributeSelector('type', element.type, 'button');
     }
-    if (element.id) return `#${element.id}`;
-    if (element.name) return `[name="${element.name}"]`;
+    if (element.id) {
+      return buildAttributeSelector('id', element.id);
+    }
+    if (element.name) {
+      return buildAttributeSelector('name', element.name);
+    }
     return element.tagName ? element.tagName.toLowerCase() : '';
   }
 
