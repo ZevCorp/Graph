@@ -1918,7 +1918,7 @@
             return;
         }
 
-        const effectivePhoneSessionId = config.phoneSessionId || voiceState.phoneSession?.id || null;
+        const effectivePhoneSessionId = config.phoneSessionId || null;
         voiceLog('start_voice_conversation', {
             phoneSessionId: effectivePhoneSessionId,
             hasStoredPhoneSession: Boolean(voiceState.phoneSession?.id)
@@ -2655,7 +2655,7 @@
             return;
         }
 
-        const effectivePhoneSessionId = config.phoneSessionId || voiceState.phoneSession?.id || null;
+        const effectivePhoneSessionId = config.phoneSessionId || null;
         openChatPanel();
         updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
         runtime()?.speak(
