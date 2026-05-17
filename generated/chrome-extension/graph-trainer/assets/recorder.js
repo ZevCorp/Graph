@@ -6,6 +6,8 @@ window.WorkflowRecorder = (() => {
   let recordedSteps = [];
   const lastFieldEvents = new Map();
   const focusedSelectValues = new Map();
+  const PENDING_CLICK_STORAGE_KEY = 'graphTrainerPendingClickIntents';
+  const warnedPendingClickIds = new Set();
 
   function emitExtensionLog(level, message, details = null) {
     const detail = {
@@ -180,6 +182,130 @@ window.WorkflowRecorder = (() => {
     return element.tagName ? element.tagName.toLowerCase() : 'unknown';
   }
 
+  function safeSessionStorage() {
+    try {
+      return window.sessionStorage;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function readPendingClickIntents() {
+    const storage = safeSessionStorage();
+    if (!storage) return [];
+    try {
+      const raw = storage.getItem(PENDING_CLICK_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writePendingClickIntents(entries) {
+    const storage = safeSessionStorage();
+    if (!storage) return;
+    try {
+      storage.setItem(PENDING_CLICK_STORAGE_KEY, JSON.stringify(Array.isArray(entries) ? entries : []));
+    } catch (error) {
+      // Ignore storage persistence issues.
+    }
+  }
+
+  function buildClickIntentId() {
+    return `click-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function describeElementText(element) {
+    return `${element?.textContent || element?.value || element?.getAttribute?.('aria-label') || ''}`
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 220);
+  }
+
+  function buildPendingClickIntent(element) {
+    const href = element?.getAttribute?.('href') || '';
+    return {
+      id: buildClickIntentId(),
+      createdAt: Date.now(),
+      pageUrl: window.location.href,
+      pageTitle: document.title || '',
+      selector: selectorForElement(element),
+      label: labelForElement(element),
+      text: describeElementText(element),
+      href,
+      tagName: `${element?.tagName || ''}`.toLowerCase(),
+      idAttribute: element?.id || '',
+      name: element?.getAttribute?.('name') || '',
+      type: element?.getAttribute?.('type') || '',
+      role: element?.getAttribute?.('role') || '',
+      className: typeof element?.className === 'string' ? element.className.trim().slice(0, 220) : ''
+    };
+  }
+
+  function persistPendingClickIntent(intent) {
+    if (!intent?.id) return;
+    const entries = readPendingClickIntents()
+      .filter((entry) => entry && entry.id !== intent.id)
+      .concat(intent)
+      .slice(-20);
+    writePendingClickIntents(entries);
+  }
+
+  function clearPendingClickIntent(intentId) {
+    if (!intentId) return;
+    const next = readPendingClickIntents().filter((entry) => entry && entry.id !== intentId);
+    writePendingClickIntents(next);
+    warnedPendingClickIds.delete(intentId);
+  }
+
+  function summarizeClickIntentForWarning(intent, reason) {
+    return {
+      reason,
+      selector: intent?.selector || '',
+      label: intent?.label || '',
+      text: intent?.text || '',
+      href: intent?.href || '',
+      pageUrl: intent?.pageUrl || '',
+      pageTitle: intent?.pageTitle || '',
+      tagName: intent?.tagName || '',
+      id: intent?.idAttribute || '',
+      name: intent?.name || '',
+      type: intent?.type || '',
+      role: intent?.role || '',
+      className: intent?.className || '',
+      ageMs: Math.max(0, Date.now() - Number(intent?.createdAt || Date.now()))
+    };
+  }
+
+  function warnForUnlearnedPendingClicks(reason, predicate = null) {
+    const entries = readPendingClickIntents();
+    const staleEntries = entries.filter((entry) => {
+      if (!entry?.id) return false;
+      if (warnedPendingClickIds.has(entry.id)) return false;
+      if (typeof predicate === 'function' && !predicate(entry)) return false;
+      return true;
+    });
+
+    staleEntries.forEach((entry) => {
+      warnedPendingClickIds.add(entry.id);
+      emitExtensionLog('warn', 'Observed click that did not become a learned workflow step.', summarizeClickIntentForWarning(entry, reason));
+    });
+  }
+
+  function schedulePendingClickVerification(intentId) {
+    window.setTimeout(() => {
+      const entry = readPendingClickIntents().find((candidate) => candidate && candidate.id === intentId);
+      if (!entry) {
+        return;
+      }
+
+      warnForUnlearnedPendingClicks('persistence_timeout', (candidate) =>
+        candidate?.id === intentId && Date.now() - Number(candidate?.createdAt || 0) >= 2000
+      );
+    }, 2200);
+  }
+
   function getAllowedOptions(element) {
     if (!(element instanceof HTMLSelectElement)) return [];
     return Array.from(element.options).map((option) => ({
@@ -335,6 +461,9 @@ window.WorkflowRecorder = (() => {
     await requireApiClient().appendWorkflowStep(payload, statusId);
 
     recordedSteps.push(payload);
+    if (payload.__pendingClickIntentId) {
+      clearPendingClickIntent(payload.__pendingClickIntentId);
+    }
     appendActivity(payload);
     pluginEvents()?.emit?.('learning.step.captured', { step: payload });
     if (payload.actionType === 'select') {
@@ -347,6 +476,13 @@ window.WorkflowRecorder = (() => {
         allowedOptionCount: Array.isArray(payload.allowedOptions) ? payload.allowedOptions.length : 0,
         stepOrder: payload.stepOrder
       });
+    } else if (payload.actionType === 'click') {
+      emitExtensionLog('info', 'Recorded click step.', {
+        selector: payload.selector,
+        label: payload.label,
+        href: payload.href || '',
+        stepOrder: payload.stepOrder
+      });
     }
   }
 
@@ -355,6 +491,9 @@ window.WorkflowRecorder = (() => {
       .then(() => postStep(step))
       .catch((error) => {
         console.error('Failed to record step', error);
+        if (step?.__pendingClickIntentId) {
+          warnForUnlearnedPendingClicks('record_step_failed', (candidate) => candidate?.id === step.__pendingClickIntentId);
+        }
         emitExtensionLog('error', 'Failed to record step.', {
           selector: step?.selector || '',
           actionType: step?.actionType || '',
@@ -367,6 +506,7 @@ window.WorkflowRecorder = (() => {
 
   async function syncStatus() {
     const status = await requireApiClient().getRecorderStatus();
+    const recoveredPendingClicks = readPendingClickIntents();
 
     isRecording = status.recording;
     statusId = status.id;
@@ -374,6 +514,14 @@ window.WorkflowRecorder = (() => {
     recordedSteps = [];
     lastFieldEvents.clear();
     focusedSelectValues.clear();
+    warnedPendingClickIds.clear();
+
+    if (status.recording && recoveredPendingClicks.length > 0) {
+      recoveredPendingClicks.forEach((entry) => {
+        emitExtensionLog('warn', 'Recovered click that may have been lost before it became a learned step.', summarizeClickIntentForWarning(entry, 'recovered_after_surface_change'));
+      });
+    }
+    writePendingClickIntents([]);
 
     if (status.recording) {
       if (startButton()) startButton().disabled = true;
@@ -391,6 +539,16 @@ window.WorkflowRecorder = (() => {
   }
 
   function installListeners() {
+    window.addEventListener('hashchange', () => {
+      warnForUnlearnedPendingClicks('surface_changed_before_learning', (entry) =>
+        Date.now() - Number(entry?.createdAt || 0) >= 300
+      );
+    }, true);
+
+    window.addEventListener('pagehide', () => {
+      warnForUnlearnedPendingClicks('page_hiding_before_learning');
+    }, true);
+
     document.addEventListener('click', async (event) => {
       if (!isRecording) return;
       const target = event.target.closest('a, button, input, textarea, select, option');
@@ -399,11 +557,17 @@ window.WorkflowRecorder = (() => {
       if (isRecorderControl(target)) return;
       if (target instanceof HTMLSelectElement || target instanceof HTMLOptionElement) return;
 
+      const clickIntent = buildPendingClickIntent(target);
+      persistPendingClickIntent(clickIntent);
+      schedulePendingClickVerification(clickIntent.id);
+
       await recordStep({
         actionType: 'click',
         selector: selectorForElement(target),
         label: labelForElement(target),
         value: '',
+        href: target.getAttribute?.('href') || '',
+        __pendingClickIntentId: clickIntent.id,
         ...getControlMetadata(target)
       });
     }, true);
@@ -504,6 +668,8 @@ window.WorkflowRecorder = (() => {
       recordedSteps = [];
       lastFieldEvents.clear();
       focusedSelectValues.clear();
+      writePendingClickIntents([]);
+      warnedPendingClickIds.clear();
       recordQueue = Promise.resolve();
       if (startButton()) startButton().disabled = true;
       if (stopButton()) stopButton().disabled = false;
@@ -531,6 +697,8 @@ window.WorkflowRecorder = (() => {
       recordedSteps = [];
       lastFieldEvents.clear();
       focusedSelectValues.clear();
+      writePendingClickIntents([]);
+      warnedPendingClickIds.clear();
       if (statusField()) statusField().innerText = 'Saved';
       updateRecordingUI(false);
       pluginEvents()?.emit?.('learning.session.finished', {
@@ -552,6 +720,8 @@ window.WorkflowRecorder = (() => {
       recordedSteps = [];
       lastFieldEvents.clear();
       focusedSelectValues.clear();
+      writePendingClickIntents([]);
+      warnedPendingClickIds.clear();
       if (statusField()) statusField().innerText = 'Idle';
       if (startButton()) startButton().disabled = false;
       if (stopButton()) stopButton().disabled = true;
