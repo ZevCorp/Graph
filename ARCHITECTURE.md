@@ -87,6 +87,7 @@ Key files:
 - [src/application/use-cases/WorkflowExecutor.js](C:/Users/User/Desktop/Graph/src/application/use-cases/WorkflowExecutor.js)
 - [src/application/use-cases/AgentChat.js](C:/Users/User/Desktop/Graph/src/application/use-cases/AgentChat.js)
 - [src/application/use-cases/SurfaceProfileService.js](C:/Users/User/Desktop/Graph/src/application/use-cases/SurfaceProfileService.js)
+- [src/application/use-cases/LearningSessionService.js](C:/Users/User/Desktop/Graph/src/application/use-cases/LearningSessionService.js)
 
 ### Workflow
 
@@ -206,6 +207,20 @@ Profiles are currently global per:
 
 Today we use `scope = global` and empty `ownerId`.
 
+### LearningSessionService
+
+`LearningSessionService` is the session-state coordinator for the learning loop.
+
+It is responsible for:
+
+- starting a browser learning session
+- tracking the active `sessionId`
+- routing steps to the correct workflow session
+- routing `contextNotes` to the correct session
+- finishing or resetting a session cleanly
+
+This is an important architectural shift: the learning flow is no longer modeled as one global mutable `currentWorkflowId` hanging off the HTTP server.
+
 ## 2. Infrastructure Layer
 
 Primary responsibility:
@@ -292,6 +307,52 @@ The browser runtime and Playwright runner are conceptually parallel execution su
 
 It helps bridge browser voice flows with backend-assisted decision and execution logic.
 
+## 2.5. HTTP Composition Layer
+
+Primary responsibility:
+
+- compose application services into HTTP endpoints
+- keep route concerns grouped by capability
+- avoid putting product logic directly inside the top-level server bootstrap
+
+Key files:
+
+- [web/server.js](C:/Users/User/Desktop/Graph/web/server.js)
+- [web/api/registerLearningRoutes.js](C:/Users/User/Desktop/Graph/web/api/registerLearningRoutes.js)
+- [web/api/registerWorkflowRoutes.js](C:/Users/User/Desktop/Graph/web/api/registerWorkflowRoutes.js)
+- [web/api/registerContextRoutes.js](C:/Users/User/Desktop/Graph/web/api/registerContextRoutes.js)
+- [web/api/registerVoiceRoutes.js](C:/Users/User/Desktop/Graph/web/api/registerVoiceRoutes.js)
+- [web/phone/buildPhoneMicPage.js](C:/Users/User/Desktop/Graph/web/phone/buildPhoneMicPage.js)
+
+### Server
+
+`web/server.js` is increasingly the composition root for the backend.
+
+Its responsibilities today are mainly:
+
+- initialize infrastructure and use cases
+- register capability route groups
+- serve static assets and demo surfaces
+- inject the trainer shell into served demo pages
+
+The architectural direction is that feature behavior should live in services or route modules, not in `server.js`.
+
+### Route registration modules
+
+The backend is now grouped by capability:
+
+- `registerLearningRoutes.js`
+- `registerWorkflowRoutes.js`
+- `registerContextRoutes.js`
+- `registerVoiceRoutes.js`
+
+This keeps the HTTP boundary closer to the product concepts:
+
+- learning
+- workflows and planning
+- page context and surface profiles
+- voice and phone microphone pairing
+
 ## 3. Browser Runtime / Plugin Layer
 
 Primary responsibility:
@@ -348,6 +409,13 @@ Current responsibilities:
 - capture allowed options for selects
 - send steps to the backend
 - emit learning lifecycle events
+
+The recorder is now also session-aware:
+
+- it stores the `sessionId` returned by `/api/workflow/start`
+- it sends that `sessionId` on `/api/step`
+- it sends that `sessionId` on `/api/workflow/context-note`
+- it uses that `sessionId` on `/api/workflow/stop`
 
 ### Trainer Plugin
 
@@ -546,9 +614,14 @@ User on page
     -> learning-client
       -> recorder
         -> /api/workflow/start
-        -> /api/step
-        -> /api/workflow/context-note
-        -> /api/workflow/stop
+          -> LearningSessionService
+          -> sessionId returned to browser
+        -> /api/step (with sessionId)
+          -> LearningSessionService
+        -> /api/workflow/context-note (with sessionId)
+          -> LearningSessionService
+        -> /api/workflow/stop (with sessionId)
+          -> LearningSessionService
           -> WorkflowLearner
             -> Neo4j
             -> catalog rebuild
@@ -623,7 +696,7 @@ The architecture is much better aligned than before, but still incomplete.
 Main current limits:
 
 - `web/public/trainer-plugin.js` is still too large, even after capability extraction
-- `web/server.js` still owns too much orchestration and still uses `currentWorkflowId`
+- the deep realtime voice implementation still partially lives in `web/public/trainer-plugin.js`
 - workflow and surface-profile persistence still live together in one Neo4j repository
 - catalog publication is still coupled to learning/catalog services
 - the private workflow model is not activated yet
@@ -633,7 +706,7 @@ Main current limits:
 Near-term architecture work should continue to strengthen:
 
 1. making `trainer-plugin.js` a true composition root
-2. extracting `LearningSessionService` from `web/server.js`
+2. moving the remaining deep voice/realtime internals behind `plugin-voice-client.js`
 3. splitting `WorkflowRepository` and `SurfaceProfileRepository`
 4. formalizing one shared context contract end-to-end
 5. preparing workflow visibility fields for future private workflows

@@ -9,6 +9,7 @@
         const executionStoragePrefix = deps.executionStoragePrefix || 'graph-browser-workflow-execution-v1';
         const waitTimeoutMs = Number.isFinite(deps.waitTimeoutMs) ? deps.waitTimeoutMs : 15000;
         const stepDelayMs = Number.isFinite(deps.stepDelayMs) ? deps.stepDelayMs : 180;
+        const emittedDiagnostics = new Set();
 
         function cloneJson(value) {
             return JSON.parse(JSON.stringify(value));
@@ -66,13 +67,99 @@
             return step.label || step.selector || step.url || step.actionType || 'workflow';
         }
 
+        function buildStepDiagnostics(step, extra = {}) {
+            return {
+                workflowId: extra.workflowId || '',
+                trigger: extra.trigger || '',
+                stepIndex: Number.isFinite(extra.stepIndex) ? extra.stepIndex : null,
+                stepOrder: Number.isFinite(step?.stepOrder) ? step.stepOrder : null,
+                actionType: step?.actionType || '',
+                selector: step?.selector || '',
+                label: step?.label || '',
+                expectedUrl: step?.url || '',
+                currentUrl: window.location.href,
+                ...extra
+            };
+        }
+
+        function buildDiagnosticKey(level, message, step, extra = {}) {
+            return JSON.stringify({
+                level: `${level || 'info'}`.trim().toLowerCase(),
+                message: `${message || ''}`.trim(),
+                workflowId: extra.workflowId || '',
+                trigger: extra.trigger || '',
+                stepOrder: Number.isFinite(step?.stepOrder) ? step.stepOrder : null,
+                stepIndex: Number.isFinite(extra.stepIndex) ? extra.stepIndex : null,
+                actionType: step?.actionType || '',
+                selector: step?.selector || '',
+                failureKind: extra.failureKind || '',
+                resolution: extra.resolution || ''
+            });
+        }
+
+        function emitStepDiagnosticOnce(level, message, step, extra = {}) {
+            const key = buildDiagnosticKey(level, message, step, extra);
+            if (emittedDiagnostics.has(key)) {
+                return;
+            }
+            emittedDiagnostics.add(key);
+            emitExtensionLog(level, message, buildStepDiagnostics(step, extra));
+        }
+
+        function safeQuerySelector(selector) {
+            if (!selector) {
+                return { element: null, error: null };
+            }
+
+            try {
+                return {
+                    element: document.querySelector(selector),
+                    error: null
+                };
+            } catch (error) {
+                return {
+                    element: null,
+                    error
+                };
+            }
+        }
+
+        function safeQuerySelectorAll(selector) {
+            if (!selector) {
+                return { elements: [], error: null };
+            }
+
+            try {
+                return {
+                    elements: Array.from(document.querySelectorAll(selector)),
+                    error: null
+                };
+            } catch (error) {
+                return {
+                    elements: [],
+                    error
+                };
+            }
+        }
+
         function resolveElementFromStep(step) {
             if (!step?.selector) {
                 return null;
             }
 
-            const directMatch = document.querySelector(step.selector);
+            const directResult = safeQuerySelector(step.selector);
+            if (directResult.error) {
+                emitStepDiagnosticOnce('error', 'Invalid selector while resolving workflow step.', step, {
+                    failureKind: 'invalid_selector',
+                    selectorError: directResult.error?.message || 'Invalid selector'
+                });
+            }
+
+            const directMatch = directResult.element;
             if (directMatch) {
+                emitExtensionLog('info', 'Resolved workflow step by selector.', buildStepDiagnostics(step, {
+                    resolution: 'selector'
+                }));
                 return directMatch;
             }
 
@@ -81,10 +168,19 @@
             }
 
             const matches = Array.from(document.querySelectorAll('input, textarea, select, button, a'));
-            return matches.find((element) => {
+            const fallbackMatch = matches.find((element) => {
                 const text = (element.textContent || element.value || element.getAttribute('aria-label') || '').trim();
                 return text === step.label;
             }) || null;
+
+            if (fallbackMatch) {
+                emitStepDiagnosticOnce('warn', 'Resolved workflow step by label fallback after selector miss.', step, {
+                    failureKind: directResult.error ? 'invalid_selector' : 'selector_not_found',
+                    resolution: 'label_fallback'
+                });
+            }
+
+            return fallbackMatch;
         }
 
         async function waitForStepElement(step, timeoutMs = waitTimeoutMs) {
@@ -96,6 +192,10 @@
                 }
                 await new Promise((resolve) => window.setTimeout(resolve, 120));
             }
+            emitStepDiagnosticOnce('error', 'Workflow step target was not found on the page.', step, {
+                failureKind: 'element_not_found',
+                timeoutMs
+            });
             throw new Error(`No pude encontrar ${describeStep(step)} en esta pagina.`);
         }
 
@@ -118,7 +218,7 @@
         function emitExtensionLog(level, message, details = null) {
             const detail = {
                 level,
-                scope: 'trainer-plugin',
+                scope: 'execution',
                 message,
                 details
             };
@@ -159,6 +259,11 @@
             if (inputType === 'checkbox' || inputType === 'radio') {
                 element.checked = Boolean(value);
                 fireDomEvent(element, 'change');
+                emitExtensionLog('info', 'Applied boolean input step.', buildStepDiagnostics(step, {
+                    resolution: 'input_applied',
+                    inputType,
+                    appliedValue: Boolean(value)
+                }));
                 return;
             }
 
@@ -171,6 +276,11 @@
             fireDomEvent(element, 'input');
             fireDomEvent(element, 'change');
             element.blur?.();
+            emitExtensionLog('info', 'Applied input step.', buildStepDiagnostics(step, {
+                resolution: 'input_applied',
+                inputType,
+                appliedValue: value
+            }));
         }
 
         function normalizeChoiceText(value) {
@@ -369,19 +479,16 @@
 
         async function applySelectStep(element, step, variables = {}) {
             const candidates = buildSelectCandidates(step, variables);
-            emitExtensionLog('info', 'Applying select step.', {
-                selector: step.selector || '',
-                label: step.label || '',
+            emitExtensionLog('info', 'Applying select step.', buildStepDiagnostics(step, {
                 candidates
-            });
+            }));
 
             const selected = await waitForMatchingSelectOption(element, candidates);
             if (!selected) {
-                emitExtensionLog('error', 'No matching option found for select step.', {
-                    selector: step.selector || '',
-                    label: step.label || '',
+                emitExtensionLog('error', 'No matching option found for select step.', buildStepDiagnostics(step, {
+                    failureKind: 'select_option_not_found',
                     candidates
-                });
+                }));
                 throw new Error(`No encontre una opcion valida para ${describeStep(step)}.`);
             }
 
@@ -393,35 +500,31 @@
             }
 
             if (!applied) {
-                emitExtensionLog('info', 'Semantic native select apply did not stick, trying keyboard fallback.', {
-                    selector: step.selector || '',
-                    label: step.label || '',
+                emitExtensionLog('warn', 'Semantic native select apply did not stick, trying keyboard fallback.', buildStepDiagnostics(step, {
                     targetValue: selected.value,
                     targetLabel: selected.label || selected.text || ''
-                });
+                }));
                 applied = await applyNativeSelectWithKeyboardFallback(element, selected);
             }
 
             if (!applied) {
                 const snapshot = getSelectedOptionSnapshot(element);
-                emitExtensionLog('error', 'Native select value did not persist after fallback.', {
-                    selector: step.selector || '',
-                    label: step.label || '',
+                emitExtensionLog('error', 'Native select value did not persist after fallback.', buildStepDiagnostics(step, {
+                    failureKind: 'select_value_not_persisted',
                     targetValue: selected.value,
                     targetLabel: selected.label || selected.text || '',
                     currentValue: snapshot.value,
                     currentLabel: snapshot.label
-                });
+                }));
                 throw new Error(`No pude confirmar la seleccion para ${describeStep(step)}.`);
             }
 
-            emitExtensionLog('info', 'Applied select step.', {
-                selector: step.selector || '',
-                label: step.label || '',
+            emitExtensionLog('info', 'Applied select step.', buildStepDiagnostics(step, {
+                resolution: 'select_applied',
                 selectedValue: selected.value,
                 resultingValue: element.value || '',
                 selectedLabel: selected.label || selected.text || ''
-            });
+            }));
         }
 
         function updateExecutionProgress(plan, nextStepIndex) {
@@ -444,6 +547,7 @@
             }
 
             executionState.running = true;
+            emittedDiagnostics.clear();
             let currentPlan = null;
 
             try {
@@ -460,6 +564,12 @@
                     trigger,
                     stepCount: currentPlan.steps.length
                 });
+                emitExtensionLog('info', 'Workflow execution started on page.', {
+                    workflowId: currentPlan.workflowId,
+                    trigger,
+                    stepCount: currentPlan.steps.length,
+                    currentUrl: window.location.href
+                });
 
                 for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
                     const step = currentPlan.steps[stepIndex];
@@ -470,6 +580,11 @@
                         stepIndex,
                         step
                     });
+                    emitExtensionLog('info', 'Workflow execution step started.', buildStepDiagnostics(step, {
+                        workflowId: currentPlan.workflowId,
+                        trigger,
+                        stepIndex
+                    }));
 
                     if (step.actionType === 'navigation') {
                         const targetUrl = normalizeExecutionUrl(step.url);
@@ -478,6 +593,13 @@
                             spotlight: false
                         });
                         if (!urlsMatch(window.location.href, targetUrl)) {
+                            emitExtensionLog('info', 'Navigating to workflow step URL.', buildStepDiagnostics(step, {
+                                workflowId: currentPlan.workflowId,
+                                trigger,
+                                stepIndex,
+                                resolution: 'navigation_redirect',
+                                targetUrl
+                            }));
                             currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
                             updateWorkflowPanelStatus(`Abriendo ${targetUrl}...`);
                             window.location.assign(targetUrl);
@@ -489,6 +611,13 @@
                     }
 
                     if (expectedUrl && !urlsMatch(window.location.href, expectedUrl)) {
+                        emitExtensionLog('warn', 'Workflow step requires a different page URL before execution.', buildStepDiagnostics(step, {
+                            workflowId: currentPlan.workflowId,
+                            trigger,
+                            stepIndex,
+                            failureKind: 'unexpected_page',
+                            targetUrl: expectedUrl
+                        }));
                         currentPlan = updateExecutionProgress(currentPlan, stepIndex);
                         updateWorkflowPanelStatus(`Cambiando a la pagina correcta para ${describeStep(step)}...`);
                         window.location.assign(expectedUrl);
@@ -500,11 +629,23 @@
                         element.scrollIntoView({ block: 'center', inline: 'nearest' });
                         notifyAutomationStep(step, `Estoy interactuando con ${step.label || step.selector || 'este control'}.`);
                         if ('disabled' in element && element.disabled) {
+                            emitExtensionLog('error', 'Workflow click target is disabled.', buildStepDiagnostics(step, {
+                                workflowId: currentPlan.workflowId,
+                                trigger,
+                                stepIndex,
+                                failureKind: 'element_disabled'
+                            }));
                             throw new Error(`El elemento ${describeStep(step)} sigue deshabilitado.`);
                         }
 
                         currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
                         element.click();
+                        emitExtensionLog('info', 'Applied click step.', buildStepDiagnostics(step, {
+                            workflowId: currentPlan.workflowId,
+                            trigger,
+                            stepIndex,
+                            resolution: 'click_applied'
+                        }));
                     } else if (step.actionType === 'input') {
                         notifyAutomationStep(step, `Estoy completando ${step.label || step.selector || 'este campo'}.`);
                         await applyInputStep(element, step, currentPlan.variables || {});
@@ -526,12 +667,26 @@
                 runtime()?.speak('Listo, termine de completar la tarea aqui mismo.', { mode: 'idle' });
                 emitExtensionLog('info', 'Workflow execution finished on page.', {
                     workflowId: currentPlan.workflowId,
-                    trigger
+                    trigger,
+                    currentUrl: window.location.href
                 });
                 emitPluginEvent('workflow.execution.finished', {
                     workflowId: currentPlan.workflowId,
                     trigger
                 });
+            } catch (error) {
+                if (currentPlan) {
+                    const failingStepIndex = Number.isFinite(currentPlan.nextStepIndex) ? currentPlan.nextStepIndex : null;
+                    const failingStep = failingStepIndex != null ? currentPlan.steps[failingStepIndex] : null;
+                    emitExtensionLog('error', 'Workflow execution failed on page.', buildStepDiagnostics(failingStep, {
+                        workflowId: currentPlan.workflowId,
+                        trigger: currentPlan.trigger || trigger,
+                        stepIndex: failingStepIndex,
+                        failureKind: 'execution_error',
+                        errorMessage: error?.message || 'Unknown execution error'
+                    }));
+                }
+                throw error;
             } finally {
                 executionState.running = false;
             }

@@ -1,6 +1,7 @@
 const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
 const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowLogs';
+const EXECUTION_LOG_SCOPES = new Set(['execution']);
 
 function getStorage() {
   return chrome.storage?.sync || chrome.storage?.local;
@@ -36,6 +37,27 @@ async function readLogs() {
   });
 }
 
+function isExecutionDiagnostic(entry = {}) {
+  const scope = `${entry.scope || ''}`.trim().toLowerCase();
+  return EXECUTION_LOG_SCOPES.has(scope);
+}
+
+function buildExecutionDiagnosticSummary(logs = []) {
+  const diagnostics = logs.filter(isExecutionDiagnostic);
+  const errors = diagnostics.filter((entry) => `${entry.level || ''}`.toLowerCase() === 'error').length;
+  const warnings = diagnostics.filter((entry) => `${entry.level || ''}`.toLowerCase() === 'warn').length;
+
+  if (!diagnostics.length) {
+    return 'Sin diagnosticos de ejecucion todavia.';
+  }
+
+  if (!errors && !warnings) {
+    return `${diagnostics.length} evento(s) recientes de ejecucion sin fallos reportados.`;
+  }
+
+  return `${errors} error(es), ${warnings} alerta(s) y ${diagnostics.length} evento(s) de ejecucion recientes.`;
+}
+
 async function clearLogs() {
   const storage = getLocalStorage();
   return new Promise((resolve) => {
@@ -62,10 +84,26 @@ async function saveLogPanelState(isOpen) {
 function formatLogEntry(entry = {}) {
   const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'unknown-time';
   const level = `${entry.level || 'info'}`.toUpperCase();
-  const scope = entry.scope ? ` [${entry.scope}]` : '';
-  const message = `${entry.message || ''}`.trim() || '(empty message)';
-  const details = entry.details ? `\n${JSON.stringify(entry.details, null, 2)}` : '';
-  return `${timestamp} ${level}${scope} ${message}${details}`;
+  const details = entry.details && typeof entry.details === 'object' ? entry.details : {};
+  const stepText = [
+    details.workflowId ? `workflow=${details.workflowId}` : '',
+    Number.isFinite(details.stepOrder) ? `step=${details.stepOrder}` : '',
+    details.actionType ? `action=${details.actionType}` : '',
+    details.selector ? `selector=${details.selector}` : '',
+    details.label ? `label=${details.label}` : '',
+    details.failureKind ? `failure=${details.failureKind}` : '',
+    details.resolution ? `resolution=${details.resolution}` : ''
+  ].filter(Boolean).join(' | ');
+  const errorText = details.selectorError || details.errorMessage || '';
+  const locationText = details.currentUrl ? `\nurl: ${details.currentUrl}` : '';
+  const detailsBlock = entry.details ? `\n${JSON.stringify(entry.details, null, 2)}` : '';
+  return [
+    `${timestamp} ${level} ${entry.message || '(empty message)'}`.trim(),
+    stepText,
+    errorText ? `error: ${errorText}` : '',
+    locationText ? locationText.trim() : '',
+    detailsBlock.trim()
+  ].filter(Boolean).join('\n');
 }
 
 function escapeHtml(value) {
@@ -137,14 +175,19 @@ async function getActiveTabId() {
 
 async function renderLogs(logOutputEl) {
   const logs = await readLogs();
-  logOutputEl.textContent = logs.length > 0
-    ? logs.slice().reverse().map((entry) => formatLogEntry(entry)).join('\n\n')
-    : 'No logs yet.';
+  const executionLogs = logs.filter(isExecutionDiagnostic);
+  const summaryEl = document.getElementById('logSummary');
+  if (summaryEl) {
+    summaryEl.textContent = buildExecutionDiagnosticSummary(logs);
+  }
+  logOutputEl.textContent = executionLogs.length > 0
+    ? executionLogs.slice().reverse().map((entry) => formatLogEntry(entry)).join('\n\n')
+    : 'No hay diagnosticos de ejecucion todavia.';
 }
 
 async function setLogPanelOpen(panelEl, buttonEl, logOutputEl, isOpen) {
   panelEl.classList.toggle('open', isOpen);
-  buttonEl.textContent = isOpen ? 'Hide Logs' : 'Show Logs';
+  buttonEl.textContent = isOpen ? 'Ocultar diagnostico' : 'Ver diagnostico';
   await saveLogPanelState(isOpen);
   if (isOpen) {
     await renderLogs(logOutputEl);

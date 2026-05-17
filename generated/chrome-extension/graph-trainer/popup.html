@@ -87,6 +87,12 @@
     #logPanel.open {
       display: block;
     }
+    #logSummary {
+      margin: 0 0 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #4c5c6c;
+    }
     #logOutput {
       margin: 0;
       max-height: 220px;
@@ -284,7 +290,7 @@
 <body>
   <div id="settingsView">
     <h1>Graph Trainer</h1>
-    <p>Enable the trainer on any page and point it to your running Graph backend.</p>
+    <p>Activa el trainer en cualquier pagina y usa este popup para revisar por que una automatizacion aprendida no logro ejecutarse.</p>
 
     <div class="row">
       <input id="enabled" type="checkbox">
@@ -299,15 +305,16 @@
       <button id="showImprovements" type="button" class="secondary-button">Mostrar mejoras para la pagina</button>
     </div>
     <div class="button-row">
-      <button id="toggleLogs" type="button" class="secondary-button">Show Logs</button>
-      <button id="clearLogs" type="button" class="danger-button">Clear Logs</button>
+      <button id="toggleLogs" type="button" class="secondary-button">Ver diagnostico</button>
+      <button id="clearLogs" type="button" class="danger-button">Limpiar</button>
     </div>
     <div id="status"></div>
     <div id="logPanel" aria-live="polite">
-      <pre id="logOutput">No logs yet.</pre>
+      <p id="logSummary">Sin diagnosticos de ejecucion todavia.</p>
+      <pre id="logOutput">No hay diagnosticos de ejecucion todavia.</pre>
     </div>
 
-    <p>After saving, reload the target tab. The trainer will mount automatically.</p>
+    <p>Despues de guardar, recarga la pestaña objetivo. El trainer se montara automaticamente.</p>
   </div>
 
   <div id="improvementsView" aria-live="polite">

@@ -1,6 +1,7 @@
 const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
 const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_LIMIT = 200;
+const EXECUTION_LOG_SCOPES = new Set(['execution']);
 
 function getStorage() {
   return chrome.storage?.sync || chrome.storage?.local;
@@ -127,7 +128,25 @@ function writeLog(entry) {
   });
 }
 
+function shouldPersistLogEntry(entry = {}) {
+  const level = `${entry.level || 'info'}`.trim().toLowerCase();
+  const scope = `${entry.scope || ''}`.trim().toLowerCase();
+
+  if (level === 'error' || level === 'warn') {
+    return true;
+  }
+
+  if (EXECUTION_LOG_SCOPES.has(scope)) {
+    return true;
+  }
+
+  return false;
+}
+
 function log(level, scope, message, details = null) {
+  if (!shouldPersistLogEntry({ level, scope, message, details })) {
+    return Promise.resolve();
+  }
   return writeLog({ level, scope, message, details }).catch(() => {});
 }
 
@@ -141,22 +160,15 @@ function normalizeHostname(value) {
 
 async function bootstrap() {
   if (window.top !== window) {
-    await log('info', 'content', 'Skipped iframe mount.');
     return;
   }
 
   const settings = await readSettings();
-  await log('info', 'content', 'Loaded extension settings.', {
-    enabled: Boolean(settings.enabled),
-    backendUrl: settings.backendUrl || DEFAULT_BACKEND_URL
-  });
   if (!settings.enabled) {
-    await log('info', 'content', 'Extension disabled for pages.');
     return;
   }
 
   if (document.documentElement.dataset.graphTrainerExtensionMounted === 'true') {
-    await log('info', 'content', 'Skipped duplicate mount.');
     return;
   }
   document.documentElement.dataset.graphTrainerExtensionMounted = 'true';
@@ -185,13 +197,6 @@ async function bootstrap() {
   document.documentElement.dataset.graphTrainerAppId = `chrome-extension-${normalizeHostname(window.location.hostname)}`;
   document.documentElement.dataset.graphTrainerStorageKey = `graph-extension-state-${normalizeHostname(window.location.hostname)}`;
   document.documentElement.dataset.graphTrainerWorkflowDescription = `Workflow on ${window.location.hostname || 'current-page'}`;
-  await log('info', 'content', 'Prepared page dataset for Graph Trainer.', {
-    backendUrl: document.documentElement.dataset.graphTrainerBackendUrl,
-    appId: document.documentElement.dataset.graphTrainerAppId,
-    storageKey: document.documentElement.dataset.graphTrainerStorageKey,
-    hostname: window.location.hostname,
-    pathname: window.location.pathname
-  });
 
   document.addEventListener('graph-trainer-extension-log', (event) => {
     const detail = event?.detail || {};
@@ -210,12 +215,8 @@ async function bootstrap() {
   });
 
   for (const path of runtimeScripts) {
-    await log('info', 'content', `Injecting ${path}.`);
     await injectExternalScript(path);
-    await log('info', 'content', `Injected ${path}.`);
   }
-
-  await log('info', 'content', 'All runtime scripts injected.');
 }
 
 bootstrap().catch((error) => {
