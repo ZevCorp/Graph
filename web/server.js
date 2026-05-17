@@ -3,9 +3,7 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 const fs = require('fs');
 const http = require('http');
-const os = require('os');
 const path = require('path');
-const QRCode = require('qrcode');
 
 const Neo4jDriver = require('../src/infrastructure/Neo4jDriver');
 const LLMProvider = require('../src/infrastructure/LLMProvider');
@@ -21,7 +19,11 @@ const AgentChat = require('../src/application/use-cases/AgentChat');
 const GeneratePitchArtifacts = require('../src/application/use-cases/GeneratePitchArtifacts');
 const ConversationInsights = require('../src/application/use-cases/ConversationInsights');
 const SurfaceProfileService = require('../src/application/use-cases/SurfaceProfileService');
-const workflowAssistantPolicy = require('../src/application/use-cases/WorkflowAssistantPolicy');
+const LearningSessionService = require('../src/application/use-cases/LearningSessionService');
+const registerLearningRoutes = require('./api/registerLearningRoutes');
+const registerWorkflowRoutes = require('./api/registerWorkflowRoutes');
+const registerContextRoutes = require('./api/registerContextRoutes');
+const registerVoiceRoutes = require('./api/registerVoiceRoutes');
 
 const GetGraphVisualization = require('../src/application/use-cases/GetGraphVisualization');
 
@@ -51,6 +53,7 @@ const conversationInsights = new ConversationInsights(
   path.join(process.cwd(), 'generated', 'conversation-insights')
 );
 const surfaceProfileService = new SurfaceProfileService(repository, llmProvider);
+const learningSessionService = new LearningSessionService(workflowLearner);
 const getGraphVisualization = new GetGraphVisualization(repository);
 
 app.use(bodyParser.json());
@@ -80,63 +83,6 @@ app.use((req, res, next) => {
   next();
 });
 
-let currentWorkflowId = null;
-
-function getLanHost() {
-  const interfaces = os.networkInterfaces();
-  for (const entries of Object.values(interfaces)) {
-    for (const entry of entries || []) {
-      if (entry.family === 'IPv4' && !entry.internal) {
-        return entry.address;
-      }
-    }
-  }
-  return 'localhost';
-}
-
-function getPublicBaseUrl(req) {
-  const forwardedProto = `${req.get('x-forwarded-proto') || ''}`.split(',')[0].trim();
-  const proto = forwardedProto || req.protocol || 'http';
-  const host = req.get('host') || '';
-
-  if (process.env.PUBLIC_BASE_URL) {
-    return process.env.PUBLIC_BASE_URL.replace(/\/+$/, '');
-  }
-
-  if (process.env.RENDER_EXTERNAL_URL) {
-    return process.env.RENDER_EXTERNAL_URL.replace(/\/+$/, '');
-  }
-
-  if (process.env.RENDER || (host && !host.startsWith('localhost') && !host.startsWith('127.0.0.1'))) {
-    return `${proto}://${host}`;
-  }
-
-  const port = req.app.get('port') || PORT;
-  return `http://${getLanHost()}:${port}`;
-}
-
-function escapeHtml(value) {
-  return `${value || ''}`
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function decodeBase64JsonHeader(value, fallback = null) {
-  const encoded = `${value || ''}`.trim();
-  if (!encoded) {
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
-  } catch (error) {
-    return fallback;
-  }
-}
-
 const CAR_DEMO_ASSISTANT_PROFILE = {
   tone: 'close, sincere, direct, human',
   style: 'helpful car-rental advisor',
@@ -148,45 +94,6 @@ const CAR_DEMO_ASSISTANT_PROFILE = {
     'Be direct about the missing information and avoid robotic wording.'
   ]
 };
-
-function summarizeRealtimeWorkflowVariable(variable = {}) {
-  const allowedOptions = Array.isArray(variable.allowedOptions)
-    ? variable.allowedOptions
-      .map((option) => option?.value)
-      .filter(Boolean)
-      .slice(0, 10)
-    : [];
-
-  return {
-    name: variable.name || '',
-    label: variable.fieldLabel || variable.prompt || variable.selector || variable.name || '',
-    defaultValue: variable.defaultValue || '',
-    allowedOptions
-  };
-}
-
-function summarizeRealtimeWorkflow(workflow = {}) {
-  return {
-    id: workflow.id || '',
-    description: workflow.description || '',
-    summary: workflow.summary || '',
-    sourcePathname: workflow.sourcePathname || '',
-    variables: Array.isArray(workflow.variables)
-      ? workflow.variables.map((variable) => summarizeRealtimeWorkflowVariable(variable))
-      : []
-  };
-}
-
-function buildOpenAiRealtimeInstructions(context = {}, workflows = []) {
-  return workflowAssistantPolicy.buildVoiceExecutionPrompt(context, workflows);
-}
-
-function buildOpenAiRealtimeTools() {
-  return workflowAssistantPolicy.buildVoiceFunctionDefinitions().map((definition) => ({
-    type: 'function',
-    ...definition
-  }));
-}
 
 function injectTrainerShell(html, options = {}) {
   const workflowDescription = JSON.stringify(options.workflowDescription || '');
@@ -661,449 +568,18 @@ app.get('/examples/car-demo', (req, res) => {
   }
 });
 
-app.get('/api/status', (req, res) => {
-  res.json({ recording: !!currentWorkflowId, id: currentWorkflowId });
+registerLearningRoutes(app, { learningSessionService });
+registerWorkflowRoutes(app, { catalogService, workflowExecutor });
+registerContextRoutes(app, {
+  generatePitchArtifacts,
+  conversationInsights,
+  catalogService,
+  surfaceProfileService
 });
-
-app.post('/api/workflow/start', async (req, res) => {
-  try {
-    const description = (req.body?.description || '').trim() || 'Untitled workflow';
-    currentWorkflowId = await workflowLearner.startSession(description, req.body?.context || {});
-    console.log(`[Server] Starting workflow: ${currentWorkflowId}`);
-    res.json({ id: currentWorkflowId });
-  } catch (err) {
-    console.error(`[Server] Start Error: ${err.message}`);
-    currentWorkflowId = null;
-    res.status(500).send(err.message);
-  }
-});
-
-app.post('/api/step', async (req, res) => {
-  try {
-    const stepOrder = await workflowLearner.recordStep(currentWorkflowId, req.body);
-    console.log(`[Server] Logging step ${stepOrder} for ${currentWorkflowId}`);
-    res.sendStatus(200);
-  } catch (err) {
-    console.error(`[Server] Step Error: ${err.message}`);
-    res.status(500).send(err.message);
-  }
-});
-
-app.post('/api/workflow/context-note', async (req, res) => {
-  try {
-    await workflowLearner.addContextNote(currentWorkflowId, req.body?.note || {});
-    res.sendStatus(200);
-  } catch (err) {
-    console.error(`[Server] Context Note Error: ${err.message}`);
-    res.status(500).send(err.message);
-  }
-});
-
-app.post('/api/workflow/stop', async (req, res) => {
-  try {
-    console.log(`[Server] Stopping workflow: ${currentWorkflowId}`);
-    const summary = await workflowLearner.finishSession(currentWorkflowId);
-    console.log(`[Server] Final Summary: ${summary}`);
-    currentWorkflowId = null;
-    res.sendStatus(200);
-  } catch (err) {
-    console.error(`[Server] Stop Error: ${err.message}`);
-    res.status(500).send(err.message);
-  }
-});
-
-app.get('/api/workflows', async (req, res) => {
-  try {
-    const workflows = await catalogService.getCatalog();
-    res.json({ workflows });
-  } catch (err) {
-    console.error(`[Workflows] List Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/workflows/:id', async (req, res) => {
-  try {
-    const workflow = await catalogService.getWorkflowById(req.params.id);
-    if (!workflow) {
-      return res.status(404).json({ error: 'Workflow not found' });
-    }
-    res.json({ workflow });
-  } catch (err) {
-    console.error(`[Workflows] Read Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/workflows', async (req, res) => {
-  try {
-    const workflow = req.body || {};
-    workflow.id = (workflow.id || '').trim() || `wf_${Date.now()}`;
-    const newWf = await catalogService.saveWorkflow(workflow);
-    res.status(201).json({ workflow: newWf });
-  } catch (err) {
-    console.error(`[Workflows] Create Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.put('/api/workflows/:id', async (req, res) => {
-  try {
-    const workflow = { ...req.body, id: (req.params.id || '').trim() };
-    const updated = await catalogService.updateWorkflow(workflow);
-    res.json({ workflow: updated });
-  } catch (err) {
-    console.error(`[Workflows] Update Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.delete('/api/workflows/:id', async (req, res) => {
-  try {
-    const workflowId = (req.params.id || '').trim();
-    await catalogService.deleteWorkflow(workflowId);
-    res.json({ deleted: true, id: workflowId });
-  } catch (err) {
-    console.error(`[Workflows] Delete Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/workflows/:id/execute', async (req, res) => {
-  try {
-    const workflowId = (req.params.id || '').trim();
-    const workflow = await catalogService.getWorkflowById(workflowId);
-    if (!workflow) {
-      return res.status(404).json({ error: 'Workflow not found' });
-    }
-
-    await workflowExecutor.executeById(workflowId, req.body?.variables || {});
-    res.json({ executed: true, workflowId });
-  } catch (err) {
-    console.error(`[Workflows] Execute Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/workflows/:id/plan', async (req, res) => {
-  try {
-    const workflowId = (req.params.id || '').trim();
-    const plan = await workflowExecutor.getExecutionPlanById(workflowId, req.body?.variables || {});
-    res.json({ executionPlan: plan });
-  } catch (err) {
-    console.error(`[Workflows] Plan Error: ${err.message}`);
-    if ((err.message || '').includes('not found')) {
-      return res.status(404).json({ error: err.message });
-    }
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/pitch/generate', async (req, res) => {
-  try {
-    const context = {
-      appId: req.body?.appId || '',
-      sourceUrl: req.body?.sourceUrl || '',
-      sourceOrigin: req.body?.sourceOrigin || '',
-      sourcePathname: req.body?.sourcePathname || '',
-      sourceTitle: req.body?.sourceTitle || '',
-      workflowDescription: req.body?.workflowDescription || '',
-      assistantProfile: req.body?.assistantProfile || null
-    };
-
-    const result = await generatePitchArtifacts.execute(context);
-    res.status(201).json(result);
-  } catch (err) {
-    console.error(`[Pitch] Generate Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/pitch/improvements', async (req, res) => {
-  try {
-    const context = {
-      appId: req.body?.appId || '',
-      sourceUrl: req.body?.sourceUrl || '',
-      sourceOrigin: req.body?.sourceOrigin || '',
-      sourcePathname: req.body?.sourcePathname || '',
-      sourceTitle: req.body?.sourceTitle || '',
-      workflowDescription: req.body?.workflowDescription || '',
-      assistantProfile: req.body?.assistantProfile || null
-    };
-
-    const result = await generatePitchArtifacts.previewImprovements(context);
-    res.json(result);
-  } catch (err) {
-    console.error(`[Pitch] Improvement Preview Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/voice/complaints/process', async (req, res) => {
-  try {
-    const context = {
-      appId: req.body?.appId || '',
-      sourceUrl: req.body?.sourceUrl || '',
-      sourceOrigin: req.body?.sourceOrigin || '',
-      sourcePathname: req.body?.sourcePathname || '',
-      sourceTitle: req.body?.sourceTitle || '',
-      workflowDescription: req.body?.workflowDescription || '',
-      assistantProfile: req.body?.assistantProfile || null
-    };
-
-    const workflows = generatePitchArtifacts.filterWorkflowsForContext(
-      await catalogService.getCatalog(),
-      context
-    );
-    const result = await conversationInsights.processComplaints(context, workflows);
-    res.json(result);
-  } catch (err) {
-    console.error(`[Voice Complaints] Process Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/surface-profile/ensure', async (req, res) => {
-  try {
-    const context = {
-      appId: req.body?.context?.appId || '',
-      sourceUrl: req.body?.context?.sourceUrl || '',
-      sourceOrigin: req.body?.context?.sourceOrigin || '',
-      sourcePathname: req.body?.context?.sourcePathname || '',
-      sourceTitle: req.body?.context?.sourceTitle || '',
-      scope: req.body?.context?.scope || 'global',
-      ownerId: req.body?.context?.ownerId || '',
-      browserLocale: req.body?.context?.browserLocale || '',
-      languageCode: req.body?.context?.languageCode || ''
-    };
-
-    const result = await surfaceProfileService.ensureGlobalProfile(context, req.body?.pageSnapshot || {});
-    res.json(result);
-  } catch (err) {
-    console.error(`[Surface Profile] Ensure Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/voice/openai/session', express.text({ type: ['application/sdp', 'text/plain'], limit: '1mb' }), async (req, res) => {
-  try {
-    const openAiApiKey = `${process.env.OPENAI_API_KEY || ''}`.trim();
-    if (!openAiApiKey) {
-      return res.status(500).json({ error: 'OPENAI_API_KEY is not configured on the server.' });
-    }
-
-    const sdp = typeof req.body === 'string'
-      ? req.body.trim()
-      : `${req.body?.sdp || ''}`.trim();
-    if (!sdp) {
-      return res.status(400).json({ error: 'Missing SDP offer.' });
-    }
-
-    const context = decodeBase64JsonHeader(req.get('x-graph-voice-context'), {});
-    const history = decodeBase64JsonHeader(req.get('x-graph-voice-history'), []);
-    const workflows = agentChat.filterWorkflowsForContext(await catalogService.getCatalog(), context);
-
-    const sessionConfig = {
-      type: 'realtime',
-      model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime',
-      instructions: buildOpenAiRealtimeInstructions(context, workflows),
-      conversation: Array.isArray(history) && history.length > 0
-        ? 'auto'
-        : undefined,
-      audio: {
-        input: {
-          noise_reduction: { type: 'near_field' },
-          transcription: {
-            model: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
-            language: 'es'
-          },
-          turn_detection: {
-            type: 'server_vad',
-            threshold: 0.5,
-            prefix_padding_ms: 300,
-            silence_duration_ms: 900,
-            create_response: false,
-            interrupt_response: true
-          }
-        },
-        output: {
-          voice: process.env.OPENAI_REALTIME_VOICE || 'marin'
-        }
-      },
-      tools: buildOpenAiRealtimeTools(),
-      tool_choice: 'auto'
-    };
-
-    const form = new FormData();
-    form.set('sdp', sdp);
-    form.set('session', JSON.stringify(sessionConfig));
-
-    const response = await fetch('https://api.openai.com/v1/realtime/calls', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openAiApiKey}`
-      },
-      body: form
-    });
-
-    const answerSdp = await response.text();
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: answerSdp || 'Failed to create OpenAI Realtime session.'
-      });
-    }
-
-    res
-      .set('Content-Type', 'application/sdp')
-      .set('X-OpenAI-Realtime-Model', sessionConfig.model)
-      .set('X-OpenAI-Realtime-Voice', sessionConfig.audio.output.voice)
-      .send(answerSdp);
-  } catch (err) {
-    console.error(`[Voice OpenAI] Session Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/voice/phone-session', async (req, res) => {
-  try {
-    const requestedId = `${req.body?.requestedId || ''}`.trim();
-    const id = /^[a-zA-Z0-9_-]{12,120}$/.test(requestedId)
-      ? requestedId
-      : `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
-    const phoneUrl = `${getPublicBaseUrl(req)}/phone-mic/${encodeURIComponent(id)}`;
-    const qrDataUrl = await QRCode.toDataURL(phoneUrl, {
-      margin: 1,
-      width: 260
-    });
-
-    res.json({ id, phoneUrl, qrDataUrl });
-  } catch (err) {
-    console.error(`[Voice Phone] Session Error: ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/phone-mic/:id', (req, res) => {
-  const id = escapeHtml(req.params.id || '');
-  res.type('html').send(`<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Microfono Graph</title>
-  <style>
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #101820; color: #f7fbff; }
-    main { width: min(420px, calc(100vw - 32px)); display: grid; gap: 18px; text-align: center; }
-    button { border: 0; border-radius: 999px; padding: 18px 22px; font: inherit; font-weight: 800; background: #22c55e; color: #092013; }
-    button[data-active="true"] { background: #ef4444; color: white; }
-    .status { min-height: 48px; color: #cbd5e1; line-height: 1.45; }
-    .badge { width: fit-content; margin: 0 auto; padding: 7px 11px; border-radius: 999px; background: rgba(255,255,255,.1); color: #dbeafe; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <main>
-    <div class="badge">Graph phone mic</div>
-    <h1>Usar este telefono como microfono</h1>
-    <button id="toggle" type="button" data-active="false">Activar microfono</button>
-    <div class="status" id="status">Abre la conversacion de voz en el computador y toca activar.</div>
-  </main>
-  <script>
-    const sessionId = ${JSON.stringify(id)};
-    const statusEl = document.getElementById('status');
-    const button = document.getElementById('toggle');
-    const state = { active: false, socket: null, stream: null, audioContext: null, processor: null, source: null, silenceGain: null };
-
-    function setStatus(text) { statusEl.textContent = text || ''; }
-    function downsampleForRealtime(floatSamples, inputSampleRate) {
-      const targetSampleRate = 24000;
-      if (inputSampleRate === targetSampleRate) return floatSamples;
-      const ratio = inputSampleRate / targetSampleRate;
-      const outputLength = Math.floor(floatSamples.length / ratio);
-      const output = new Float32Array(outputLength);
-      let inputIndex = 0;
-      for (let outputIndex = 0; outputIndex < outputLength; outputIndex += 1) {
-        const nextInputIndex = Math.floor((outputIndex + 1) * ratio);
-        let sum = 0;
-        let count = 0;
-        for (let i = inputIndex; i < nextInputIndex && i < floatSamples.length; i += 1) {
-          sum += floatSamples[i];
-          count += 1;
-        }
-        output[outputIndex] = count ? sum / count : 0;
-        inputIndex = nextInputIndex;
-      }
-      return output;
-    }
-    function floatTo16BitPcm(floatSamples) {
-      const buffer = new ArrayBuffer(floatSamples.length * 2);
-      const view = new DataView(buffer);
-      for (let i = 0; i < floatSamples.length; i += 1) {
-        const sample = Math.max(-1, Math.min(1, floatSamples[i]));
-        view.setInt16(i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-      }
-      return buffer;
-    }
-    async function start() {
-      if (state.active) return;
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setStatus('Este navegador no permite microfono en esta pagina. Si estas en HTTP, abre con HTTPS o un tunel seguro.');
-        return;
-      }
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const socket = new WebSocket(protocol + '//' + location.host + '/api/voice/phone-mic/' + encodeURIComponent(sessionId));
-      socket.binaryType = 'arraybuffer';
-      state.socket = socket;
-      socket.addEventListener('open', async () => {
-        setStatus('Conectado. Pidiendo permiso de microfono...');
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: 0 } });
-          const audioContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
-          await audioContext.resume();
-          const source = audioContext.createMediaStreamSource(stream);
-          const processor = audioContext.createScriptProcessor(1024, 1, 1);
-          const silenceGain = audioContext.createGain();
-          silenceGain.gain.value = 0;
-          processor.onaudioprocess = (event) => {
-            if (!state.active || socket.readyState !== WebSocket.OPEN) return;
-            const input = event.inputBuffer.getChannelData(0);
-            socket.send(floatTo16BitPcm(downsampleForRealtime(input, audioContext.sampleRate)));
-          };
-          source.connect(processor);
-          processor.connect(silenceGain);
-          silenceGain.connect(audioContext.destination);
-          Object.assign(state, { active: true, stream, audioContext, source, processor, silenceGain });
-          button.dataset.active = 'true';
-          button.textContent = 'Detener microfono';
-          setStatus('Transmitiendo microfono al computador.');
-          socket.send(JSON.stringify({ type: 'phone_status', status: 'Transmitiendo microfono desde el telefono.' }));
-        } catch (error) {
-          setStatus(error.message || 'No se pudo activar el microfono.');
-          stop(false);
-        }
-      });
-      socket.addEventListener('message', (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.type === 'desktop_connected') setStatus('Computador sincronizado. Toca activar y habla.');
-        } catch (error) {}
-      });
-      socket.addEventListener('close', () => stop(false));
-    }
-    function stop(sendClose = true) {
-      if (state.processor) state.processor.disconnect();
-      if (state.source) state.source.disconnect();
-      if (state.silenceGain) state.silenceGain.disconnect();
-      if (state.stream) state.stream.getTracks().forEach((track) => track.stop());
-      if (state.audioContext) state.audioContext.close();
-      if (sendClose && state.socket && state.socket.readyState === WebSocket.OPEN) state.socket.close();
-      Object.assign(state, { active: false, socket: null, stream: null, audioContext: null, processor: null, source: null, silenceGain: null });
-      button.dataset.active = 'false';
-      button.textContent = 'Activar microfono';
-    }
-    button.addEventListener('click', () => state.active ? stop() : start());
-  </script>
-</body>
-</html>`);
+registerVoiceRoutes(app, {
+  express,
+  agentChat,
+  catalogService
 });
 
 app.post('/api/agent/chat', async (req, res) => {
@@ -1286,12 +762,6 @@ app.get('/api/visualize', async (req, res) => {
     console.error(`[Visualize] Error: ${err.message}`);
     res.status(500).send(err.message);
   }
-});
-
-app.post('/api/reset', (req, res) => {
-  console.log('[Server] Manual status reset');
-  currentWorkflowId = null;
-  res.sendStatus(200);
 });
 
 const PORT = process.env.PORT || process.env.WEB_PORT || 3000;

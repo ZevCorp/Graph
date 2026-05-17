@@ -254,12 +254,13 @@ window.WorkflowRecorder = (() => {
     stepOrder += 1;
     const payload = {
       ...step,
+      sessionId: statusId,
       url: window.location.href,
       explanation: getExplanation(),
       stepOrder
     };
 
-    await requireApiClient().appendWorkflowStep(payload);
+    await requireApiClient().appendWorkflowStep(payload, statusId);
 
     recordedSteps.push(payload);
     appendActivity(payload);
@@ -423,7 +424,8 @@ window.WorkflowRecorder = (() => {
         pageState.clearAll();
       }
 
-      await requireApiClient().startWorkflow(desc, context);
+      const startPayload = await requireApiClient().startWorkflow(desc, context);
+      statusId = startPayload?.id || null;
 
       isRecording = true;
       stepOrder = 0;
@@ -438,6 +440,7 @@ window.WorkflowRecorder = (() => {
       const activity = document.getElementById('activity-log');
       if (activity) activity.innerHTML = '';
       pluginEvents()?.emit?.('learning.session.started', {
+        sessionId: statusId,
         description: desc,
         context
       });
@@ -446,7 +449,7 @@ window.WorkflowRecorder = (() => {
 
     async stopWorkflow(redirectTo) {
       const workflowId = statusId;
-      await requireApiClient().stopWorkflow();
+      await requireApiClient().stopWorkflow(workflowId);
       if (workflowId && !hasMeaningfulRecordedSteps()) {
         await requireApiClient().deleteWorkflow(workflowId).catch(() => {});
       }
@@ -459,6 +462,7 @@ window.WorkflowRecorder = (() => {
       if (statusField()) statusField().innerText = 'Saved';
       updateRecordingUI(false);
       pluginEvents()?.emit?.('learning.session.finished', {
+        sessionId: workflowId,
         redirectTo: redirectTo || ''
       });
       if (redirectTo) {

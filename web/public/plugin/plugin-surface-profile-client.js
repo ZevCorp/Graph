@@ -13,7 +13,7 @@
             if (!note || !note.transcript || !requireApiClient) {
                 return Promise.resolve();
             }
-            return requireApiClient().appendWorkflowContextNote(note).catch((error) => {
+            return requireApiClient().appendWorkflowContextNote(note, note.sessionId || '').catch((error) => {
                 console.warn('[LearningContext] Could not persist note:', error.message || error);
             });
         }

@@ -13,6 +13,7 @@
 
     function startSession(payload) {
         state.activeSession = {
+            sessionId: payload?.sessionId || '',
             startedAt: Date.now(),
             description: payload?.description || '',
             context: payload?.context || {},
@@ -30,6 +31,7 @@
         }
 
         const note = {
+            sessionId: state.activeSession.sessionId || '',
             transcript: `${payload.transcript || ''}`.trim(),
             role: payload.role || 'user',
             mode: payload.mode || 'unknown',
@@ -42,6 +44,7 @@
 
         state.activeSession.voiceNotes.push(note);
         emit('learning.context.captured', {
+            sessionId: state.activeSession.sessionId || '',
             description: state.activeSession.description,
             note,
             noteCount: state.activeSession.voiceNotes.length

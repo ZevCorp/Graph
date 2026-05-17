@@ -47,16 +47,23 @@
                     })
                 });
             },
-            appendWorkflowStep(step) {
+            appendWorkflowStep(step, sessionId) {
                 return createJsonRequest(baseUrl, '/api/step', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(step || {})
+                    body: JSON.stringify({
+                        ...(step || {}),
+                        sessionId: sessionId || step?.sessionId || ''
+                    })
                 });
             },
-            stopWorkflow() {
+            stopWorkflow(sessionId) {
                 return createJsonRequest(baseUrl, '/api/workflow/stop', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId: sessionId || ''
+                    })
                 });
             },
             resetWorkflow() {
@@ -69,12 +76,13 @@
                     method: 'DELETE'
                 });
             },
-            appendWorkflowContextNote(note) {
+            appendWorkflowContextNote(note, sessionId) {
                 return createJsonRequest(baseUrl, '/api/workflow/context-note', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        note: note || {}
+                        note: note || {},
+                        sessionId: sessionId || note?.sessionId || ''
                     })
                 });
             },

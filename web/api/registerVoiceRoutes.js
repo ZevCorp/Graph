@@ -1,0 +1,174 @@
+const QRCode = require('qrcode');
+const workflowAssistantPolicy = require('../../src/application/use-cases/WorkflowAssistantPolicy');
+const buildPhoneMicPage = require('../phone/buildPhoneMicPage');
+
+function decodeBase64JsonHeader(value, fallback = null) {
+  const encoded = `${value || ''}`.trim();
+  if (!encoded) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function getLanHost() {
+  const os = require('os');
+  const interfaces = os.networkInterfaces();
+  for (const entries of Object.values(interfaces)) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal) {
+        return entry.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
+function getPublicBaseUrl(req, explicitPort) {
+  const forwardedProto = `${req.get('x-forwarded-proto') || ''}`.split(',')[0].trim();
+  const proto = forwardedProto || req.protocol || 'http';
+  const host = req.get('host') || '';
+
+  if (process.env.PUBLIC_BASE_URL) {
+    return process.env.PUBLIC_BASE_URL.replace(/\/+$/, '');
+  }
+
+  if (process.env.RENDER_EXTERNAL_URL) {
+    return process.env.RENDER_EXTERNAL_URL.replace(/\/+$/, '');
+  }
+
+  if (process.env.RENDER || (host && !host.startsWith('localhost') && !host.startsWith('127.0.0.1'))) {
+    return `${proto}://${host}`;
+  }
+
+  const port = explicitPort || req.app.get('port') || process.env.PORT || process.env.WEB_PORT || 3000;
+  return `http://${getLanHost()}:${port}`;
+}
+
+function buildOpenAiRealtimeInstructions(context = {}, workflows = []) {
+  return workflowAssistantPolicy.buildVoiceExecutionPrompt(context, workflows);
+}
+
+function buildOpenAiRealtimeTools() {
+  return workflowAssistantPolicy.buildVoiceFunctionDefinitions().map((definition) => ({
+    type: 'function',
+    ...definition
+  }));
+}
+
+function registerVoiceRoutes(app, deps = {}) {
+  const express = deps.express;
+  const agentChat = deps.agentChat;
+  const catalogService = deps.catalogService;
+
+  if (!app || !express || !agentChat || !catalogService) {
+    throw new Error('registerVoiceRoutes requires app, express, agentChat, and catalogService');
+  }
+
+  app.post('/api/voice/openai/session', express.text({ type: ['application/sdp', 'text/plain'], limit: '1mb' }), async (req, res) => {
+    try {
+      const openAiApiKey = `${process.env.OPENAI_API_KEY || ''}`.trim();
+      if (!openAiApiKey) {
+        return res.status(500).json({ error: 'OPENAI_API_KEY is not configured on the server.' });
+      }
+
+      const sdp = typeof req.body === 'string'
+        ? req.body.trim()
+        : `${req.body?.sdp || ''}`.trim();
+      if (!sdp) {
+        return res.status(400).json({ error: 'Missing SDP offer.' });
+      }
+
+      const context = decodeBase64JsonHeader(req.get('x-graph-voice-context'), {});
+      const history = decodeBase64JsonHeader(req.get('x-graph-voice-history'), []);
+      const workflows = agentChat.filterWorkflowsForContext(await catalogService.getCatalog(), context);
+
+      const sessionConfig = {
+        type: 'realtime',
+        model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime',
+        instructions: buildOpenAiRealtimeInstructions(context, workflows),
+        conversation: Array.isArray(history) && history.length > 0 ? 'auto' : undefined,
+        audio: {
+          input: {
+            noise_reduction: { type: 'near_field' },
+            transcription: {
+              model: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
+              language: 'es'
+            },
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 900,
+              create_response: false,
+              interrupt_response: true
+            }
+          },
+          output: {
+            voice: process.env.OPENAI_REALTIME_VOICE || 'marin'
+          }
+        },
+        tools: buildOpenAiRealtimeTools(),
+        tool_choice: 'auto'
+      };
+
+      const form = new FormData();
+      form.set('sdp', sdp);
+      form.set('session', JSON.stringify(sessionConfig));
+
+      const response = await fetch('https://api.openai.com/v1/realtime/calls', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openAiApiKey}`
+        },
+        body: form
+      });
+
+      const answerSdp = await response.text();
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: answerSdp || 'Failed to create OpenAI Realtime session.'
+        });
+      }
+
+      res
+        .set('Content-Type', 'application/sdp')
+        .set('X-OpenAI-Realtime-Model', sessionConfig.model)
+        .set('X-OpenAI-Realtime-Voice', sessionConfig.audio.output.voice)
+        .send(answerSdp);
+    } catch (err) {
+      console.error(`[Voice OpenAI] Session Error: ${err.message}`);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/voice/phone-session', async (req, res) => {
+    try {
+      const requestedId = `${req.body?.requestedId || ''}`.trim();
+      const id = /^[a-zA-Z0-9_-]{12,120}$/.test(requestedId)
+        ? requestedId
+        : `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+      const phoneUrl = `${getPublicBaseUrl(req, req.app.get('port'))}/phone-mic/${encodeURIComponent(id)}`;
+      const qrDataUrl = await QRCode.toDataURL(phoneUrl, {
+        margin: 1,
+        width: 260
+      });
+
+      res.json({ id, phoneUrl, qrDataUrl });
+    } catch (err) {
+      console.error(`[Voice Phone] Session Error: ${err.message}`);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/phone-mic/:id', (req, res) => {
+    const sessionId = `${req.params.id || ''}`;
+    res.type('html').send(buildPhoneMicPage(sessionId));
+  });
+}
+
+module.exports = registerVoiceRoutes;
