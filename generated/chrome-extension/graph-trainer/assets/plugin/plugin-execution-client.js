@@ -10,20 +10,29 @@
         const waitTimeoutMs = Number.isFinite(deps.waitTimeoutMs) ? deps.waitTimeoutMs : 15000;
         const stepDelayMs = Number.isFinite(deps.stepDelayMs) ? deps.stepDelayMs : 180;
         const emittedDiagnostics = new Set();
+        let cachedPendingExecution = null;
+        let pendingExecutionLoadPromise = null;
 
         function cloneJson(value) {
             return JSON.parse(JSON.stringify(value));
         }
 
-        function getExecutionStorageKey() {
-            return `${executionStoragePrefix}:${getOptions()?.appId || 'page'}`;
+        function getExecutionScopeId() {
+            const learningScopeId = `${getPluginHost()?.learningSessionScope?.id || ''}`.trim();
+            if (learningScopeId) {
+                return `${executionStoragePrefix}:scope:${learningScopeId}`;
+            }
+            return `${executionStoragePrefix}:app:${getOptions()?.appId || 'page'}`;
         }
 
-        function readPendingExecution() {
+        function getExecutionStorageKey() {
+            return getExecutionScopeId();
+        }
+
+        function parsePendingExecution(raw) {
+            if (!raw) return null;
             try {
-                const raw = getPluginHost()?.sessionStore?.get(getExecutionStorageKey()) || '';
-                if (!raw) return null;
-                const parsed = JSON.parse(raw);
+                const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
                 if (!parsed || !parsed.workflowId || !Array.isArray(parsed.steps)) {
                     return null;
                 }
@@ -33,16 +42,65 @@
             }
         }
 
-        function persistPendingExecution(plan) {
+        async function ensurePendingExecutionLoaded() {
+            if (pendingExecutionLoadPromise) {
+                return pendingExecutionLoadPromise;
+            }
+
+            pendingExecutionLoadPromise = (async () => {
+                const host = getPluginHost();
+                const storageKey = getExecutionStorageKey();
+                if (host?.globalStore?.isExtensionBacked) {
+                    const raw = await host.globalStore.get(storageKey).catch(() => '');
+                    cachedPendingExecution = parsePendingExecution(raw);
+                    if (typeof host.globalStore.subscribe === 'function') {
+                        host.globalStore.subscribe(storageKey, (nextRaw) => {
+                            cachedPendingExecution = parsePendingExecution(nextRaw);
+                        });
+                    }
+                    return cachedPendingExecution;
+                }
+
+                cachedPendingExecution = parsePendingExecution(host?.sessionStore?.get(storageKey) || '');
+                return cachedPendingExecution;
+            })();
+
+            return pendingExecutionLoadPromise;
+        }
+
+        function readPendingExecution() {
+            return cachedPendingExecution;
+        }
+
+        async function persistPendingExecution(plan) {
+            const host = getPluginHost();
+            const storageKey = getExecutionStorageKey();
+            cachedPendingExecution = parsePendingExecution(plan || null);
+            const serialized = JSON.stringify(plan || {});
+
+            if (host?.globalStore?.isExtensionBacked) {
+                await host.globalStore.set(storageKey, serialized).catch(() => {});
+                return;
+            }
+
             try {
-                getPluginHost()?.sessionStore?.set(getExecutionStorageKey(), JSON.stringify(plan || {}));
+                host?.sessionStore?.set(storageKey, serialized);
             } catch (error) {
                 // Ignore session storage failures.
             }
         }
 
-        function clearPendingExecution() {
-            getPluginHost()?.sessionStore?.remove(getExecutionStorageKey());
+        async function clearPendingExecution() {
+            const host = getPluginHost();
+            const storageKey = getExecutionStorageKey();
+            cachedPendingExecution = null;
+
+            if (host?.globalStore?.isExtensionBacked) {
+                await host.globalStore.remove(storageKey).catch(() => {});
+                return;
+            }
+
+            host?.sessionStore?.remove(storageKey);
         }
 
         function normalizeExecutionUrl(rawUrl) {
@@ -857,13 +915,13 @@
             }));
         }
 
-        function updateExecutionProgress(plan, nextStepIndex) {
+        async function updateExecutionProgress(plan, nextStepIndex) {
             const nextPlan = {
                 ...plan,
                 nextStepIndex,
                 updatedAt: Date.now()
             };
-            persistPendingExecution(nextPlan);
+            await persistPendingExecution(nextPlan);
             return nextPlan;
         }
 
@@ -888,7 +946,7 @@
                 if (!Number.isFinite(plan.nextStepIndex) || plan.nextStepIndex <= 0) {
                     resetSurfaceStateForFreshExecution();
                 }
-                currentPlan = updateExecutionProgress({
+                currentPlan = await updateExecutionProgress({
                     ...cloneJson(plan),
                     trigger,
                     nextStepIndex: Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0,
@@ -939,13 +997,13 @@
                                 resolution: 'navigation_redirect',
                                 targetUrl
                             }));
-                            currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                            currentPlan = await updateExecutionProgress(currentPlan, stepIndex + 1);
                             updateWorkflowPanelStatus(`Abriendo ${targetUrl}...`);
                             window.location.assign(targetUrl);
                             return;
                         }
 
-                        currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                        currentPlan = await updateExecutionProgress(currentPlan, stepIndex + 1);
                         continue;
                     }
 
@@ -957,7 +1015,7 @@
                             failureKind: 'unexpected_page',
                             targetUrl: expectedUrl
                         }));
-                        currentPlan = updateExecutionProgress(currentPlan, stepIndex);
+                        currentPlan = await updateExecutionProgress(currentPlan, stepIndex);
                         updateWorkflowPanelStatus(`Cambiando a la pagina correcta para ${describeStep(step)}...`);
                         window.location.assign(expectedUrl);
                         return;
@@ -979,7 +1037,7 @@
                             throw new Error(`El elemento ${describeStep(step)} sigue deshabilitado.`);
                         }
 
-                        currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                        currentPlan = await updateExecutionProgress(currentPlan, stepIndex + 1);
                         element.click();
                         emitExtensionLog('info', 'Applied click step.', buildStepDiagnostics(step, {
                             workflowId: currentPlan.workflowId,
@@ -1010,19 +1068,19 @@
                     } else if (step.actionType === 'input') {
                         notifyAutomationStep(step, `Estoy completando ${step.label || step.selector || 'este campo'}.`);
                         await applyInputStep(element, step, currentPlan.variables || {});
-                        currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                        currentPlan = await updateExecutionProgress(currentPlan, stepIndex + 1);
                     } else if (step.actionType === 'select') {
                         notifyAutomationStep(step, `Estoy eligiendo una opcion en ${step.label || step.selector || 'este selector'}.`);
                         await applySelectStep(element, step, currentPlan.variables || {});
-                        currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                        currentPlan = await updateExecutionProgress(currentPlan, stepIndex + 1);
                     } else {
-                        currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                        currentPlan = await updateExecutionProgress(currentPlan, stepIndex + 1);
                     }
 
                     await waitMs(stepDelayMs);
                 }
 
-                clearPendingExecution();
+                await clearPendingExecution();
                 runtime()?.clearSpotlight?.();
                 updateWorkflowPanelStatus('Automatizacion completada en esta pagina.');
                 runtime()?.speak('Listo, termine de completar la tarea aqui mismo.', { mode: 'idle' });
@@ -1037,7 +1095,7 @@
                 });
             } catch (error) {
                 if (error?.code === 'EXECUTION_CANCELLED') {
-                    clearPendingExecution();
+                    await clearPendingExecution();
                     runtime()?.clearSpotlight?.();
                     updateWorkflowPanelStatus('Automatizacion detenida.');
                     runtime()?.speak('Detuve la automatizacion.', { mode: 'idle' });
@@ -1083,6 +1141,7 @@
 
         return {
             cloneJson,
+            ensurePendingExecutionLoaded,
             getExecutionStorageKey,
             readPendingExecution,
             persistPendingExecution,

@@ -1952,6 +1952,10 @@
         return requireExecutionClient().readPendingExecution();
     }
 
+    async function ensurePendingExecutionLoaded() {
+        return requireExecutionClient().ensurePendingExecutionLoaded();
+    }
+
     function clearPendingExecution() {
         return requireExecutionClient().clearPendingExecution();
     }
@@ -2143,6 +2147,7 @@
     }
 
     async function resumePendingExecution() {
+        await ensurePendingExecutionLoaded();
         const pending = readPendingExecution();
         if (!pending || executionState.running) {
             return;
@@ -2158,6 +2163,7 @@
     }
 
     async function resumeVoiceAfterNavigation() {
+        await ensurePendingExecutionLoaded();
         const pendingExecution = readPendingExecution();
         const resumeState = getStoredVoiceResumeState();
         if (!pendingExecution || !resumeState || isVoiceSessionActive()) {
