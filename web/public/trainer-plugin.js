@@ -1958,7 +1958,7 @@
             runtime()?.speak('Te escucho. Habla con naturalidad y me encargo de la tarea cuando tenga lo necesario.', { mode: 'listening' });
         } else {
             setPhoneConnectionActive(false);
-            runtime()?.speak('Estoy retomando el audio de tu telefono para seguir con la tarea.', { mode: 'listening' });
+            runtime()?.speak('Voy a esperar a que tu telefono se conecte para seguir con la tarea.', { mode: 'listening' });
         }
 
         const socket = new WebSocket(getRealtimeSocketUrl());
@@ -2051,10 +2051,7 @@
 
             if (payload.type === 'ready') {
                 voiceLog('server_event_ready', { phoneSessionId: effectivePhoneSessionId });
-                updateVoiceStatus(effectivePhoneSessionId ? 'Te escucho desde el telefono.' : 'Deepgram listo. Puedes hablar.');
-                if (effectivePhoneSessionId) {
-                    runtime()?.speak('Te escucho desde el telefono. Habla con naturalidad.', { mode: 'listening' });
-                }
+                updateVoiceStatus(effectivePhoneSessionId ? 'Esperando que el telefono se conecte por QR...' : 'Deepgram listo. Puedes hablar.');
                 return;
             }
 
@@ -2239,6 +2236,7 @@
 
         voiceState.phoneSession = payload;
         setStoredPhoneSessionId(payload.id);
+        setPhonePairingVisible(true);
         voiceLog('phone_session_created', {
             id: payload.id,
             phoneUrl: payload.phoneUrl
@@ -2553,10 +2551,7 @@
     async function handleRemoteVoiceSocketMessage(payload, effectivePhoneSessionId) {
         if (payload.type === 'ready') {
             voiceLog('server_event_ready', { phoneSessionId: effectivePhoneSessionId });
-            updateVoiceStatus(effectivePhoneSessionId ? 'Te escucho desde el telefono.' : 'OpenAI Realtime listo. Puedes hablar.');
-            if (effectivePhoneSessionId) {
-                runtime()?.speak('Te escucho desde el telefono. Habla con naturalidad.', { mode: 'listening' });
-            }
+            updateVoiceStatus(effectivePhoneSessionId ? 'Esperando que el telefono se conecte por QR...' : 'OpenAI Realtime listo. Puedes hablar.');
             return;
         }
 
@@ -2702,7 +2697,7 @@
         updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
         runtime()?.speak(
             effectivePhoneSessionId
-                ? 'Estoy retomando el audio de tu telefono para seguir con la tarea.'
+                ? 'Voy a esperar a que tu telefono se conecte para seguir con la tarea.'
                 : 'Te escucho. Habla con naturalidad y yo me encargo de la tarea.',
             { mode: 'listening' }
         );

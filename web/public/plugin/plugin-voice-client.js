@@ -46,6 +46,7 @@
 
             voiceState.phoneSession = payload;
             setStoredPhoneSessionId(payload.id);
+            setPhonePairingVisible(true);
             voiceLog('phone_session_created', {
                 id: payload.id,
                 phoneUrl: payload.phoneUrl
