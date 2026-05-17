@@ -7,6 +7,7 @@ window.WorkflowRecorder = (() => {
   const lastFieldEvents = new Map();
   const focusedSelectValues = new Map();
   const PENDING_CLICK_STORAGE_KEY = 'graphTrainerPendingClickIntents';
+  const SHARED_SESSION_STATE_KEY = 'learningSession';
   const warnedPendingClickIds = new Set();
 
   function emitExtensionLog(level, message, details = null) {
@@ -51,6 +52,56 @@ window.WorkflowRecorder = (() => {
     return client;
   }
 
+  function sharedStore() {
+    return host()?.localStore || null;
+  }
+
+  function sharedSessionStorageKey() {
+    const currentHost = host();
+    if (!currentHost) return '';
+    return `graph:${currentHost.platform}:${currentHost.appId}:local:${SHARED_SESSION_STATE_KEY}`;
+  }
+
+  function readSharedSessionState() {
+    const raw = sharedStore()?.get(SHARED_SESSION_STATE_KEY) || '';
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') {
+        return null;
+      }
+      return parsed;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeSharedSessionState(state) {
+    const store = sharedStore();
+    if (!store) return null;
+
+    if (!state || !state.recording || !state.sessionId) {
+      store.remove(SHARED_SESSION_STATE_KEY);
+      return null;
+    }
+
+    const normalized = {
+      ...state,
+      recording: true,
+      sessionId: `${state.sessionId || ''}`.trim(),
+      description: `${state.description || ''}`.trim(),
+      totalSteps: Number(state.totalSteps) || 0,
+      meaningfulSteps: Number(state.meaningfulSteps) || 0,
+      updatedAt: Date.now()
+    };
+    store.set(SHARED_SESSION_STATE_KEY, JSON.stringify(normalized));
+    return normalized;
+  }
+
+  function clearSharedSessionState() {
+    sharedStore()?.remove(SHARED_SESSION_STATE_KEY);
+  }
+
   function explanationField() {
     return document.getElementById('step-explanation');
   }
@@ -80,6 +131,66 @@ window.WorkflowRecorder = (() => {
     toggle.innerHTML = recording
       ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5-4-4L4 16v4zm12-13 2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5-4-4L4 16v4zm12-13 2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
+  function resetLocalRecorderState() {
+    stepOrder = 0;
+    recordedSteps = [];
+    lastFieldEvents.clear();
+    focusedSelectValues.clear();
+    warnedPendingClickIds.clear();
+  }
+
+  function applyRecordingUiState(recording, sessionId = null, statusText = '') {
+    if (recording) {
+      if (startButton()) startButton().disabled = true;
+      if (stopButton()) stopButton().disabled = false;
+      if (stopButton()) stopButton().style.display = 'inline-block';
+      if (statusField()) statusField().innerText = statusText || `Recording workflow ${sessionId || ''}`.trim();
+      updateRecordingUI(true);
+      return;
+    }
+
+    if (startButton()) startButton().disabled = false;
+    if (stopButton()) stopButton().disabled = true;
+    if (statusField()) statusField().innerText = statusText || 'Idle';
+    updateRecordingUI(false);
+  }
+
+  function isMeaningfulStep(step) {
+    const actionType = `${step?.actionType || ''}`.trim().toLowerCase();
+    if (!actionType || actionType === 'navigation') {
+      return false;
+    }
+    if (actionType === 'input' || actionType === 'select') {
+      return Boolean(`${step?.value || step?.selectedValue || ''}`.trim());
+    }
+    if (actionType === 'click') {
+      return Boolean(`${step?.selector || ''}`.trim());
+    }
+    return true;
+  }
+
+  function updateSharedStepCounts(step) {
+    if (!statusId) return;
+    const currentSharedState = readSharedSessionState();
+    if (!currentSharedState || currentSharedState.sessionId !== statusId) {
+      return;
+    }
+
+    writeSharedSessionState({
+      ...currentSharedState,
+      totalSteps: (Number(currentSharedState.totalSteps) || 0) + 1,
+      meaningfulSteps: (Number(currentSharedState.meaningfulSteps) || 0) + (isMeaningfulStep(step) ? 1 : 0)
+    });
+  }
+
+  function adoptSharedSessionState(sharedState, statusText = '') {
+    const nextSessionId = `${sharedState?.sessionId || ''}`.trim() || null;
+    isRecording = Boolean(sharedState?.recording && nextSessionId);
+    statusId = nextSessionId;
+    resetLocalRecorderState();
+    applyRecordingUiState(isRecording, nextSessionId, statusText);
   }
 
   function escapeAttributeSelectorValue(value) {
@@ -583,6 +694,7 @@ window.WorkflowRecorder = (() => {
     await requireApiClient().appendWorkflowStep(payload, statusId);
 
     recordedSteps.push(payload);
+    updateSharedStepCounts(payload);
     if (payload.__pendingClickIntentId) {
       clearPendingClickIntent(payload.__pendingClickIntentId);
     }
@@ -628,15 +740,8 @@ window.WorkflowRecorder = (() => {
 
   async function syncStatus() {
     const status = await requireApiClient().getRecorderStatus();
+    const sharedState = readSharedSessionState();
     const recoveredPendingClicks = readPendingClickIntents();
-
-    isRecording = status.recording;
-    statusId = status.id;
-    stepOrder = 0;
-    recordedSteps = [];
-    lastFieldEvents.clear();
-    focusedSelectValues.clear();
-    warnedPendingClickIds.clear();
 
     if (status.recording && recoveredPendingClicks.length > 0) {
       recoveredPendingClicks.forEach((entry) => {
@@ -645,22 +750,33 @@ window.WorkflowRecorder = (() => {
     }
     writePendingClickIntents([]);
 
-    if (status.recording) {
-      if (startButton()) startButton().disabled = true;
-      if (stopButton()) stopButton().disabled = false;
-      if (stopButton()) stopButton().style.display = 'inline-block';
-      if (statusField()) statusField().innerText = `Recording workflow ${status.id}`;
-      updateRecordingUI(true);
+    if (status.recording && status.id) {
+      const nextSharedState = writeSharedSessionState({
+        ...(sharedState || {}),
+        recording: true,
+        sessionId: status.id,
+        totalSteps: sharedState?.sessionId === status.id ? sharedState.totalSteps : 0,
+        meaningfulSteps: sharedState?.sessionId === status.id ? sharedState.meaningfulSteps : 0
+      });
+      adoptSharedSessionState(nextSharedState, `Recording workflow ${status.id}`);
       await recordStep({ actionType: 'navigation', selector: 'document', label: document.title, value: '' });
-    } else if (statusField()) {
-      statusField().innerText = 'Idle';
-      updateRecordingUI(false);
     } else {
-      updateRecordingUI(false);
+      clearSharedSessionState();
+      adoptSharedSessionState(null, 'Idle');
     }
   }
 
   function installListeners() {
+    window.addEventListener('storage', (event) => {
+      if (event.key !== sharedSessionStorageKey()) return;
+      const nextSharedState = readSharedSessionState();
+      if (nextSharedState?.recording && nextSharedState.sessionId) {
+        adoptSharedSessionState(nextSharedState, `Recording workflow ${nextSharedState.sessionId}`);
+        return;
+      }
+      adoptSharedSessionState(null, 'Idle');
+    });
+
     window.addEventListener('hashchange', () => {
       warnForUnlearnedPendingClicks('surface_changed_before_learning', (entry) =>
         Date.now() - Number(entry?.createdAt || 0) >= 300
@@ -755,22 +871,6 @@ window.WorkflowRecorder = (() => {
 
   installListeners();
 
-  function hasMeaningfulRecordedSteps() {
-    return recordedSteps.some((step) => {
-      const actionType = `${step?.actionType || ''}`.trim().toLowerCase();
-      if (!actionType || actionType === 'navigation') {
-        return false;
-      }
-      if (actionType === 'input' || actionType === 'select') {
-        return Boolean(`${step?.value || step?.selectedValue || ''}`.trim());
-      }
-      if (actionType === 'click') {
-        return Boolean(`${step?.selector || ''}`.trim());
-      }
-      return true;
-    });
-  }
-
   return {
     async startWorkflow(description, context = {}) {
       const desc = (description || '').trim();
@@ -783,17 +883,17 @@ window.WorkflowRecorder = (() => {
       statusId = startPayload?.id || null;
 
       isRecording = true;
-      stepOrder = 0;
-      recordedSteps = [];
-      lastFieldEvents.clear();
-      focusedSelectValues.clear();
+      resetLocalRecorderState();
       writePendingClickIntents([]);
-      warnedPendingClickIds.clear();
       recordQueue = Promise.resolve();
-      if (startButton()) startButton().disabled = true;
-      if (stopButton()) stopButton().disabled = false;
-      if (statusField()) statusField().innerText = 'Recording live DOM actions';
-      updateRecordingUI(true);
+      writeSharedSessionState({
+        recording: true,
+        sessionId: statusId,
+        description: desc,
+        totalSteps: 0,
+        meaningfulSteps: 0
+      });
+      applyRecordingUiState(true, statusId, 'Recording live DOM actions');
       const activity = document.getElementById('activity-log');
       if (activity) activity.innerHTML = '';
       pluginEvents()?.emit?.('learning.session.started', {
@@ -806,20 +906,21 @@ window.WorkflowRecorder = (() => {
 
     async stopWorkflow(redirectTo) {
       const workflowId = statusId;
+      await recordQueue.catch(() => {});
       await requireApiClient().stopWorkflow(workflowId);
-      if (workflowId && !hasMeaningfulRecordedSteps()) {
-        await requireApiClient().deleteWorkflow(workflowId).catch(() => {});
+      if (workflowId) {
+        const savedWorkflow = await requireApiClient().getWorkflow(workflowId).catch(() => null);
+        const savedSteps = Array.isArray(savedWorkflow?.workflow?.steps) ? savedWorkflow.workflow.steps : [];
+        if (!savedSteps.some((step) => isMeaningfulStep(step))) {
+          await requireApiClient().deleteWorkflow(workflowId).catch(() => {});
+        }
       }
       isRecording = false;
       statusId = null;
-      stepOrder = 0;
-      recordedSteps = [];
-      lastFieldEvents.clear();
-      focusedSelectValues.clear();
+      resetLocalRecorderState();
       writePendingClickIntents([]);
-      warnedPendingClickIds.clear();
-      if (statusField()) statusField().innerText = 'Saved';
-      updateRecordingUI(false);
+      clearSharedSessionState();
+      applyRecordingUiState(false, null, 'Saved');
       pluginEvents()?.emit?.('learning.session.finished', {
         sessionId: workflowId,
         redirectTo: redirectTo || ''
@@ -835,16 +936,10 @@ window.WorkflowRecorder = (() => {
       await requireApiClient().resetWorkflow();
       isRecording = false;
       statusId = null;
-      stepOrder = 0;
-      recordedSteps = [];
-      lastFieldEvents.clear();
-      focusedSelectValues.clear();
+      resetLocalRecorderState();
       writePendingClickIntents([]);
-      warnedPendingClickIds.clear();
-      if (statusField()) statusField().innerText = 'Idle';
-      if (startButton()) startButton().disabled = false;
-      if (stopButton()) stopButton().disabled = true;
-      updateRecordingUI(false);
+      clearSharedSessionState();
+      applyRecordingUiState(false, null, 'Idle');
       pluginEvents()?.emit?.('learning.session.reset', {});
     },
 

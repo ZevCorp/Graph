@@ -44,6 +44,10 @@
             pathname = pathname.slice(0, -1);
         }
 
+        if (pathname.toLowerCase() === '/home') {
+            return '/';
+        }
+
         return pathname || '/';
     }
 

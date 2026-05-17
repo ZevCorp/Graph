@@ -51,6 +51,23 @@
         lastAssistantTranscript: '',
         lastAssistantTranscriptAt: 0
     };
+    const miracleDictationState = {
+        active: false,
+        busy: false,
+        socket: null,
+        streamSession: null,
+        mediaRecorder: null,
+        mediaRecorderStopped: null,
+        mediaStream: null,
+        finalizeQuietTimer: null,
+        voiceSessionId: '',
+        eventSequence: 0,
+        finalSegmentCount: 0,
+        committedTranscript: '',
+        pendingDraft: '',
+        noteContent: '',
+        noteTitle: 'Psychology Session Note'
+    };
     const greetingState = {
         playing: false,
         lastPlayedAt: 0
@@ -488,6 +505,19 @@
             .console button.execution-stop-btn[hidden] {
                 display: none;
             }
+            .console button.miracle-mic-btn {
+                display: none;
+                background: #eef2ff;
+                color: #172554;
+                box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+            }
+            .console button.miracle-mic-btn[aria-hidden="false"] {
+                display: inline-flex;
+            }
+            .console button.miracle-mic-btn[data-active="true"] {
+                background: #172554;
+                color: #ffffff;
+            }
             #btn-record-toggle[data-recording="true"] {
                 background: #bbf7d0;
                 color: #111111;
@@ -543,6 +573,51 @@
                 color: #526170;
                 font-size: 12px;
                 line-height: 1.4;
+            }
+            .miracle-note-panel {
+                display: none;
+                position: fixed;
+                left: 50%;
+                bottom: 92px;
+                transform: translateX(-50%);
+                width: min(420px, calc(100vw - 24px));
+                max-height: min(46vh, 420px);
+                padding: 14px;
+                border-radius: 22px;
+                border: 1px solid rgba(15, 23, 42, 0.08);
+                background: rgba(255, 255, 255, 0.98);
+                box-shadow: 0 24px 56px rgba(15, 23, 42, 0.18);
+                backdrop-filter: blur(18px);
+                overflow: hidden;
+                z-index: 49;
+            }
+            .miracle-note-panel.open {
+                display: grid;
+                gap: 10px;
+            }
+            .miracle-note-panel-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+            }
+            .miracle-note-panel-header strong {
+                color: #0f172a;
+                font-size: 13px;
+                letter-spacing: 0.01em;
+            }
+            .miracle-note-panel-header span {
+                color: #64748b;
+                font-size: 11px;
+            }
+            .miracle-note-output {
+                margin: 0;
+                max-height: min(34vh, 320px);
+                overflow: auto;
+                white-space: pre-wrap;
+                word-break: break-word;
+                color: #0f172a;
+                font: 12px/1.55 Consolas, monospace;
             }
             .phone-mic-pairing {
                 display: none;
@@ -1058,8 +1133,18 @@
                     </div>
                 </div>
             </div>
+            <div class="miracle-note-panel" id="miracle-note-panel" aria-live="polite">
+                <div class="miracle-note-panel-header">
+                    <strong>Nota organizada por Miracle</strong>
+                    <span id="miracle-note-status">Esperando dictado...</span>
+                </div>
+                <pre class="miracle-note-output" id="miracle-note-output">La nota organizada aparecera aqui.</pre>
+            </div>
             <div class="console-toolbar">
                 <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
+                <button class="icon-btn miracle-mic-btn" id="btn-miracle-mic-toggle" type="button" title="Activar dictado con Miracle" aria-label="Activar dictado con Miracle" aria-pressed="false" aria-hidden="true" data-active="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.08A7 7 0 0 1 5 12a1 1 0 1 1 2 0 5 5 0 1 0 10 0Z" fill="currentColor"/></svg>
+                </button>
                 <button class="icon-btn execution-stop-btn" id="btn-stop-execution" type="button" title="Detener automatizacion" aria-label="Detener automatizacion" hidden>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" fill="currentColor"/></svg>
                 </button>
@@ -1348,6 +1433,53 @@
 
     function setExecutionStopButtonVisible(active) {
         return requireTrainerShell().setExecutionStopButtonVisible(active);
+    }
+
+    function miracleMicButton() {
+        return document.getElementById('btn-miracle-mic-toggle');
+    }
+
+    function miracleNotePanel() {
+        return document.getElementById('miracle-note-panel');
+    }
+
+    function updateMiracleMicButton() {
+        const button = miracleMicButton();
+        if (!button) {
+            return;
+        }
+        button.disabled = miracleDictationState.busy;
+        button.dataset.active = miracleDictationState.active ? 'true' : 'false';
+        button.setAttribute('aria-pressed', miracleDictationState.active ? 'true' : 'false');
+        button.title = miracleDictationState.active ? 'Detener dictado con Miracle' : 'Activar dictado con Miracle';
+    }
+
+    function updateMiracleMicAvailability() {
+        const pencilButton = document.getElementById('btn-record-toggle');
+        const button = miracleMicButton();
+        if (!button || !pencilButton) {
+            return;
+        }
+        const available = pencilButton.dataset.recording === 'true';
+        button.setAttribute('aria-hidden', available ? 'false' : 'true');
+        if (!available && miracleDictationState.active) {
+            stopMiracleDictation().catch(() => {});
+        }
+        updateMiracleMicButton();
+    }
+
+    function renderMiracleNote(content = '', statusText = '') {
+        const panel = miracleNotePanel();
+        const output = document.getElementById('miracle-note-output');
+        const status = document.getElementById('miracle-note-status');
+        if (!panel || !output || !status) {
+            return;
+        }
+
+        const normalized = `${content || ''}`.trim();
+        output.textContent = normalized || 'La nota organizada aparecera aqui.';
+        status.textContent = statusText || (normalized ? 'Sincronizado con Miracle' : 'Esperando dictado...');
+        panel.classList.toggle('open', miracleDictationState.active || Boolean(normalized));
     }
 
     function syncPhonePairingVisibility() {
