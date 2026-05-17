@@ -175,6 +175,50 @@
             return true;
         }
 
+        function normalizePlaceholderText(value) {
+            return `${value || ''}`
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+        }
+
+        function isPlaceholderSelectValue(value) {
+            const normalized = normalizePlaceholderText(value)
+                .replace(/^-+/, '')
+                .replace(/-+$/, '')
+                .trim();
+
+            if (!normalized) {
+                return true;
+            }
+
+            return [
+                'seleccionar',
+                'select',
+                'complemento',
+                'escoge hora',
+                'elige',
+                'seleccione'
+            ].some((token) => normalized === token || normalized.includes(token));
+        }
+
+        function isRequiredFieldLabel(label = '') {
+            return `${label || ''}`.trim().startsWith('*');
+        }
+
+        function resetSurfaceStateForFreshExecution() {
+            try {
+                const pageState = window.PageState?.current || window.PageState || window.EMRState;
+                if (pageState && typeof pageState.clearAll === 'function') {
+                    pageState.clearAll();
+                }
+            } catch (error) {
+                // Ignore state reset failures.
+            }
+        }
+
         function captureSurfaceSnapshot() {
             try {
                 return window.GraphPluginContext?.capturePageSnapshot?.() || null;
@@ -256,18 +300,102 @@
             return Boolean(resolveStepSilently(step));
         }
 
+        function getViewportHeight() {
+            return Math.max(window.innerHeight || 0, document.documentElement?.clientHeight || 0, 640);
+        }
+
+        function getDocumentScrollHeight() {
+            return Math.max(
+                document.body?.scrollHeight || 0,
+                document.documentElement?.scrollHeight || 0,
+                getViewportHeight()
+            );
+        }
+
+        async function nudgeSurfaceForStepDiscovery(step, options = {}) {
+            const direction = options.direction === 'up' ? -1 : 1;
+            const ratio = Number.isFinite(options.ratio) ? options.ratio : 0.75;
+            const distance = Math.max(120, Math.round(getViewportHeight() * ratio)) * direction;
+
+            window.scrollBy({
+                top: distance,
+                left: 0,
+                behavior: 'auto'
+            });
+            await waitMs(180);
+
+            const resolved = resolveStepSilently(step);
+            if (resolved) {
+                try {
+                    resolved.scrollIntoView({ block: 'center', inline: 'nearest' });
+                } catch (error) {
+                    // Ignore scroll alignment issues.
+                }
+                emitExtensionLog('info', 'Discovered workflow target after scrolling the surface.', buildStepDiagnostics(step, {
+                    resolution: direction > 0 ? 'scroll_discovery_down' : 'scroll_discovery_up',
+                    scrollY: window.scrollY || window.pageYOffset || 0
+                }));
+            }
+
+            return resolved;
+        }
+
+        async function sweepSurfaceForStep(step) {
+            const maxScroll = Math.max(0, getDocumentScrollHeight() - getViewportHeight());
+            const initialScrollY = window.scrollY || window.pageYOffset || 0;
+            const maxDownSweeps = Math.max(1, Math.ceil(maxScroll / Math.max(1, Math.round(getViewportHeight() * 0.75))));
+
+            for (let index = 0; index < maxDownSweeps; index += 1) {
+                const resolved = await nudgeSurfaceForStepDiscovery(step, { direction: 'down' });
+                if (resolved) {
+                    return resolved;
+                }
+                if ((window.scrollY || window.pageYOffset || 0) >= maxScroll) {
+                    break;
+                }
+            }
+
+            for (let index = 0; index < maxDownSweeps; index += 1) {
+                const resolved = await nudgeSurfaceForStepDiscovery(step, { direction: 'up' });
+                if (resolved) {
+                    return resolved;
+                }
+                if ((window.scrollY || window.pageYOffset || 0) <= 0) {
+                    break;
+                }
+            }
+
+            try {
+                window.scrollTo({ top: initialScrollY, left: 0, behavior: 'auto' });
+            } catch (error) {
+                // Ignore restoration issues.
+            }
+
+            return null;
+        }
+
         async function waitForStepElement(step, timeoutMs = waitTimeoutMs) {
             const startedAt = Date.now();
+            let scrollSweepAttempted = false;
             while (Date.now() - startedAt < timeoutMs) {
                 const element = resolveElementFromStep(step);
                 if (element) {
                     return element;
                 }
+
+                if (!scrollSweepAttempted && step?.actionType === 'click' && Date.now() - startedAt > Math.min(1200, timeoutMs / 3)) {
+                    scrollSweepAttempted = true;
+                    const discoveredAfterScroll = await sweepSurfaceForStep(step);
+                    if (discoveredAfterScroll) {
+                        return discoveredAfterScroll;
+                    }
+                }
                 await new Promise((resolve) => window.setTimeout(resolve, 120));
             }
             emitStepDiagnosticOnce('error', 'Workflow step target was not found on the page.', step, {
                 failureKind: 'element_not_found',
-                timeoutMs
+                timeoutMs,
+                scrollSweepAttempted
             });
             throw new Error(`No pude encontrar ${describeStep(step)} en esta pagina.`);
         }
@@ -600,15 +728,45 @@
 
         async function applySelectStep(element, step, variables = {}) {
             const candidates = buildSelectCandidates(step, variables);
+            const meaningfulCandidates = candidates.filter((candidate) => !isPlaceholderSelectValue(candidate));
             emitExtensionLog('info', 'Applying select step.', buildStepDiagnostics(step, {
                 candidates
             }));
 
-            const selected = await waitForMatchingSelectOption(element, candidates);
+            if (meaningfulCandidates.length === 0) {
+                const currentSnapshot = getSelectedOptionSnapshot(element);
+                const currentLooksPlaceholder = isPlaceholderSelectValue(currentSnapshot.value) || isPlaceholderSelectValue(currentSnapshot.label);
+
+                if (!isRequiredFieldLabel(step.label || '')) {
+                    emitExtensionLog('info', 'Skipping optional select step learned as placeholder.', buildStepDiagnostics(step, {
+                        resolution: 'optional_placeholder_select_skipped',
+                        currentValue: currentSnapshot.value,
+                        currentLabel: currentSnapshot.label
+                    }));
+                    return;
+                }
+
+                if (!currentLooksPlaceholder) {
+                    emitExtensionLog('warn', 'Keeping current required select value because learned candidate is a placeholder.', buildStepDiagnostics(step, {
+                        resolution: 'required_placeholder_select_kept_current',
+                        currentValue: currentSnapshot.value,
+                        currentLabel: currentSnapshot.label
+                    }));
+                    return;
+                }
+
+                emitExtensionLog('error', 'Required select step was learned with a placeholder value.', buildStepDiagnostics(step, {
+                    failureKind: 'recorded_placeholder_value',
+                    candidates
+                }));
+                throw new Error(`El workflow aprendio un valor placeholder para ${describeStep(step)}. Hay que reentrenar ese paso.`);
+            }
+
+            const selected = await waitForMatchingSelectOption(element, meaningfulCandidates);
             if (!selected) {
                 emitExtensionLog('error', 'No matching option found for select step.', buildStepDiagnostics(step, {
                     failureKind: 'select_option_not_found',
-                    candidates
+                    candidates: meaningfulCandidates
                 }));
                 throw new Error(`No encontre una opcion valida para ${describeStep(step)}.`);
             }
@@ -672,6 +830,9 @@
             let currentPlan = null;
 
             try {
+                if (!Number.isFinite(plan.nextStepIndex) || plan.nextStepIndex <= 0) {
+                    resetSurfaceStateForFreshExecution();
+                }
                 currentPlan = updateExecutionProgress({
                     ...cloneJson(plan),
                     trigger,

@@ -105,6 +105,35 @@ window.WorkflowRecorder = (() => {
     return `${prefix}[${normalizedAttributeName}="${escapeAttributeSelectorValue(normalizedAttributeValue)}"]`;
   }
 
+  function normalizePlaceholderText(value) {
+    return `${value || ''}`
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  function isPlaceholderSelectValue(value) {
+    const normalized = normalizePlaceholderText(value)
+      .replace(/^-+/, '')
+      .replace(/-+$/, '')
+      .trim();
+
+    if (!normalized) {
+      return true;
+    }
+
+    return [
+      'seleccionar',
+      'select',
+      'complemento',
+      'escoge hora',
+      'elige',
+      'seleccione'
+    ].some((token) => normalized === token || normalized.includes(token));
+  }
+
   function selectorForElement(element) {
     if (!element) return '';
     if (element.dataset && element.dataset.testid) {
@@ -252,6 +281,16 @@ window.WorkflowRecorder = (() => {
 
     if (element instanceof HTMLSelectElement) {
       const metadata = getControlMetadata(element);
+      const looksLikePlaceholder = isPlaceholderSelectValue(metadata.selectedValue) || isPlaceholderSelectValue(metadata.selectedLabel);
+      if (looksLikePlaceholder) {
+        emitExtensionLog('info', 'Skipped placeholder select state during learning.', {
+          selector: selectorForElement(element),
+          label: labelForElement(element),
+          value: element.value || '',
+          selectedLabel: metadata.selectedLabel || ''
+        });
+        return;
+      }
       emitExtensionLog('info', 'Observed select field change.', {
         selector: selectorForElement(element),
         label: labelForElement(element),

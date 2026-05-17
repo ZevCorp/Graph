@@ -2,6 +2,8 @@ const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
 const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowLogs';
 const EXECUTION_LOG_SCOPES = new Set(['execution']);
+const SELECTED_ELEMENT_STORAGE_KEY = 'graphTrainerSelectedElement';
+const diagnosticsChatHistory = [];
 
 function getStorage() {
   return chrome.storage?.sync || chrome.storage?.local;
@@ -119,6 +121,22 @@ async function clearLogs() {
   });
 }
 
+async function readSelectedElement() {
+  const storage = getLocalStorage();
+  return new Promise((resolve) => {
+    storage.get({ [SELECTED_ELEMENT_STORAGE_KEY]: null }, (result) => {
+      resolve(result?.[SELECTED_ELEMENT_STORAGE_KEY] || null);
+    });
+  });
+}
+
+async function writeSelectedElement(value) {
+  const storage = getLocalStorage();
+  return new Promise((resolve) => {
+    storage.set({ [SELECTED_ELEMENT_STORAGE_KEY]: value || null }, resolve);
+  });
+}
+
 async function loadLogPanelState() {
   const storage = getLocalStorage();
   return new Promise((resolve) => {
@@ -167,6 +185,89 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function buildBackendUrl(pathname) {
+  const backendUrlEl = document.getElementById('backendUrl');
+  const configured = `${backendUrlEl?.value || DEFAULT_BACKEND_URL}`.trim() || DEFAULT_BACKEND_URL;
+  const normalizedBase = configured.replace(/\/+$/, '');
+  return `${normalizedBase}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
+}
+
+function renderDiagnosticsChat() {
+  const logEl = document.getElementById('diagnosticsChatLog');
+  const emptyEl = document.getElementById('diagnosticsChatEmpty');
+  if (!logEl) {
+    return;
+  }
+
+  logEl.innerHTML = '';
+  if (!diagnosticsChatHistory.length) {
+    if (emptyEl) {
+      emptyEl.classList.remove('hidden');
+      logEl.appendChild(emptyEl);
+    }
+    return;
+  }
+
+  diagnosticsChatHistory.forEach((message) => {
+    const article = document.createElement('article');
+    article.className = `diagnostics-chat-message ${message.role === 'assistant' ? 'assistant' : 'user'}`;
+    article.textContent = `${message.content || ''}`.trim();
+    logEl.appendChild(article);
+  });
+
+  if (emptyEl) {
+    emptyEl.classList.add('hidden');
+  }
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function requestDiagnosticsAnalysis(userMessage) {
+  const logs = await readLogs();
+  const selectedElement = await readSelectedElement();
+  const { executionLogs, selectedEntries } = collectErrorContextWindows(logs, 3);
+  const relevantLogs = selectedEntries
+    .filter((item) => item.type === 'entry')
+    .map((item) => item.entry);
+
+  const payload = {
+    userMessage,
+    history: diagnosticsChatHistory.slice(0, -1).slice(-6),
+    logs: relevantLogs.length > 0 ? relevantLogs : executionLogs.slice(-12),
+    selectedElement
+  };
+
+  const response = await fetch(buildBackendUrl('/api/diagnostics/analyze'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.error || 'No pude analizar el problema.');
+  }
+  return result;
+}
+
+async function renderSelectedElementSummary() {
+  const summaryEl = document.getElementById('diagnosticsSelectedElementSummary');
+  if (!summaryEl) {
+    return;
+  }
+
+  const selectedElement = await readSelectedElement();
+  if (!selectedElement) {
+    summaryEl.textContent = 'No has señalado ningún elemento todavía.';
+    return;
+  }
+
+  summaryEl.textContent = [
+    selectedElement.selector ? `selector: ${selectedElement.selector}` : '',
+    selectedElement.text ? `texto: ${selectedElement.text}` : '',
+    selectedElement.pageUrl ? `url: ${selectedElement.pageUrl}` : ''
+  ].filter(Boolean).join('\n');
 }
 
 function renderImprovementsView(payload = {}) {
@@ -281,6 +382,11 @@ async function init() {
   const statusEl = document.getElementById('status');
   const logPanelEl = document.getElementById('logPanel');
   const logOutputEl = document.getElementById('logOutput');
+  const diagnosticsChatInput = document.getElementById('diagnosticsChatInput');
+  const diagnosticsChatSend = document.getElementById('diagnosticsChatSend');
+  const diagnosticsChatStatus = document.getElementById('diagnosticsChatStatus');
+  const diagnosticsSelectElement = document.getElementById('diagnosticsSelectElement');
+  const diagnosticsClearElement = document.getElementById('diagnosticsClearElement');
   const refreshImprovementsButton = document.getElementById('popupImprovementsRefresh');
   const overlayToggleButton = document.getElementById('popupOverlayToggle');
 
@@ -289,6 +395,8 @@ async function init() {
   enabledEl.checked = Boolean(settings.enabled);
   backendUrlEl.value = `${settings.backendUrl || DEFAULT_BACKEND_URL}`.trim() || DEFAULT_BACKEND_URL;
   await setLogPanelOpen(logPanelEl, toggleLogsButton, logOutputEl, showLogs);
+  renderDiagnosticsChat();
+  await renderSelectedElementSummary();
 
   saveButton.addEventListener('click', async () => {
     const nextSettings = {
@@ -363,6 +471,58 @@ async function init() {
     window.setTimeout(() => {
       statusEl.textContent = '';
     }, 1600);
+  });
+
+  diagnosticsChatSend.addEventListener('click', async () => {
+    const userMessage = `${diagnosticsChatInput?.value || ''}`.trim();
+    if (!userMessage) {
+      diagnosticsChatStatus.textContent = 'Cuéntame qué viste para que el agente pueda analizarlo.';
+      return;
+    }
+
+    diagnosticsChatHistory.push({ role: 'user', content: userMessage });
+    diagnosticsChatInput.value = '';
+    diagnosticsChatStatus.textContent = 'Analizando logs y buscando la causa raíz...';
+    diagnosticsChatSend.disabled = true;
+    renderDiagnosticsChat();
+
+    try {
+      const result = await requestDiagnosticsAnalysis(userMessage);
+      diagnosticsChatHistory.push({
+        role: 'assistant',
+        content: `${result.reply || 'No pude formular una respuesta útil todavía.'}`.trim()
+      });
+      diagnosticsChatStatus.textContent = '';
+      renderDiagnosticsChat();
+    } catch (error) {
+      diagnosticsChatStatus.textContent = error.message || 'No pude analizar el problema.';
+    } finally {
+      diagnosticsChatSend.disabled = false;
+    }
+  });
+
+  diagnosticsSelectElement.addEventListener('click', async () => {
+    const activeTabId = await getActiveTabId();
+    if (!activeTabId) {
+      diagnosticsChatStatus.textContent = 'No pude encontrar la pestaña activa.';
+      return;
+    }
+
+    diagnosticsChatStatus.textContent = 'Haz click en la página sobre el elemento que quieres enseñarle al agente y luego vuelve a abrir este popup.';
+    try {
+      await chrome.tabs.sendMessage(activeTabId, { type: 'graph:start-element-inspection' });
+    } catch (error) {
+      diagnosticsChatStatus.textContent = 'No pude activar el modo de selección de elemento.';
+    }
+  });
+
+  diagnosticsClearElement.addEventListener('click', async () => {
+    await writeSelectedElement(null);
+    await renderSelectedElementSummary();
+    diagnosticsChatStatus.textContent = 'Elemento señalado eliminado.';
+    window.setTimeout(() => {
+      diagnosticsChatStatus.textContent = '';
+    }, 1400);
   });
 }
 
