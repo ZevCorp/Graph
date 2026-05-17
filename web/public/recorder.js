@@ -182,6 +182,105 @@ window.WorkflowRecorder = (() => {
     return element.tagName ? element.tagName.toLowerCase() : 'unknown';
   }
 
+  function isInteractiveCandidate(element) {
+    return element instanceof Element
+      && element.matches?.('a, button, input, textarea, select, option');
+  }
+
+  function collectInteractiveCandidatesFromEvent(event) {
+    const path = typeof event?.composedPath === 'function' ? event.composedPath() : [];
+    const candidates = [];
+
+    path.forEach((entry) => {
+      if (!isInteractiveCandidate(entry)) return;
+      if (candidates.includes(entry)) return;
+      candidates.push(entry);
+    });
+
+    const closestTarget = event?.target?.closest?.('a, button, input, textarea, select, option');
+    if (isInteractiveCandidate(closestTarget) && !candidates.includes(closestTarget)) {
+      candidates.push(closestTarget);
+    }
+
+    return candidates;
+  }
+
+  function isHashRouteAnchor(element) {
+    if (!(element instanceof HTMLAnchorElement)) return false;
+    const href = `${element.getAttribute('href') || ''}`.trim();
+    return href.startsWith('#!');
+  }
+
+  function scoreClickLearningCandidate(element, eventTarget) {
+    if (!(element instanceof Element)) return Number.NEGATIVE_INFINITY;
+
+    let score = 0;
+    const selector = selectorForElement(element);
+    const label = labelForElement(element);
+    const text = describeElementText(element);
+
+    if (element === eventTarget) score += 20;
+    if (element.contains?.(eventTarget)) score += 6;
+
+    if (element.dataset?.testid) score += 80;
+    if (element.id) score += 60;
+    if (element.getAttribute?.('name')) score += 40;
+    if (label) score += 10;
+    if (text) score += 8;
+    if (selector && selector !== (element.tagName || '').toLowerCase()) score += 8;
+
+    if (element instanceof HTMLAnchorElement) {
+      const href = `${element.getAttribute('href') || ''}`.trim();
+      score += 50;
+      if (href) score += 20;
+      if (href.startsWith('#!')) score += 120;
+      else if (href.startsWith('#')) score += 70;
+    } else if (element instanceof HTMLButtonElement) {
+      score += 35;
+      if ((element.type || '').toLowerCase() !== 'submit') score += 8;
+    } else if (element instanceof HTMLInputElement) {
+      score += 12;
+      const inputType = `${element.type || ''}`.trim().toLowerCase();
+      if (inputType === 'button' || inputType === 'submit') score += 10;
+    }
+
+    return score;
+  }
+
+  function resolveClickLearningTarget(event) {
+    const rawTarget = event?.target instanceof Element ? event.target : null;
+    const candidates = collectInteractiveCandidatesFromEvent(event)
+      .filter((candidate) => !candidate.closest?.('.console'))
+      .filter((candidate) => !isRecorderControl(candidate))
+      .filter((candidate) => !(candidate instanceof HTMLSelectElement || candidate instanceof HTMLOptionElement));
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    const sorted = candidates
+      .map((candidate) => ({
+        element: candidate,
+        score: scoreClickLearningCandidate(candidate, rawTarget)
+      }))
+      .sort((left, right) => right.score - left.score);
+
+    const best = sorted[0]?.element || null;
+    const closest = rawTarget?.closest?.('a, button, input, textarea, select, option') || null;
+
+    if (best && closest && best !== closest && isHashRouteAnchor(best)) {
+      emitExtensionLog('info', 'Resolved click to ancestor hash-route anchor for learning.', {
+        selectedSelector: selectorForElement(best),
+        selectedLabel: labelForElement(best),
+        selectedHref: best.getAttribute?.('href') || '',
+        rawSelector: selectorForElement(closest),
+        rawLabel: labelForElement(closest)
+      });
+    }
+
+    return best || closest;
+  }
+
   function safeSessionStorage() {
     try {
       return window.sessionStorage;
@@ -551,11 +650,8 @@ window.WorkflowRecorder = (() => {
 
     document.addEventListener('click', async (event) => {
       if (!isRecording) return;
-      const target = event.target.closest('a, button, input, textarea, select, option');
+      const target = resolveClickLearningTarget(event);
       if (!target) return;
-      if (target.closest('.console')) return;
-      if (isRecorderControl(target)) return;
-      if (target instanceof HTMLSelectElement || target instanceof HTMLOptionElement) return;
 
       const clickIntent = buildPendingClickIntent(target);
       persistPendingClickIntent(clickIntent);
