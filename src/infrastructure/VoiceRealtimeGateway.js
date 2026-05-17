@@ -121,6 +121,23 @@ class VoiceRealtimeGateway {
     }
   }
 
+  markFunctionCallsForDispatch(session, functions = []) {
+    const queue = [];
+    for (const call of Array.isArray(functions) ? functions : []) {
+      const callId = `${call?.id || ''}`.trim();
+      if (!callId) {
+        queue.push(call);
+        continue;
+      }
+      if (session.dispatchedFunctionCallIds.has(callId)) {
+        continue;
+      }
+      session.dispatchedFunctionCallIds.add(callId);
+      queue.push(call);
+    }
+    return queue;
+  }
+
   isPhoneSessionLive(phoneSession) {
     if (!phoneSession || phoneSession.phoneClient?.readyState !== WebSocket.OPEN) {
       return false;
@@ -441,11 +458,14 @@ class VoiceRealtimeGateway {
       }
 
       if (type === 'response.output_item.done' && payload.item?.type === 'function_call') {
-        const functions = [{
+        const functions = this.markFunctionCallsForDispatch(session, [{
           id: payload.item.call_id || '',
           name: payload.item.name || '',
           arguments: payload.item.arguments || '{}'
-        }];
+        }]);
+        if (functions.length === 0) {
+          return;
+        }
         this.log(session.id, 'Function call request received', functions);
         this.sendJson(client, {
           type: 'function_call_request',
@@ -463,11 +483,12 @@ class VoiceRealtimeGateway {
             arguments: item.arguments || '{}'
           }));
 
-        if (functions.length > 0) {
-          this.log(session.id, 'Function call request received from response.done', functions);
+        const uniqueFunctions = this.markFunctionCallsForDispatch(session, functions);
+        if (uniqueFunctions.length > 0) {
+          this.log(session.id, 'Function call request received from response.done', uniqueFunctions);
           this.sendJson(client, {
             type: 'function_call_request',
-            functions
+            functions: uniqueFunctions
           });
         }
         return;
@@ -540,7 +561,8 @@ class VoiceRealtimeGateway {
       settingsSent: false,
       settingsSendTimer: null,
       settingsApplied: false,
-      lastAudioAt: 0
+      lastAudioAt: 0,
+      dispatchedFunctionCallIds: new Set()
     };
 
     this.log(session.id, 'Desktop voice client connected');

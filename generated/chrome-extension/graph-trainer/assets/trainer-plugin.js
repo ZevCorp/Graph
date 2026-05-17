@@ -1516,7 +1516,18 @@
     }
 
     async function executeVoiceFunctionCall(call) {
+        const callId = `${call?.id || ''}`.trim();
         const functionName = `${call?.name || ''}`.trim();
+        if (callId && voiceState.processedFunctionCalls.has(callId)) {
+            voiceLog('voice_function_call_ignored_duplicate', {
+                id: callId,
+                name: functionName || ''
+            });
+            return;
+        }
+        if (callId) {
+            voiceState.processedFunctionCalls.add(callId);
+        }
         if (!isPageExecutionFunctionName(functionName)) {
             await respondToVoiceFunctionCall(call, JSON.stringify({
                 ok: false,
@@ -2729,6 +2740,7 @@
             return;
         }
 
+        resetRealtimeTranscriptState();
         const effectivePhoneSessionId = config.phoneSessionId || null;
         openChatPanel();
         updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
