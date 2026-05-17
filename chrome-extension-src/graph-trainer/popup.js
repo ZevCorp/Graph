@@ -4,6 +4,7 @@ const LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowLogs';
 const EXECUTION_LOG_SCOPES = new Set(['execution']);
 const RECORDER_LOG_SCOPE = 'recorder';
 const SELECTED_ELEMENT_STORAGE_KEY = 'graphTrainerSelectedElement';
+const AUTO_CAPTURE_ANALYSIS_STORAGE_KEY = 'graphTrainerAutoCaptureAnalysis';
 const diagnosticsChatHistory = [];
 
 function getStorage() {
@@ -161,6 +162,22 @@ async function writeSelectedElement(value) {
   });
 }
 
+async function readAutoCaptureAnalysisCache() {
+  const storage = getLocalStorage();
+  return new Promise((resolve) => {
+    storage.get({ [AUTO_CAPTURE_ANALYSIS_STORAGE_KEY]: null }, (result) => {
+      resolve(result?.[AUTO_CAPTURE_ANALYSIS_STORAGE_KEY] || null);
+    });
+  });
+}
+
+async function writeAutoCaptureAnalysisCache(value) {
+  const storage = getLocalStorage();
+  return new Promise((resolve) => {
+    storage.set({ [AUTO_CAPTURE_ANALYSIS_STORAGE_KEY]: value || null }, resolve);
+  });
+}
+
 async function loadLogPanelState() {
   const storage = getLocalStorage();
   return new Promise((resolve) => {
@@ -277,6 +294,55 @@ async function requestDiagnosticsAnalysis(userMessage) {
   return result;
 }
 
+function buildSelectedElementFingerprint(selectedElement) {
+  if (!selectedElement) {
+    return '';
+  }
+
+  return JSON.stringify({
+    selector: `${selectedElement.selector || ''}`.trim(),
+    href: `${selectedElement.href || ''}`.trim(),
+    text: `${selectedElement.text || ''}`.trim(),
+    pageUrl: `${selectedElement.pageUrl || ''}`.trim()
+  });
+}
+
+async function requestCaptureGapAnalysis() {
+  const logs = await readLogs();
+  const selectedElement = await readSelectedElement();
+  if (!selectedElement) {
+    return null;
+  }
+
+  const relevantLogs = logs.filter((entry) => {
+    const scope = `${entry.scope || ''}`.trim().toLowerCase();
+    return scope === 'execution' || scope === 'recorder';
+  }).slice(-24);
+
+  const response = await fetch(buildBackendUrl('/api/diagnostics/analyze'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      analysisMode: 'capture-gap',
+      userMessage: 'Analiza automaticamente si este elemento marcado se puede capturar con el recorder actual o si falta un metodo especifico para persistirlo correctamente.',
+      logs: relevantLogs,
+      selectedElement,
+      history: []
+    })
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.error || 'No pude analizar la capacidad de captura del elemento.');
+  }
+
+  return {
+    fingerprint: buildSelectedElementFingerprint(selectedElement),
+    selectedElement,
+    reply: `${result.reply || ''}`.trim()
+  };
+}
+
 async function renderSelectedElementSummary() {
   const summaryEl = document.getElementById('diagnosticsSelectedElementSummary');
   if (!summaryEl) {
@@ -294,6 +360,45 @@ async function renderSelectedElementSummary() {
     selectedElement.text ? `texto: ${selectedElement.text}` : '',
     selectedElement.pageUrl ? `url: ${selectedElement.pageUrl}` : ''
   ].filter(Boolean).join('\n');
+}
+
+async function runAutomaticCaptureGapAnalysis(diagnosticsChatStatus) {
+  const selectedElement = await readSelectedElement();
+  if (!selectedElement) {
+    return;
+  }
+
+  const fingerprint = buildSelectedElementFingerprint(selectedElement);
+  const cached = await readAutoCaptureAnalysisCache();
+
+  if (cached?.fingerprint === fingerprint && `${cached.reply || ''}`.trim()) {
+    diagnosticsChatHistory.splice(0, diagnosticsChatHistory.length, {
+      role: 'assistant',
+      content: `${cached.reply}`.trim()
+    });
+    renderDiagnosticsChat();
+    diagnosticsChatStatus.textContent = 'Analisis automatico de captura cargado para el elemento marcado.';
+    return;
+  }
+
+  diagnosticsChatStatus.textContent = 'Analizando automaticamente si el recorder sabe capturar este elemento...';
+  try {
+    const result = await requestCaptureGapAnalysis();
+    if (!result?.reply) {
+      diagnosticsChatStatus.textContent = 'No pude formular un analisis automatico util todavia.';
+      return;
+    }
+
+    diagnosticsChatHistory.splice(0, diagnosticsChatHistory.length, {
+      role: 'assistant',
+      content: result.reply
+    });
+    renderDiagnosticsChat();
+    await writeAutoCaptureAnalysisCache(result);
+    diagnosticsChatStatus.textContent = 'Analisis automatico de captura listo.';
+  } catch (error) {
+    diagnosticsChatStatus.textContent = error.message || 'No pude analizar automaticamente la captura del elemento.';
+  }
 }
 
 function renderImprovementsView(payload = {}) {
@@ -423,6 +528,7 @@ async function init() {
   await setLogPanelOpen(logPanelEl, toggleLogsButton, logOutputEl, showLogs);
   renderDiagnosticsChat();
   await renderSelectedElementSummary();
+  await runAutomaticCaptureGapAnalysis(diagnosticsChatStatus);
 
   saveButton.addEventListener('click', async () => {
     const nextSettings = {
@@ -536,6 +642,7 @@ async function init() {
 
     diagnosticsChatStatus.textContent = 'Haz click en la página sobre el elemento que quieres enseñarle al agente y luego vuelve a abrir este popup.';
     try {
+      await writeAutoCaptureAnalysisCache(null);
       await chrome.tabs.sendMessage(activeTabId, { type: 'graph:start-element-inspection' });
     } catch (error) {
       diagnosticsChatStatus.textContent = 'No pude activar el modo de selección de elemento.';
@@ -544,6 +651,9 @@ async function init() {
 
   diagnosticsClearElement.addEventListener('click', async () => {
     await writeSelectedElement(null);
+    await writeAutoCaptureAnalysisCache(null);
+    diagnosticsChatHistory.length = 0;
+    renderDiagnosticsChat();
     await renderSelectedElementSummary();
     diagnosticsChatStatus.textContent = 'Elemento señalado eliminado.';
     window.setTimeout(() => {
