@@ -51,8 +51,7 @@
             }
             try {
                 const parsed = new URL(rawUrl, window.location.href);
-                parsed.hash = '';
-                return parsed.toString();
+                return `${parsed.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
             } catch (error) {
                 return `${rawUrl || ''}`.trim();
             }
@@ -142,12 +141,54 @@
             }
         }
 
+        function isElementVisible(element) {
+            if (!element || !(element instanceof Element)) {
+                return false;
+            }
+
+            const style = window.getComputedStyle(element);
+            if (!style || style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none') {
+                return false;
+            }
+
+            const rect = element.getBoundingClientRect();
+            if (!rect || rect.width <= 0 || rect.height <= 0) {
+                return false;
+            }
+
+            return true;
+        }
+
+        function isElementActionable(element) {
+            if (!isElementVisible(element)) {
+                return false;
+            }
+
+            if ('disabled' in element && element.disabled) {
+                return false;
+            }
+
+            if (element.getAttribute?.('aria-hidden') === 'true') {
+                return false;
+            }
+
+            return true;
+        }
+
+        function captureSurfaceSnapshot() {
+            try {
+                return window.GraphPluginContext?.capturePageSnapshot?.() || null;
+            } catch (error) {
+                return null;
+            }
+        }
+
         function resolveElementFromStep(step) {
             if (!step?.selector) {
                 return null;
             }
 
-            const directResult = safeQuerySelector(step.selector);
+            const directResult = safeQuerySelectorAll(step.selector);
             if (directResult.error) {
                 emitStepDiagnosticOnce('error', 'Invalid selector while resolving workflow step.', step, {
                     failureKind: 'invalid_selector',
@@ -155,7 +196,7 @@
                 });
             }
 
-            const directMatch = directResult.element;
+            const directMatch = (directResult.elements || []).find(isElementActionable) || null;
             if (directMatch) {
                 emitExtensionLog('info', 'Resolved workflow step by selector.', buildStepDiagnostics(step, {
                     resolution: 'selector'
@@ -169,6 +210,9 @@
 
             const matches = Array.from(document.querySelectorAll('input, textarea, select, button, a'));
             const fallbackMatch = matches.find((element) => {
+                if (!isElementActionable(element)) {
+                    return false;
+                }
                 const text = (element.textContent || element.value || element.getAttribute('aria-label') || '').trim();
                 return text === step.label;
             }) || null;
@@ -188,9 +232,10 @@
                 return null;
             }
 
-            const directResult = safeQuerySelector(step.selector);
-            if (directResult.element) {
-                return directResult.element;
+            const directResult = safeQuerySelectorAll(step.selector);
+            const directMatch = (directResult.elements || []).find(isElementActionable) || null;
+            if (directMatch) {
+                return directMatch;
             }
 
             if (!step?.label) {
@@ -199,6 +244,9 @@
 
             const matches = Array.from(document.querySelectorAll('input, textarea, select, button, a'));
             return matches.find((element) => {
+                if (!isElementActionable(element)) {
+                    return false;
+                }
                 const text = (element.textContent || element.value || element.getAttribute('aria-label') || '').trim();
                 return text === step.label;
             }) || null;
@@ -249,7 +297,7 @@
                     };
                 }
 
-                if (nextStep?.selector && canResolveStepImmediately(nextStep)) {
+                if (nextStep?.selector && (!nextExpectedUrl || currentUrl === nextExpectedUrl) && canResolveStepImmediately(nextStep)) {
                     return {
                         progress: 'next_step_available',
                         currentUrl
@@ -778,7 +826,8 @@
                         trigger: currentPlan.trigger || trigger,
                         stepIndex: failingStepIndex,
                         failureKind: 'execution_error',
-                        errorMessage: error?.message || 'Unknown execution error'
+                        errorMessage: error?.message || 'Unknown execution error',
+                        surfaceSnapshot: captureSurfaceSnapshot()
                     }));
                 }
                 throw error;
