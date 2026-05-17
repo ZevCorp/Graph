@@ -4,6 +4,9 @@ window.WorkflowRecorder = (() => {
   let stepOrder = 0;
   let recordQueue = Promise.resolve();
   let recordedSteps = [];
+  let cachedSharedSessionState = null;
+  let sharedSessionBootstrapPromise = null;
+  let sharedSessionSubscriptionBound = false;
   const lastFieldEvents = new Map();
   const focusedSelectValues = new Map();
   const PENDING_CLICK_STORAGE_KEY = 'graphTrainerPendingClickIntents';
@@ -52,7 +55,11 @@ window.WorkflowRecorder = (() => {
     return client;
   }
 
-  function sharedStore() {
+  function extensionSharedStore() {
+    return host()?.globalStore || null;
+  }
+
+  function fallbackSharedStore() {
     return host()?.localStore || null;
   }
 
@@ -62,11 +69,10 @@ window.WorkflowRecorder = (() => {
     return `graph:${currentHost.platform}:${currentHost.appId}:local:${SHARED_SESSION_STATE_KEY}`;
   }
 
-  function readSharedSessionState() {
-    const raw = sharedStore()?.get(SHARED_SESSION_STATE_KEY) || '';
+  function parseSharedSessionState(raw) {
     if (!raw) return null;
     try {
-      const parsed = JSON.parse(raw);
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
       if (!parsed || typeof parsed !== 'object') {
         return null;
       }
@@ -76,16 +82,12 @@ window.WorkflowRecorder = (() => {
     }
   }
 
-  function writeSharedSessionState(state) {
-    const store = sharedStore();
-    if (!store) return null;
-
+  function normalizeSharedSessionState(state) {
     if (!state || !state.recording || !state.sessionId) {
-      store.remove(SHARED_SESSION_STATE_KEY);
       return null;
     }
 
-    const normalized = {
+    return {
       ...state,
       recording: true,
       sessionId: `${state.sessionId || ''}`.trim(),
@@ -94,12 +96,82 @@ window.WorkflowRecorder = (() => {
       meaningfulSteps: Number(state.meaningfulSteps) || 0,
       updatedAt: Date.now()
     };
+  }
+
+  function readSharedSessionState() {
+    return cachedSharedSessionState;
+  }
+
+  async function ensureSharedSessionStateLoaded() {
+    if (sharedSessionBootstrapPromise) {
+      return sharedSessionBootstrapPromise;
+    }
+
+    sharedSessionBootstrapPromise = (async () => {
+      const extensionStore = extensionSharedStore();
+      if (extensionStore?.isExtensionBacked) {
+        const raw = await extensionStore.get(SHARED_SESSION_STATE_KEY).catch(() => '');
+        cachedSharedSessionState = parseSharedSessionState(raw);
+
+        if (!sharedSessionSubscriptionBound && typeof extensionStore.subscribe === 'function') {
+          extensionStore.subscribe(SHARED_SESSION_STATE_KEY, (nextRaw) => {
+            const nextSharedState = parseSharedSessionState(nextRaw);
+            cachedSharedSessionState = nextSharedState;
+            handleSharedSessionStateChange(nextSharedState);
+          });
+          sharedSessionSubscriptionBound = true;
+        }
+
+        return cachedSharedSessionState;
+      }
+
+      cachedSharedSessionState = parseSharedSessionState(
+        fallbackSharedStore()?.get(SHARED_SESSION_STATE_KEY) || ''
+      );
+      return cachedSharedSessionState;
+    })();
+
+    return sharedSessionBootstrapPromise;
+  }
+
+  async function writeSharedSessionState(state) {
+    const normalized = normalizeSharedSessionState(state);
+    const extensionStore = extensionSharedStore();
+
+    if (extensionStore?.isExtensionBacked) {
+      cachedSharedSessionState = normalized;
+      if (!normalized) {
+        await extensionStore.remove(SHARED_SESSION_STATE_KEY).catch(() => {});
+        return null;
+      }
+      await extensionStore.set(SHARED_SESSION_STATE_KEY, JSON.stringify(normalized)).catch(() => {});
+      return normalized;
+    }
+
+    const store = fallbackSharedStore();
+    if (!store) {
+      cachedSharedSessionState = normalized;
+      return normalized;
+    }
+
+    cachedSharedSessionState = normalized;
+    if (!normalized) {
+      store.remove(SHARED_SESSION_STATE_KEY);
+      return null;
+    }
+
     store.set(SHARED_SESSION_STATE_KEY, JSON.stringify(normalized));
     return normalized;
   }
 
-  function clearSharedSessionState() {
-    sharedStore()?.remove(SHARED_SESSION_STATE_KEY);
+  async function clearSharedSessionState() {
+    cachedSharedSessionState = null;
+    const extensionStore = extensionSharedStore();
+    if (extensionStore?.isExtensionBacked) {
+      await extensionStore.remove(SHARED_SESSION_STATE_KEY).catch(() => {});
+      return;
+    }
+    fallbackSharedStore()?.remove(SHARED_SESSION_STATE_KEY);
   }
 
   function explanationField() {
@@ -171,14 +243,14 @@ window.WorkflowRecorder = (() => {
     return true;
   }
 
-  function updateSharedStepCounts(step) {
+  async function updateSharedStepCounts(step) {
     if (!statusId) return;
     const currentSharedState = readSharedSessionState();
     if (!currentSharedState || currentSharedState.sessionId !== statusId) {
       return;
     }
 
-    writeSharedSessionState({
+    await writeSharedSessionState({
       ...currentSharedState,
       totalSteps: (Number(currentSharedState.totalSteps) || 0) + 1,
       meaningfulSteps: (Number(currentSharedState.meaningfulSteps) || 0) + (isMeaningfulStep(step) ? 1 : 0)
@@ -191,6 +263,21 @@ window.WorkflowRecorder = (() => {
     statusId = nextSessionId;
     resetLocalRecorderState();
     applyRecordingUiState(isRecording, nextSessionId, statusText);
+  }
+
+  function handleSharedSessionStateChange(nextSharedState) {
+    const previousSessionId = `${statusId || ''}`.trim();
+    const nextSessionId = `${nextSharedState?.sessionId || ''}`.trim();
+    const nextRecording = Boolean(nextSharedState?.recording && nextSessionId);
+
+    if (previousSessionId === nextSessionId && isRecording === nextRecording) {
+      return;
+    }
+
+    adoptSharedSessionState(
+      nextSharedState,
+      nextRecording ? `Recording workflow ${nextSessionId}` : 'Idle'
+    );
   }
 
   function escapeAttributeSelectorValue(value) {
@@ -694,7 +781,7 @@ window.WorkflowRecorder = (() => {
     await requireApiClient().appendWorkflowStep(payload, statusId);
 
     recordedSteps.push(payload);
-    updateSharedStepCounts(payload);
+    await updateSharedStepCounts(payload);
     if (payload.__pendingClickIntentId) {
       clearPendingClickIntent(payload.__pendingClickIntentId);
     }
@@ -739,6 +826,7 @@ window.WorkflowRecorder = (() => {
   }
 
   async function syncStatus() {
+    await ensureSharedSessionStateLoaded();
     const status = await requireApiClient().getRecorderStatus();
     const sharedState = readSharedSessionState();
     const recoveredPendingClicks = readPendingClickIntents();
@@ -751,7 +839,7 @@ window.WorkflowRecorder = (() => {
     writePendingClickIntents([]);
 
     if (status.recording && status.id) {
-      const nextSharedState = writeSharedSessionState({
+      const nextSharedState = await writeSharedSessionState({
         ...(sharedState || {}),
         recording: true,
         sessionId: status.id,
@@ -761,7 +849,7 @@ window.WorkflowRecorder = (() => {
       adoptSharedSessionState(nextSharedState, `Recording workflow ${status.id}`);
       await recordStep({ actionType: 'navigation', selector: 'document', label: document.title, value: '' });
     } else {
-      clearSharedSessionState();
+      await clearSharedSessionState();
       adoptSharedSessionState(null, 'Idle');
     }
   }
@@ -769,12 +857,8 @@ window.WorkflowRecorder = (() => {
   function installListeners() {
     window.addEventListener('storage', (event) => {
       if (event.key !== sharedSessionStorageKey()) return;
-      const nextSharedState = readSharedSessionState();
-      if (nextSharedState?.recording && nextSharedState.sessionId) {
-        adoptSharedSessionState(nextSharedState, `Recording workflow ${nextSharedState.sessionId}`);
-        return;
-      }
-      adoptSharedSessionState(null, 'Idle');
+      cachedSharedSessionState = parseSharedSessionState(event.newValue || '');
+      handleSharedSessionStateChange(readSharedSessionState());
     });
 
     window.addEventListener('hashchange', () => {
@@ -873,6 +957,7 @@ window.WorkflowRecorder = (() => {
 
   return {
     async startWorkflow(description, context = {}) {
+      await ensureSharedSessionStateLoaded();
       const desc = (description || '').trim();
       const pageState = window.PageState?.current || window.PageState || window.EMRState;
       if (pageState && typeof pageState.clearAll === 'function') {
@@ -886,7 +971,7 @@ window.WorkflowRecorder = (() => {
       resetLocalRecorderState();
       writePendingClickIntents([]);
       recordQueue = Promise.resolve();
-      writeSharedSessionState({
+      await writeSharedSessionState({
         recording: true,
         sessionId: statusId,
         description: desc,
@@ -919,7 +1004,7 @@ window.WorkflowRecorder = (() => {
       statusId = null;
       resetLocalRecorderState();
       writePendingClickIntents([]);
-      clearSharedSessionState();
+      await clearSharedSessionState();
       applyRecordingUiState(false, null, 'Saved');
       pluginEvents()?.emit?.('learning.session.finished', {
         sessionId: workflowId,
@@ -933,12 +1018,13 @@ window.WorkflowRecorder = (() => {
     },
 
     async resetWorkflow() {
+      await ensureSharedSessionStateLoaded();
       await requireApiClient().resetWorkflow();
       isRecording = false;
       statusId = null;
       resetLocalRecorderState();
       writePendingClickIntents([]);
-      clearSharedSessionState();
+      await clearSharedSessionState();
       applyRecordingUiState(false, null, 'Idle');
       pluginEvents()?.emit?.('learning.session.reset', {});
     },

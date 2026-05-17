@@ -1517,6 +1517,333 @@
         syncPhonePairingVisibility();
     }
 
+    function resetMiracleFinalizeQuietTimer() {
+        if (miracleDictationState.finalizeQuietTimer) {
+            window.clearTimeout(miracleDictationState.finalizeQuietTimer);
+            miracleDictationState.finalizeQuietTimer = null;
+        }
+    }
+
+    function releaseMiracleMicrophone() {
+        if (!miracleDictationState.mediaStream) {
+            return;
+        }
+        miracleDictationState.mediaStream.getTracks().forEach((track) => track.stop());
+        miracleDictationState.mediaStream = null;
+    }
+
+    function mergeMiracleTranscript(base, addition) {
+        const next = `${addition || ''}`.trim();
+        if (!next) {
+            return `${base || ''}`.trim();
+        }
+        if (!`${base || ''}`.trim()) {
+            return next;
+        }
+        return `${`${base || ''}`.trim()} ${next}`;
+    }
+
+    function chooseMiracleMimeType() {
+        const options = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+        for (const candidate of options) {
+            if (window.MediaRecorder?.isTypeSupported(candidate)) {
+                return candidate;
+            }
+        }
+        return '';
+    }
+
+    async function ensureMiracleMicrophone() {
+        if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error('Este navegador no expone acceso a microfono.');
+        }
+        if (miracleDictationState.mediaStream && miracleDictationState.mediaStream.active) {
+            return miracleDictationState.mediaStream;
+        }
+        miracleDictationState.mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                autoGainControl: true,
+                echoCancellation: true,
+                noiseSuppression: true
+            }
+        });
+        return miracleDictationState.mediaStream;
+    }
+
+    function readMiracleDeepgramTranscript(payload) {
+        const channel = payload?.channel;
+        const alternatives = Array.isArray(channel?.alternatives) ? channel.alternatives : [];
+        const transcript = alternatives[0]?.transcript;
+        return typeof transcript === 'string' ? transcript.trim() : '';
+    }
+
+    async function closeMiracleSocket() {
+        if (!miracleDictationState.socket) {
+            return;
+        }
+        const socket = miracleDictationState.socket;
+        if (socket.readyState === WebSocket.CLOSED) {
+            if (miracleDictationState.socket === socket) {
+                miracleDictationState.socket = null;
+            }
+            return;
+        }
+        await new Promise((resolve) => {
+            socket.addEventListener('close', resolve, { once: true });
+            socket.close();
+        });
+        if (miracleDictationState.socket === socket) {
+            miracleDictationState.socket = null;
+        }
+    }
+
+    async function waitForMiracleFinalize() {
+        if (!miracleDictationState.socket) {
+            return;
+        }
+        await new Promise((resolve) => {
+            let settled = false;
+            let maxWaitTimer = null;
+            const socket = miracleDictationState.socket;
+            const settle = () => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                socket.removeEventListener('message', onMessage);
+                if (maxWaitTimer) {
+                    window.clearTimeout(maxWaitTimer);
+                }
+                resetMiracleFinalizeQuietTimer();
+                resolve();
+            };
+            const onMessage = () => {
+                resetMiracleFinalizeQuietTimer();
+                miracleDictationState.finalizeQuietTimer = window.setTimeout(settle, 900);
+            };
+
+            resetMiracleFinalizeQuietTimer();
+            miracleDictationState.finalizeQuietTimer = window.setTimeout(settle, 900);
+            socket.addEventListener('message', onMessage);
+            maxWaitTimer = window.setTimeout(settle, 2200);
+        });
+    }
+
+    async function sendMiracleFinalSegment(transcript, language) {
+        const trimmedTranscript = `${transcript || ''}`.trim();
+        if (!trimmedTranscript) {
+            return;
+        }
+
+        miracleDictationState.eventSequence += 1;
+        miracleDictationState.finalSegmentCount += 1;
+
+        const response = await requireApiClient().sendMiracleOrchestratorEvent({
+            voice_session_id: miracleDictationState.voiceSessionId,
+            note_path: null,
+            note_title: miracleDictationState.noteTitle,
+            note_content: miracleDictationState.noteContent,
+            tab_id: window.location.href,
+            event_id: `graph_evt_${miracleDictationState.eventSequence}`,
+            sequence: miracleDictationState.eventSequence,
+            segment: {
+                segment_id: `graph_seg_${miracleDictationState.finalSegmentCount}`,
+                kind: 'final',
+                transcript: trimmedTranscript,
+                language: language || null
+            }
+        });
+
+        miracleDictationState.noteContent = `${response?.resolved_note_content || ''}`.trim();
+        renderMiracleNote(
+            miracleDictationState.noteContent,
+            miracleDictationState.noteContent ? 'Miracle organizo la nota' : 'Segmento enviado a Miracle'
+        );
+    }
+
+    function handleMiracleSocketMessage(event) {
+        let payload;
+        try {
+            payload = JSON.parse(event.data);
+        } catch (error) {
+            return;
+        }
+
+        const transcript = readMiracleDeepgramTranscript(payload);
+        if (!transcript) {
+            return;
+        }
+
+        if (payload.is_final) {
+            miracleDictationState.committedTranscript = mergeMiracleTranscript(
+                miracleDictationState.committedTranscript,
+                transcript
+            );
+            miracleDictationState.pendingDraft = '';
+            updateVoiceStatus('Miracle esta organizando la nota...');
+            renderMiracleNote(miracleDictationState.noteContent, 'Miracle esta organizando la nota...');
+            sendMiracleFinalSegment(transcript, miracleDictationState.streamSession?.language || null).catch((error) => {
+                updateVoiceStatus(error.message || 'No pude enviar el segmento a Miracle.');
+                renderMiracleNote(miracleDictationState.noteContent, error.message || 'No pude enviar el segmento a Miracle.');
+            });
+            return;
+        }
+
+        miracleDictationState.pendingDraft = transcript;
+        updateVoiceStatus('Transcribiendo con Miracle...');
+        renderMiracleNote(miracleDictationState.noteContent, 'Transcribiendo con Miracle...');
+    }
+
+    async function openMiracleSocket() {
+        const session = await requireApiClient().createMiracleStreamSession();
+        miracleDictationState.streamSession = session;
+
+        await new Promise((resolve, reject) => {
+            const authScheme = `${session.auth_scheme || ''}`.trim() || 'bearer';
+            const socket = new WebSocket(session.websocket_url, [authScheme, session.access_token]);
+            miracleDictationState.socket = socket;
+            socket.addEventListener('message', handleMiracleSocketMessage);
+            socket.addEventListener('open', resolve, { once: true });
+            socket.addEventListener('error', () => {
+                reject(new Error('No fue posible abrir el stream de Miracle en Deepgram.'));
+            }, { once: true });
+            socket.addEventListener('close', (closeEvent) => {
+                if (miracleDictationState.active && !closeEvent.wasClean) {
+                    updateVoiceStatus('El stream de Miracle se cerro antes de tiempo.');
+                    renderMiracleNote(miracleDictationState.noteContent, 'El stream de Miracle se cerro antes de tiempo.');
+                    stopMiracleDictation().catch(() => {});
+                }
+            });
+        });
+    }
+
+    async function startMiracleMediaRecorder() {
+        await ensureMiracleMicrophone();
+        const mimeType = chooseMiracleMimeType();
+        const recorder = mimeType
+            ? new MediaRecorder(miracleDictationState.mediaStream, { mimeType })
+            : new MediaRecorder(miracleDictationState.mediaStream);
+        miracleDictationState.mediaRecorder = recorder;
+        miracleDictationState.mediaRecorderStopped = new Promise((resolve, reject) => {
+            recorder.addEventListener('stop', resolve, { once: true });
+            recorder.addEventListener('error', () => reject(new Error('No fue posible capturar audio para Miracle.')), { once: true });
+        });
+        recorder.addEventListener('dataavailable', async (mediaEvent) => {
+            if (!mediaEvent.data || mediaEvent.data.size === 0) {
+                return;
+            }
+            if (!miracleDictationState.socket || miracleDictationState.socket.readyState !== WebSocket.OPEN) {
+                return;
+            }
+            const audioBuffer = await mediaEvent.data.arrayBuffer();
+            miracleDictationState.socket.send(audioBuffer);
+        });
+        recorder.start(Number(miracleDictationState.streamSession?.timeslice_ms) || 250);
+    }
+
+    async function startMiracleDictation() {
+        const pencilButton = document.getElementById('btn-record-toggle');
+        if (pencilButton?.dataset.recording !== 'true') {
+            throw new Error('Activa primero el lapiz para usar el dictado con Miracle.');
+        }
+        if (miracleDictationState.active || miracleDictationState.busy) {
+            return;
+        }
+
+        if (voiceState.active) {
+            stopVoiceConversation({ announce: false });
+        }
+
+        miracleDictationState.busy = true;
+        updateMiracleMicButton();
+        try {
+            miracleDictationState.voiceSessionId = `graph_miracle_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+            miracleDictationState.eventSequence = 0;
+            miracleDictationState.finalSegmentCount = 0;
+            miracleDictationState.committedTranscript = '';
+            miracleDictationState.pendingDraft = '';
+            miracleDictationState.noteContent = '';
+            renderMiracleNote('', 'Conectando con Miracle...');
+            await openMiracleSocket();
+            await startMiracleMediaRecorder();
+            miracleDictationState.active = true;
+            updateVoiceStatus('Dictando con Miracle...');
+            renderMiracleNote('', 'Dictado activo');
+        } catch (error) {
+            miracleDictationState.active = false;
+            miracleDictationState.mediaRecorder = null;
+            miracleDictationState.mediaRecorderStopped = null;
+            miracleDictationState.streamSession = null;
+            resetMiracleFinalizeQuietTimer();
+            await closeMiracleSocket().catch(() => {});
+            releaseMiracleMicrophone();
+            renderMiracleNote('', error.message || 'No pude activar Miracle.');
+            throw error;
+        } finally {
+            miracleDictationState.busy = false;
+            updateMiracleMicButton();
+            renderMiracleNote(miracleDictationState.noteContent, miracleDictationState.active ? 'Dictado activo' : 'Esperando dictado...');
+        }
+    }
+
+    async function stopMiracleDictation() {
+        if (!miracleDictationState.active && !miracleDictationState.busy) {
+            return;
+        }
+        miracleDictationState.busy = true;
+        updateMiracleMicButton();
+        try {
+            if (miracleDictationState.mediaRecorder && miracleDictationState.mediaRecorder.state !== 'inactive') {
+                miracleDictationState.mediaRecorder.stop();
+            }
+            if (miracleDictationState.mediaRecorderStopped) {
+                await miracleDictationState.mediaRecorderStopped.catch(() => {});
+            }
+            if (miracleDictationState.socket?.readyState === WebSocket.OPEN) {
+                miracleDictationState.socket.send(JSON.stringify({ type: 'Finalize' }));
+                await waitForMiracleFinalize();
+            }
+            await closeMiracleSocket();
+        } finally {
+            miracleDictationState.active = false;
+            miracleDictationState.busy = false;
+            miracleDictationState.mediaRecorder = null;
+            miracleDictationState.mediaRecorderStopped = null;
+            miracleDictationState.streamSession = null;
+            miracleDictationState.pendingDraft = '';
+            resetMiracleFinalizeQuietTimer();
+            releaseMiracleMicrophone();
+            updateMiracleMicButton();
+            renderMiracleNote(miracleDictationState.noteContent, miracleDictationState.noteContent ? 'Dictado detenido' : 'Esperando dictado...');
+            updateVoiceStatus(miracleDictationState.noteContent ? 'Miracle termino de organizar la nota.' : '');
+        }
+    }
+
+    async function toggleMiracleDictation() {
+        if (miracleDictationState.active) {
+            await stopMiracleDictation();
+            return;
+        }
+        await startMiracleDictation();
+    }
+
+    function observeMiracleRecorderAvailability() {
+        const pencilButton = document.getElementById('btn-record-toggle');
+        if (!pencilButton || pencilButton.dataset.miracleObserverBound === 'true') {
+            updateMiracleMicAvailability();
+            return;
+        }
+        pencilButton.dataset.miracleObserverBound = 'true';
+        const observer = new MutationObserver(() => {
+            updateMiracleMicAvailability();
+        });
+        observer.observe(pencilButton, {
+            attributes: true,
+            attributeFilter: ['data-recording']
+        });
+        updateMiracleMicAvailability();
+    }
+
     function positionAssistantPhonePairing() {
         const panel = document.getElementById('assistant-phone-mic-pairing');
         if (!panel || !panel.classList.contains('open')) {
@@ -3295,6 +3622,19 @@
             options = buildMountOptions(config);
             ensureStyles();
             ensureConsole();
+            const miracleButton = miracleMicButton();
+            if (miracleButton && miracleButton.dataset.bound !== 'true') {
+                miracleButton.dataset.bound = 'true';
+                miracleButton.addEventListener('click', async () => {
+                    try {
+                        await toggleMiracleDictation();
+                    } catch (error) {
+                        updateVoiceStatus(error.message || 'No pude activar el dictado con Miracle.');
+                    }
+                });
+            }
+            observeMiracleRecorderAvailability();
+            renderMiracleNote(miracleDictationState.noteContent, miracleDictationState.active ? 'Dictado activo' : '');
             requireVoiceClient().restoreStoredPhoneSession();
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
             if (!runtimeTouchBound) {
@@ -3382,6 +3722,9 @@
 
             if (!voiceLifecycleBound) {
                 window.addEventListener('pagehide', () => {
+                    if (miracleDictationState.active) {
+                        stopMiracleDictation().catch(() => {});
+                    }
                     if (!isVoiceSessionActive()) {
                         clearStoredVoiceResumeState();
                         return;

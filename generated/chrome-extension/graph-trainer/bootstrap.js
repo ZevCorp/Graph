@@ -19,17 +19,25 @@
   const appId = `${root.dataset.graphTrainerAppId || 'chrome-extension-page'}`.trim() || 'chrome-extension-page';
   const storageKey = `${root.dataset.graphTrainerStorageKey || 'graph-extension-state-page'}`.trim() || 'graph-extension-state-page';
   const workflowDescription = `${root.dataset.graphTrainerWorkflowDescription || 'Workflow on current page'}`.trim() || 'Workflow on current page';
+  const learningSessionScope = {
+    id: `${root.dataset.graphTrainerLearningScopeId || appId}`.trim() || appId,
+    mode: `${root.dataset.graphTrainerLearningScopeMode || 'app'}`.trim() || 'app',
+    brandToken: `${root.dataset.graphTrainerLearningScopeBrand || ''}`.trim(),
+    journeyToken: `${root.dataset.graphTrainerLearningScopeJourney || ''}`.trim()
+  };
 
   window.__GRAPH_EXTENSION_SETTINGS__ = {
     backendUrl,
-    appId
+    appId,
+    learningSessionScope
   };
 
   emitExtensionLog('info', 'Starting Graph Trainer bootstrap.', {
     backendUrl,
     appId,
     storageKey,
-    workflowDescription
+    workflowDescription,
+    learningSessionScope
   });
 
   try {
@@ -40,6 +48,7 @@
       title: 'Graph Trainer',
       workflowDescription,
       appId,
+      learningSessionScope,
       apiBaseUrl: backendUrl,
       assistantRuntime: {
         name: 'Graph',
