@@ -2,6 +2,14 @@ const QRCode = require('qrcode');
 const workflowAssistantPolicy = require('../../src/application/use-cases/WorkflowAssistantPolicy');
 const buildPhoneMicPage = require('../phone/buildPhoneMicPage');
 
+function buildMiracleUrl(pathname) {
+  const baseUrl = `${process.env.MIRACLE_BASE_URL || ''}`.trim().replace(/\/+$/, '');
+  if (!baseUrl) {
+    throw new Error('MIRACLE_BASE_URL is not configured on the server.');
+  }
+  return `${baseUrl}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
+}
+
 function decodeBase64JsonHeader(value, fallback = null) {
   const encoded = `${value || ''}`.trim();
   if (!encoded) {
@@ -168,6 +176,50 @@ function registerVoiceRoutes(app, deps = {}) {
   app.get('/phone-mic/:id', (req, res) => {
     const sessionId = `${req.params.id || ''}`;
     res.type('html').send(buildPhoneMicPage(sessionId));
+  });
+
+  app.post('/api/voice/miracle/stream-session', async (req, res) => {
+    try {
+      const response = await fetch(buildMiracleUrl('/api/voice/stream-session'), {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json'
+        }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: payload.error || 'Failed to create Miracle voice stream session.'
+        });
+      }
+      res.json(payload);
+    } catch (err) {
+      console.error(`[Voice Miracle] Stream Session Error: ${err.message}`);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/voice/miracle/orchestrator/events', async (req, res) => {
+    try {
+      const response = await fetch(buildMiracleUrl('/api/voice/orchestrator/events'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify(req.body || {})
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: payload.error || 'Failed to send dictation segment to Miracle.'
+        });
+      }
+      res.json(payload);
+    } catch (err) {
+      console.error(`[Voice Miracle] Orchestrator Error: ${err.message}`);
+      res.status(500).json({ error: err.message });
+    }
   });
 }
 

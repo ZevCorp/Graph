@@ -35,6 +35,9 @@
             listWorkflows() {
                 return createJsonRequest(baseUrl, '/api/workflows', {}, fetchImpl);
             },
+            getWorkflow(workflowId) {
+                return createJsonRequest(baseUrl, `/api/workflows/${encodeURIComponent(workflowId)}`, {}, fetchImpl);
+            },
             getRecorderStatus() {
                 return createJsonRequest(baseUrl, '/api/status', {}, fetchImpl);
             },
@@ -129,6 +132,19 @@
             },
             createPhoneSession(payload) {
                 return createJsonRequest(baseUrl, '/api/voice/phone-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload || {})
+                }, fetchImpl);
+            },
+            createMiracleStreamSession() {
+                return createJsonRequest(baseUrl, '/api/voice/miracle/stream-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                }, fetchImpl);
+            },
+            sendMiracleOrchestratorEvent(payload) {
+                return createJsonRequest(baseUrl, '/api/voice/miracle/orchestrator/events', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload || {})

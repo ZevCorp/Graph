@@ -51,6 +51,23 @@
         lastAssistantTranscript: '',
         lastAssistantTranscriptAt: 0
     };
+    const miracleDictationState = {
+        active: false,
+        busy: false,
+        socket: null,
+        streamSession: null,
+        mediaRecorder: null,
+        mediaRecorderStopped: null,
+        mediaStream: null,
+        finalizeQuietTimer: null,
+        voiceSessionId: '',
+        eventSequence: 0,
+        finalSegmentCount: 0,
+        committedTranscript: '',
+        pendingDraft: '',
+        noteContent: '',
+        noteTitle: 'Psychology Session Note'
+    };
     const greetingState = {
         playing: false,
         lastPlayedAt: 0
