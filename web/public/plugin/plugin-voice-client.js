@@ -7,6 +7,7 @@
         const updateVoiceStatus = typeof deps.updateVoiceStatus === 'function' ? deps.updateVoiceStatus : () => {};
         const setVoiceButton = typeof deps.setVoiceButton === 'function' ? deps.setVoiceButton : () => {};
         const setPhonePairingVisible = typeof deps.setPhonePairingVisible === 'function' ? deps.setPhonePairingVisible : () => {};
+        const setPhoneConnectionActive = typeof deps.setPhoneConnectionActive === 'function' ? deps.setPhoneConnectionActive : () => {};
         const getStoredPhoneSessionId = typeof deps.getStoredPhoneSessionId === 'function' ? deps.getStoredPhoneSessionId : () => '';
         const setStoredPhoneSessionId = typeof deps.setStoredPhoneSessionId === 'function' ? deps.setStoredPhoneSessionId : () => {};
         const getRealtimeSocketUrl = typeof deps.getRealtimeSocketUrl === 'function' ? deps.getRealtimeSocketUrl : () => '';
@@ -34,6 +35,7 @@
         async function openPhoneMicPairing() {
             openChatPanel();
             updateVoiceStatus('Preparando QR para usar el telefono como microfono...');
+            setPhoneConnectionActive(false);
             setPhonePairingVisible(true);
             const requestedId = getStoredPhoneSessionId() || `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
 

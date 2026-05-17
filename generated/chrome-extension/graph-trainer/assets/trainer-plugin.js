@@ -40,6 +40,8 @@
         nextPlaybackTime: 0,
         ttsSampleRate: 24000,
         phoneSession: null,
+        phonePairingRequested: false,
+        phoneConnectionActive: false,
         processedFunctionCalls: new Set(),
         assistantTranscript: new Map(),
         lastUserTranscript: '',
@@ -121,6 +123,15 @@
             return;
         }
         pluginHost()?.localStore?.set(PHONE_MIC_SESSION_STORAGE_KEY, id);
+    }
+
+    function isVoiceSessionActive() {
+        return Boolean(
+            voiceState.active
+            || voiceState.socket
+            || voiceState.peerConnection
+            || voiceState.stream
+        );
     }
 
     function runtime() {
@@ -207,6 +218,7 @@
             updateVoiceStatus,
             setVoiceButton,
             setPhonePairingVisible,
+            setPhoneConnectionActive,
             getStoredPhoneSessionId,
             setStoredPhoneSessionId,
             getRealtimeSocketUrl,
@@ -1223,14 +1235,19 @@
         return requireTrainerShell().setVoiceButton(active);
     }
 
-    function setPhonePairingVisible(visible) {
+    function syncPhonePairingVisibility() {
+        const visible = Boolean(
+            voiceState.phonePairingRequested
+            && voiceState.phoneSession?.id
+            && !voiceState.phoneConnectionActive
+        );
         const panel = document.getElementById('phone-mic-pairing');
         if (panel) {
-            panel.classList.toggle('open', Boolean(visible));
+            panel.classList.toggle('open', visible);
         }
         const floatingPanel = document.getElementById('assistant-phone-mic-pairing');
         if (floatingPanel) {
-            floatingPanel.classList.toggle('open', Boolean(visible));
+            floatingPanel.classList.toggle('open', visible);
         }
         if (visible) {
             positionAssistantPhonePairing();
@@ -1241,6 +1258,16 @@
             window.cancelAnimationFrame(assistantPhonePairingFrame);
             assistantPhonePairingFrame = null;
         }
+    }
+
+    function setPhonePairingVisible(visible) {
+        voiceState.phonePairingRequested = Boolean(visible);
+        syncPhonePairingVisibility();
+    }
+
+    function setPhoneConnectionActive(active) {
+        voiceState.phoneConnectionActive = Boolean(active);
+        syncPhonePairingVisibility();
     }
 
     function positionAssistantPhonePairing() {
@@ -1926,8 +1953,11 @@
         openChatPanel();
         updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
         if (!effectivePhoneSessionId) {
+            setPhoneConnectionActive(false);
+            setPhonePairingVisible(false);
             runtime()?.speak('Te escucho. Habla con naturalidad y me encargo de la tarea cuando tenga lo necesario.', { mode: 'listening' });
         } else {
+            setPhoneConnectionActive(false);
             runtime()?.speak('Estoy retomando el audio de tu telefono para seguir con la tarea.', { mode: 'listening' });
         }
 
@@ -2030,30 +2060,35 @@
 
             if (payload.type === 'phone_waiting') {
                 voiceLog('server_event_phone_waiting');
+                setPhoneConnectionActive(false);
                 updateVoiceStatus('Esperando que el telefono se conecte por QR...');
                 return;
             }
 
             if (payload.type === 'phone_connected') {
                 voiceLog('server_event_phone_connected');
+                setPhoneConnectionActive(true);
                 updateVoiceStatus('Telefono conectado. Activa el microfono en el telefono cuando quieras empezar.');
                 return;
             }
 
             if (payload.type === 'phone_audio_started') {
                 voiceLog('server_event_phone_audio_started');
+                setPhoneConnectionActive(true);
                 updateVoiceStatus('Audio del telefono recibido. Conectando Deepgram...');
                 return;
             }
 
             if (payload.type === 'phone_disconnected') {
                 voiceLog('server_event_phone_disconnected');
+                setPhoneConnectionActive(false);
                 updateVoiceStatus('Telefono desconectado. Puedes escanear el QR otra vez.');
                 return;
             }
 
             if (payload.type === 'phone_status') {
                 voiceLog('server_event_phone_status', payload.status || 'Telefono conectado.');
+                setPhoneConnectionActive(true);
                 updateVoiceStatus(payload.status || 'Telefono conectado.');
                 return;
             }
@@ -2179,6 +2214,8 @@
         voiceState.processor = null;
         voiceState.source = null;
         voiceState.silenceGain = null;
+        setPhoneConnectionActive(false);
+        setPhonePairingVisible(false);
         setVoiceButton(false);
         if (options.clearStatus !== false) {
             updateVoiceStatus('');
@@ -2525,30 +2562,35 @@
 
         if (payload.type === 'phone_waiting') {
             voiceLog('server_event_phone_waiting');
+            setPhoneConnectionActive(false);
             updateVoiceStatus('Esperando que el telefono se conecte por QR...');
             return;
         }
 
         if (payload.type === 'phone_connected') {
             voiceLog('server_event_phone_connected');
+            setPhoneConnectionActive(true);
             updateVoiceStatus('Telefono conectado. Activa el microfono en el telefono cuando quieras empezar.');
             return;
         }
 
         if (payload.type === 'phone_audio_started') {
             voiceLog('server_event_phone_audio_started');
+            setPhoneConnectionActive(true);
             updateVoiceStatus('Audio del telefono recibido. Conectando OpenAI Realtime...');
             return;
         }
 
         if (payload.type === 'phone_disconnected') {
             voiceLog('server_event_phone_disconnected');
+            setPhoneConnectionActive(false);
             updateVoiceStatus('Telefono desconectado. Puedes escanear el QR otra vez.');
             return;
         }
 
         if (payload.type === 'phone_status') {
             voiceLog('server_event_phone_status', payload.status || 'Telefono conectado.');
+            setPhoneConnectionActive(true);
             updateVoiceStatus(payload.status || 'Telefono conectado.');
             return;
         }
@@ -2952,7 +2994,7 @@
                     playAssistantGreeting(greeting).catch(() => {});
                 });
                 runtime()?.subscribe?.('voice-button', async () => {
-                    if (voiceState.active) {
+                    if (isVoiceSessionActive()) {
                         stopVoiceConversation();
                         return;
                     }
