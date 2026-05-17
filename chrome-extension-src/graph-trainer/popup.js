@@ -42,6 +42,10 @@ function isExecutionDiagnostic(entry = {}) {
   return EXECUTION_LOG_SCOPES.has(scope);
 }
 
+function isErrorDiagnostic(entry = {}) {
+  return `${entry.level || ''}`.trim().toLowerCase() === 'error';
+}
+
 function buildExecutionDiagnosticSummary(logs = []) {
   const diagnostics = logs.filter(isExecutionDiagnostic);
   const errors = diagnostics.filter((entry) => `${entry.level || ''}`.toLowerCase() === 'error').length;
@@ -56,6 +60,56 @@ function buildExecutionDiagnosticSummary(logs = []) {
   }
 
   return `${errors} error(es), ${warnings} alerta(s) y ${diagnostics.length} evento(s) de ejecucion recientes.`;
+}
+
+function collectErrorContextWindows(logs = [], radius = 3) {
+  const executionLogs = logs.filter(isExecutionDiagnostic);
+  const errorIndexes = executionLogs
+    .map((entry, index) => (isErrorDiagnostic(entry) ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (!errorIndexes.length) {
+    return {
+      executionLogs,
+      selectedEntries: [],
+      omittedCount: executionLogs.length
+    };
+  }
+
+  const selectedIndexes = new Set();
+  errorIndexes.forEach((errorIndex) => {
+    const start = Math.max(0, errorIndex - radius);
+    const end = Math.min(executionLogs.length - 1, errorIndex + radius);
+    for (let index = start; index <= end; index += 1) {
+      selectedIndexes.add(index);
+    }
+  });
+
+  const sortedIndexes = Array.from(selectedIndexes).sort((left, right) => left - right);
+  const selectedEntries = [];
+  let previousIndex = null;
+
+  sortedIndexes.forEach((index) => {
+    if (previousIndex != null && index - previousIndex > 1) {
+      selectedEntries.push({
+        type: 'gap',
+        omittedCount: index - previousIndex - 1
+      });
+    }
+
+    selectedEntries.push({
+      type: 'entry',
+      entry: executionLogs[index],
+      index
+    });
+    previousIndex = index;
+  });
+
+  return {
+    executionLogs,
+    selectedEntries,
+    omittedCount: Math.max(0, executionLogs.length - sortedIndexes.length)
+  };
 }
 
 async function clearLogs() {
@@ -175,14 +229,37 @@ async function getActiveTabId() {
 
 async function renderLogs(logOutputEl) {
   const logs = await readLogs();
-  const executionLogs = logs.filter(isExecutionDiagnostic);
+  const { executionLogs, selectedEntries, omittedCount } = collectErrorContextWindows(logs, 3);
   const summaryEl = document.getElementById('logSummary');
+  const hasErrors = executionLogs.some(isErrorDiagnostic);
   if (summaryEl) {
-    summaryEl.textContent = buildExecutionDiagnosticSummary(logs);
+    const baseSummary = buildExecutionDiagnosticSummary(logs);
+    summaryEl.textContent = hasErrors
+      ? `${baseSummary} Mostrando 3 evento(s) antes y 3 despues de cada error.`
+      : `${baseSummary} No hay errores recientes para filtrar.`;
   }
-  logOutputEl.textContent = executionLogs.length > 0
-    ? executionLogs.slice().reverse().map((entry) => formatLogEntry(entry)).join('\n\n')
-    : 'No hay diagnosticos de ejecucion todavia.';
+  if (!executionLogs.length) {
+    logOutputEl.textContent = 'No hay diagnosticos de ejecucion todavia.';
+    return;
+  }
+
+  if (!selectedEntries.length) {
+    logOutputEl.textContent = 'No hay errores recientes. Cuando ocurra uno, aqui veras 3 eventos antes y 3 despues.';
+    return;
+  }
+
+  const rendered = selectedEntries.map((item) => {
+    if (item.type === 'gap') {
+      return `... ${item.omittedCount} evento(s) omitido(s) sin errores en este tramo ...`;
+    }
+    return formatLogEntry(item.entry);
+  });
+
+  if (omittedCount > 0) {
+    rendered.unshift(`Contexto filtrado por errores. ${omittedCount} evento(s) fuera de las ventanas fueron omitidos.`);
+  }
+
+  logOutputEl.textContent = rendered.join('\n\n');
 }
 
 async function setLogPanelOpen(panelEl, buttonEl, logOutputEl, isOpen) {
