@@ -25,7 +25,7 @@ function buildPhoneMicPage(sessionId) {
     const sessionId = ${JSON.stringify(sessionId || '')};
     const statusEl = document.getElementById('status');
     const button = document.getElementById('toggle');
-    const state = { active: false, socket: null, stream: null, audioContext: null, processor: null, source: null, silenceGain: null };
+    const state = { active: false, socket: null, stream: null, audioContext: null, processor: null, source: null, silenceGain: null, heartbeatTimer: null };
 
     function setStatus(text) { statusEl.textContent = text || ''; }
     function downsampleForRealtime(floatSamples, inputSampleRate) {
@@ -57,6 +57,33 @@ function buildPhoneMicPage(sessionId) {
       }
       return buffer;
     }
+    function sendPresence(status) {
+      if (!state.socket || state.socket.readyState !== WebSocket.OPEN) return;
+      state.socket.send(JSON.stringify({
+        type: 'phone_presence',
+        visibilityState: document.visibilityState || 'visible',
+        micActive: state.active
+      }));
+      if (status) {
+        state.socket.send(JSON.stringify({
+          type: 'phone_status',
+          status,
+          visibilityState: document.visibilityState || 'visible',
+          micActive: state.active
+        }));
+      }
+    }
+    function startHeartbeat() {
+      if (state.heartbeatTimer) return;
+      state.heartbeatTimer = window.setInterval(() => {
+        sendPresence();
+      }, 3000);
+    }
+    function stopHeartbeat() {
+      if (!state.heartbeatTimer) return;
+      window.clearInterval(state.heartbeatTimer);
+      state.heartbeatTimer = null;
+    }
     async function start() {
       if (state.active) return;
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -69,6 +96,8 @@ function buildPhoneMicPage(sessionId) {
       state.socket = socket;
       socket.addEventListener('open', async () => {
         setStatus('Conectado. Pidiendo permiso de microfono...');
+        sendPresence('Telefono listo para usarse como microfono.');
+        startHeartbeat();
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: 0 } });
           const audioContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
@@ -89,7 +118,7 @@ function buildPhoneMicPage(sessionId) {
           button.dataset.active = 'true';
           button.textContent = 'Detener microfono';
           setStatus('Transmitiendo microfono al computador.');
-          socket.send(JSON.stringify({ type: 'phone_status', status: 'Transmitiendo microfono desde el telefono.' }));
+          sendPresence('Transmitiendo microfono desde el telefono.');
         } catch (error) {
           setStatus(error.message || 'No se pudo activar el microfono.');
           stop(false);
@@ -98,23 +127,36 @@ function buildPhoneMicPage(sessionId) {
       socket.addEventListener('message', (event) => {
         try {
           const payload = JSON.parse(event.data);
-          if (payload.type === 'desktop_connected') setStatus('Computador sincronizado. Toca activar y habla.');
+          if (payload.type === 'desktop_connected') {
+            setStatus('Computador sincronizado. Toca activar y habla.');
+            sendPresence(state.active ? 'Transmitiendo microfono desde el telefono.' : 'Telefono listo para usarse como microfono.');
+          }
         } catch (error) {}
       });
       socket.addEventListener('close', () => stop(false));
     }
     function stop(sendClose = true) {
+      stopHeartbeat();
       if (state.processor) state.processor.disconnect();
       if (state.source) state.source.disconnect();
       if (state.silenceGain) state.silenceGain.disconnect();
       if (state.stream) state.stream.getTracks().forEach((track) => track.stop());
       if (state.audioContext) state.audioContext.close();
       if (sendClose && state.socket && state.socket.readyState === WebSocket.OPEN) state.socket.close();
-      Object.assign(state, { active: false, socket: null, stream: null, audioContext: null, processor: null, source: null, silenceGain: null });
+      Object.assign(state, { active: false, socket: null, stream: null, audioContext: null, processor: null, source: null, silenceGain: null, heartbeatTimer: null });
       button.dataset.active = 'false';
       button.textContent = 'Activar microfono';
     }
     button.addEventListener('click', () => state.active ? stop() : start());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+        setStatus('La pagina del microfono quedo en segundo plano. Vuelve a abrirla para continuar.');
+        return;
+      }
+      sendPresence(state.active ? 'Transmitiendo microfono desde el telefono.' : 'Telefono listo para usarse como microfono.');
+    });
+    window.addEventListener('pagehide', () => stop(false));
   </script>
 </body>
 </html>`;

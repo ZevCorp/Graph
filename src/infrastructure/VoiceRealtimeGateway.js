@@ -12,6 +12,8 @@ class VoiceRealtimeGateway {
     this.sessionCounter = 0;
   }
 
+  static PHONE_PRESENCE_TTL_MS = 8000;
+
   log(scope, message, details = null) {
     const prefix = `[VoiceGateway:${scope}] ${message}`;
     if (details && typeof details === 'object') {
@@ -117,6 +119,19 @@ class VoiceRealtimeGateway {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(payload));
     }
+  }
+
+  isPhoneSessionLive(phoneSession) {
+    if (!phoneSession || phoneSession.phoneClient?.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    const lastPresenceAt = Number(phoneSession.lastPresenceAt || 0);
+    if (!Number.isFinite(lastPresenceAt) || Date.now() - lastPresenceAt > VoiceRealtimeGateway.PHONE_PRESENCE_TTL_MS) {
+      return false;
+    }
+
+    return phoneSession.visibilityState !== 'hidden';
   }
 
   getVoiceAgentUrl() {
@@ -341,7 +356,7 @@ class VoiceRealtimeGateway {
         if (session.phoneSessionId) {
           const phoneSession = this.phoneSessions.get(session.phoneSessionId);
           this.sendJson(client, {
-            type: phoneSession?.phoneClient?.readyState === WebSocket.OPEN ? 'phone_connected' : 'phone_waiting',
+            type: this.isPhoneSessionLive(phoneSession) ? 'phone_connected' : 'phone_waiting',
             sessionId: session.phoneSessionId
           });
         }
@@ -636,10 +651,10 @@ class VoiceRealtimeGateway {
     this.phoneSessions.set(sessionId, current);
     this.log(desktopSession.id, 'Bound desktop session to phone session', {
       phoneSessionId: sessionId,
-      phoneConnected: Boolean(current.phoneClient?.readyState === WebSocket.OPEN)
+      phoneConnected: this.isPhoneSessionLive(current)
     });
 
-    if (current.phoneClient?.readyState === WebSocket.OPEN) {
+    if (this.isPhoneSessionLive(current)) {
       this.sendJson(desktopClient, { type: 'phone_connected', sessionId });
       this.sendJson(current.phoneClient, { type: 'desktop_connected' });
     }
@@ -649,6 +664,9 @@ class VoiceRealtimeGateway {
     const phoneSession = this.phoneSessions.get(sessionId) || {};
     phoneSession.phoneClient = phoneClient;
     phoneSession.updatedAt = Date.now();
+    phoneSession.lastPresenceAt = 0;
+    phoneSession.visibilityState = 'hidden';
+    phoneSession.micActive = false;
     phoneSession.audioStarted = false;
     this.phoneSessions.set(sessionId, phoneSession);
     this.log(`phone_${sessionId}`, 'Phone microphone client connected', {
@@ -675,7 +693,30 @@ class VoiceRealtimeGateway {
           return;
         }
 
+        if (payload.type === 'phone_presence') {
+          phoneSession.updatedAt = Date.now();
+          phoneSession.lastPresenceAt = Date.now();
+          phoneSession.visibilityState = `${payload.visibilityState || 'visible'}`.trim() || 'visible';
+          phoneSession.micActive = Boolean(payload.micActive);
+          this.log(`phone_${sessionId}`, 'Phone presence updated', {
+            visibilityState: phoneSession.visibilityState,
+            micActive: phoneSession.micActive
+          });
+
+          if (phoneSession.desktopClient?.readyState === WebSocket.OPEN) {
+            this.sendJson(phoneSession.desktopClient, {
+              type: this.isPhoneSessionLive(phoneSession) ? 'phone_connected' : 'phone_disconnected',
+              sessionId
+            });
+          }
+          return;
+        }
+
         if (payload.type === 'phone_status' && phoneSession.desktopClient?.readyState === WebSocket.OPEN) {
+          phoneSession.updatedAt = Date.now();
+          phoneSession.lastPresenceAt = Date.now();
+          phoneSession.visibilityState = `${payload.visibilityState || phoneSession.visibilityState || 'visible'}`.trim() || 'visible';
+          phoneSession.micActive = payload.micActive === undefined ? phoneSession.micActive : Boolean(payload.micActive);
           this.log(`phone_${sessionId}`, 'Phone status forwarded', payload.status || '');
           this.sendJson(phoneSession.desktopClient, {
             type: 'phone_status',
@@ -686,6 +727,10 @@ class VoiceRealtimeGateway {
       }
 
       const desktopSession = phoneSession.desktopSession;
+      phoneSession.updatedAt = Date.now();
+      phoneSession.lastPresenceAt = Date.now();
+      phoneSession.visibilityState = 'visible';
+      phoneSession.micActive = true;
       if (desktopSession && !phoneSession.audioStarted) {
         phoneSession.audioStarted = true;
         this.log(desktopSession.id, 'First phone audio chunk received');
