@@ -5,7 +5,7 @@
         const runtime = typeof deps.runtime === 'function' ? deps.runtime : () => null;
         const emitPluginEvent = typeof deps.emitPluginEvent === 'function' ? deps.emitPluginEvent : () => {};
         const updateWorkflowPanelStatus = typeof deps.updateWorkflowPanelStatus === 'function' ? deps.updateWorkflowPanelStatus : () => {};
-        const executionState = deps.executionState || { running: false };
+        const executionState = deps.executionState || { running: false, cancelRequested: false, workflowId: '' };
         const executionStoragePrefix = deps.executionStoragePrefix || 'graph-browser-workflow-execution-v1';
         const waitTimeoutMs = Number.isFinite(deps.waitTimeoutMs) ? deps.waitTimeoutMs : 15000;
         const stepDelayMs = Number.isFinite(deps.stepDelayMs) ? deps.stepDelayMs : 180;
@@ -378,6 +378,7 @@
             const startedAt = Date.now();
             let scrollSweepAttempted = false;
             while (Date.now() - startedAt < timeoutMs) {
+                throwIfExecutionCancelled();
                 const element = resolveElementFromStep(step);
                 if (element) {
                     return element;
@@ -390,7 +391,7 @@
                         return discoveredAfterScroll;
                     }
                 }
-                await new Promise((resolve) => window.setTimeout(resolve, 120));
+                await waitMs(120);
             }
             emitStepDiagnosticOnce('error', 'Workflow step target was not found on the page.', step, {
                 failureKind: 'element_not_found',
@@ -409,6 +410,7 @@
             const shouldWaitForUrlChange = Boolean(nextExpectedUrl && nextExpectedUrl !== baselineUrl);
 
             while (Date.now() - startedAt < timeoutMs) {
+                throwIfExecutionCancelled();
                 const currentUrl = normalizeExecutionUrl(window.location.href);
 
                 if (shouldWaitForUrlChange && currentUrl === nextExpectedUrl) {
@@ -601,8 +603,57 @@
             }));
         }
 
+        function syncExecutionState(patch = {}) {
+            Object.assign(executionState, patch);
+        }
+
+        function createCancellationError() {
+            const error = new Error('La automatizacion se detuvo antes de terminar.');
+            error.code = 'EXECUTION_CANCELLED';
+            return error;
+        }
+
+        function throwIfExecutionCancelled() {
+            if (executionState.cancelRequested) {
+                throw createCancellationError();
+            }
+        }
+
         function waitMs(duration) {
-            return new Promise((resolve) => window.setTimeout(resolve, duration));
+            return new Promise((resolve, reject) => {
+                const timer = window.setTimeout(() => {
+                    try {
+                        throwIfExecutionCancelled();
+                        resolve();
+                    } catch (error) {
+                        reject(error);
+                    }
+                }, duration);
+
+                if (!executionState.cancelRequested) {
+                    return;
+                }
+
+                window.clearTimeout(timer);
+                reject(createCancellationError());
+            });
+        }
+
+        function cancelExecution() {
+            if (!executionState.running) {
+                return false;
+            }
+
+            syncExecutionState({ cancelRequested: true });
+            updateWorkflowPanelStatus('Deteniendo la automatizacion...');
+            emitExtensionLog('info', 'Workflow execution cancellation requested.', {
+                workflowId: executionState.workflowId || '',
+                currentUrl: window.location.href
+            });
+            emitPluginEvent('workflow.execution.cancellation_requested', {
+                workflowId: executionState.workflowId || ''
+            });
+            return true;
         }
 
         async function performSelectInteractionSequence(element) {
@@ -825,7 +876,11 @@
                 throw new Error('Ya estoy completando una automatizacion en esta pagina.');
             }
 
-            executionState.running = true;
+            syncExecutionState({
+                running: true,
+                cancelRequested: false,
+                workflowId: `${plan.workflowId || ''}`.trim()
+            });
             emittedDiagnostics.clear();
             let currentPlan = null;
 
@@ -854,6 +909,7 @@
                 });
 
                 for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
+                    throwIfExecutionCancelled();
                     const step = currentPlan.steps[stepIndex];
                     const nextStep = currentPlan.steps[stepIndex + 1] || null;
                     const expectedUrl = step.url ? normalizeExecutionUrl(step.url) : '';
@@ -908,6 +964,7 @@
                     }
 
                     const element = await waitForStepElement(step);
+                    throwIfExecutionCancelled();
                     if (step.actionType === 'click') {
                         const baselineUrl = window.location.href;
                         element.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -979,6 +1036,23 @@
                     trigger
                 });
             } catch (error) {
+                if (error?.code === 'EXECUTION_CANCELLED') {
+                    clearPendingExecution();
+                    runtime()?.clearSpotlight?.();
+                    updateWorkflowPanelStatus('Automatizacion detenida.');
+                    runtime()?.speak('Detuve la automatizacion.', { mode: 'idle' });
+                    emitExtensionLog('info', 'Workflow execution cancelled on page.', {
+                        workflowId: currentPlan?.workflowId || executionState.workflowId || '',
+                        trigger: currentPlan?.trigger || trigger,
+                        currentUrl: window.location.href
+                    });
+                    emitPluginEvent('workflow.execution.cancelled', {
+                        workflowId: currentPlan?.workflowId || executionState.workflowId || '',
+                        trigger: currentPlan?.trigger || trigger
+                    });
+                    return;
+                }
+
                 if (currentPlan) {
                     const failingStepIndex = Number.isFinite(currentPlan.nextStepIndex) ? currentPlan.nextStepIndex : null;
                     const failingStep = failingStepIndex != null ? currentPlan.steps[failingStepIndex] : null;
@@ -990,10 +1064,20 @@
                         errorMessage: error?.message || 'Unknown execution error',
                         surfaceSnapshot: captureSurfaceSnapshot()
                     }));
+                    emitPluginEvent('workflow.execution.failed', {
+                        workflowId: currentPlan.workflowId,
+                        trigger: currentPlan.trigger || trigger,
+                        stepIndex: failingStepIndex,
+                        errorMessage: error?.message || 'Unknown execution error'
+                    });
                 }
                 throw error;
             } finally {
-                executionState.running = false;
+                syncExecutionState({
+                    running: false,
+                    cancelRequested: false,
+                    workflowId: ''
+                });
             }
         }
 
@@ -1018,6 +1102,7 @@
             dispatchMouseLikeEvent,
             dispatchKeyboardLikeEvent,
             waitMs,
+            cancelExecution,
             performSelectInteractionSequence,
             getSelectedOptionSnapshot,
             applyNativeSelectValue,

@@ -56,7 +56,9 @@
         lastPlayedAt: 0
     };
     const executionState = {
-        running: false
+        running: false,
+        cancelRequested: false,
+        workflowId: ''
     };
     const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
     const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
@@ -344,6 +346,7 @@
             },
             onStartWorkflow: startWorkflow,
             onStopWorkflow: stopWorkflow,
+            onStopWorkflowExecution: stopWorkflowExecution,
             onWorkflowRecordingCheck: () => window.WorkflowRecorder.isRecording()
         }) || null;
     }
@@ -477,6 +480,13 @@
             .console button.icon-btn svg {
                 width: 20px;
                 height: 20px;
+            }
+            .console button.execution-stop-btn {
+                background: #c62828;
+                color: #ffffff;
+            }
+            .console button.execution-stop-btn[hidden] {
+                display: none;
             }
             #btn-record-toggle[data-recording="true"] {
                 background: #bbf7d0;
@@ -1050,6 +1060,9 @@
             </div>
             <div class="console-toolbar">
                 <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
+                <button class="icon-btn execution-stop-btn" id="btn-stop-execution" type="button" title="Detener automatizacion" aria-label="Detener automatizacion" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" fill="currentColor"/></svg>
+                </button>
                 <div class="assistant-phone-mic-pairing" id="assistant-phone-mic-pairing" data-docked="toolbar" aria-live="polite">
                     <div class="assistant-phone-mic-pairing-text">
                         <strong>Usa tu telefono como microfono</strong>
@@ -1333,6 +1346,10 @@
         return requireTrainerShell().setVoiceButton(active);
     }
 
+    function setExecutionStopButtonVisible(active) {
+        return requireTrainerShell().setExecutionStopButtonVisible(active);
+    }
+
     function syncPhonePairingVisibility() {
         const visible = Boolean(
             voiceState.phonePairingRequested
@@ -1478,6 +1495,10 @@
 
     function clearPendingExecution() {
         return requireExecutionClient().clearPendingExecution();
+    }
+
+    function stopWorkflowExecution() {
+        return requireExecutionClient().cancelExecution();
     }
 
     function emitExtensionLog(level, message, details = null) {
@@ -3177,6 +3198,18 @@
                 pluginEvents()?.on?.('learning.context.captured', (payload) => {
                     persistLearningContextNote(payload?.note || null);
                 });
+                pluginEvents()?.on?.('workflow.execution.started', () => {
+                    setExecutionStopButtonVisible(true);
+                });
+                pluginEvents()?.on?.('workflow.execution.finished', () => {
+                    setExecutionStopButtonVisible(false);
+                });
+                pluginEvents()?.on?.('workflow.execution.cancelled', () => {
+                    setExecutionStopButtonVisible(false);
+                });
+                pluginEvents()?.on?.('workflow.execution.failed', () => {
+                    setExecutionStopButtonVisible(false);
+                });
                 runtimeTouchBound = true;
             }
 
@@ -3195,6 +3228,7 @@
             closeWorkflowPanel();
             closeImprovementPanel();
             hideWorkflowOverlay();
+            setExecutionStopButtonVisible(Boolean(executionState.running));
             updateConsoleExpandedState();
 
             requireLearningClient().syncRecorderStatus();

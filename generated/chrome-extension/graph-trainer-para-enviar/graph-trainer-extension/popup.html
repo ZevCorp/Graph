@@ -87,6 +87,12 @@
     #logPanel.open {
       display: block;
     }
+    #logSummary {
+      margin: 0 0 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #4c5c6c;
+    }
     #logOutput {
       margin: 0;
       max-height: 220px;
@@ -95,6 +101,101 @@
       word-break: break-word;
       font: 11px/1.45 Consolas, monospace;
       color: #203040;
+    }
+    #voiceLogPanel {
+      display: none;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #c7d7e6;
+      border-radius: 10px;
+      background: #ffffff;
+    }
+    #voiceLogPanel.open {
+      display: block;
+    }
+    #voiceLogSummary {
+      margin: 0 0 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #4c5c6c;
+    }
+    #voiceLogOutput {
+      margin: 0;
+      max-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 11px/1.45 Consolas, monospace;
+      color: #203040;
+    }
+    .diagnostics-chat {
+      margin-top: 12px;
+      border-top: 1px solid #e4edf5;
+      padding-top: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .diagnostics-chat strong {
+      font-size: 13px;
+      color: #102033;
+    }
+    .diagnostics-chat-log {
+      max-height: 180px;
+      overflow: auto;
+      display: grid;
+      gap: 8px;
+    }
+    .diagnostics-chat-empty {
+      margin: 0;
+      font-size: 12px;
+      color: #6b7c8f;
+    }
+    .diagnostics-selection {
+      display: grid;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f7f9fb;
+      border: 1px solid #e5eaf0;
+    }
+    .diagnostics-selection-summary {
+      font-size: 12px;
+      line-height: 1.5;
+      color: #1f2937;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .diagnostics-chat-message {
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .diagnostics-chat-message.user {
+      background: #eef6fc;
+      color: #14324a;
+    }
+    .diagnostics-chat-message.assistant {
+      background: #f7f9fb;
+      color: #1f2937;
+      border: 1px solid #e5eaf0;
+    }
+    #diagnosticsChatInput {
+      width: 100%;
+      min-height: 72px;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #c7d7e6;
+      border-radius: 10px;
+      background: #fff;
+      resize: vertical;
+      font: inherit;
+    }
+    #diagnosticsChatStatus {
+      min-height: 16px;
+      font-size: 12px;
+      color: #6b7c8f;
     }
     .hidden {
       display: none !important;
@@ -284,7 +385,7 @@
 <body>
   <div id="settingsView">
     <h1>Graph Trainer</h1>
-    <p>Enable the trainer on any page and point it to your running Graph backend.</p>
+    <p>Activa el trainer en cualquier pagina y usa este popup para revisar por que una automatizacion aprendida no logro ejecutarse.</p>
 
     <div class="row">
       <input id="enabled" type="checkbox">
@@ -299,15 +400,39 @@
       <button id="showImprovements" type="button" class="secondary-button">Mostrar mejoras para la pagina</button>
     </div>
     <div class="button-row">
-      <button id="toggleLogs" type="button" class="secondary-button">Show Logs</button>
-      <button id="clearLogs" type="button" class="danger-button">Clear Logs</button>
+      <button id="toggleLogs" type="button" class="secondary-button">Ver diagnostico</button>
+      <button id="toggleVoiceLogs" type="button" class="secondary-button">Ver logs de voz</button>
+      <button id="clearLogs" type="button" class="danger-button">Limpiar</button>
     </div>
     <div id="status"></div>
     <div id="logPanel" aria-live="polite">
-      <pre id="logOutput">No logs yet.</pre>
+      <p id="logSummary">Sin diagnosticos de ejecucion todavia.</p>
+      <pre id="logOutput">No hay diagnosticos de ejecucion todavia.</pre>
+      <div class="diagnostics-chat">
+        <strong>Agente de diagnostico</strong>
+        <div class="diagnostics-selection">
+          <div class="button-row">
+            <button id="diagnosticsSelectElement" type="button" class="secondary-button">Señalar elemento</button>
+            <button id="diagnosticsClearElement" type="button" class="danger-button">Limpiar elemento</button>
+          </div>
+          <div class="diagnostics-selection-summary" id="diagnosticsSelectedElementSummary">No has señalado ningún elemento todavía.</div>
+        </div>
+        <div class="diagnostics-chat-log" id="diagnosticsChatLog">
+          <p class="diagnostics-chat-empty" id="diagnosticsChatEmpty">Explícame qué viste y este agente analizará los logs para proponer una causa raíz y fixes estables.</p>
+        </div>
+        <textarea id="diagnosticsChatInput" placeholder="Ejemplo: después de llenar la dirección el botón de recoger aparece solo si hago scroll o recargo."></textarea>
+        <div class="button-row">
+          <button id="diagnosticsChatSend" type="button" class="secondary-button">Analizar problema</button>
+        </div>
+        <div id="diagnosticsChatStatus"></div>
+      </div>
     </div>
 
-    <p>After saving, reload the target tab. The trainer will mount automatically.</p>
+    <p>Despues de guardar, recarga la pestaña objetivo. El trainer se montara automaticamente.</p>
+    <div id="voiceLogPanel" aria-live="polite">
+      <p id="voiceLogSummary">Sin logs de voz en tiempo real todavia.</p>
+      <pre id="voiceLogOutput">No hay logs de voz en tiempo real todavia.</pre>
+    </div>
   </div>
 
   <div id="improvementsView" aria-live="polite">

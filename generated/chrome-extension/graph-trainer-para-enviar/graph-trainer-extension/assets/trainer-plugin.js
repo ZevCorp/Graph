@@ -21,8 +21,6 @@
     let mounted = false;
     let workflowPanelLoaded = false;
     let improvementPanelLoaded = false;
-    let longPressTimer = null;
-    let longPressTriggered = false;
     let runtimeTouchBound = false;
     let assistantPhonePairingBound = false;
     let feedbackOverlayVisible = false;
@@ -31,8 +29,10 @@
     let assistantPhonePairingFrame = null;
     let surfaceProfileHydration = null;
     let workflowPanelEntries = [];
+    let voiceLifecycleBound = false;
     const voiceState = {
         active: false,
+        mode: null,
         peerConnection: null,
         dataChannel: null,
         stream: null,
@@ -42,6 +42,8 @@
         nextPlaybackTime: 0,
         ttsSampleRate: 24000,
         phoneSession: null,
+        phonePairingRequested: false,
+        phoneConnectionActive: false,
         processedFunctionCalls: new Set(),
         assistantTranscript: new Map(),
         lastUserTranscript: '',
@@ -54,10 +56,13 @@
         lastPlayedAt: 0
     };
     const executionState = {
-        running: false
+        running: false,
+        cancelRequested: false,
+        workflowId: ''
     };
     const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
     const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
+    const VOICE_RESUME_STORAGE_KEY = 'graph-voice-resume-state';
     const EXECUTION_WAIT_TIMEOUT_MS = 15000;
     const EXECUTION_STEP_DELAY_MS = 180;
     const trustedHtmlPolicy = (() => {
@@ -76,11 +81,42 @@
     })();
 
     function voiceLog(event, details) {
+        const payload = {
+            event: `${event || ''}`.trim(),
+            ...(details !== undefined ? { details } : {})
+        };
         if (details !== undefined) {
             console.log(`[VoiceUI] ${event}`, details);
-            return;
+        } else {
+            console.log(`[VoiceUI] ${event}`);
         }
-        console.log(`[VoiceUI] ${event}`);
+        try {
+            document.dispatchEvent(new CustomEvent('graph-trainer-extension-log', {
+                detail: {
+                    level: 'info',
+                    scope: 'voice',
+                    message: `${event || 'voice_event'}`.trim() || 'voice_event',
+                    details: payload
+                }
+            }));
+        } catch (error) {
+            // Ignore logging bridge issues.
+        }
+
+        try {
+            window.postMessage({
+                source: 'graph-trainer-extension',
+                type: 'log',
+                detail: {
+                    level: 'info',
+                    scope: 'voice',
+                    message: `${event || 'voice_event'}`.trim() || 'voice_event',
+                    details: payload
+                }
+            }, '*');
+        } catch (error) {
+            // Ignore logging bridge issues.
+        }
     }
 
     function setElementHtml(element, html) {
@@ -125,6 +161,56 @@
         pluginHost()?.localStore?.set(PHONE_MIC_SESSION_STORAGE_KEY, id);
     }
 
+    function getStoredVoiceResumeState() {
+        const raw = pluginHost()?.sessionStore?.get(VOICE_RESUME_STORAGE_KEY) || '';
+        if (!raw) {
+            return null;
+        }
+        try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') {
+                return null;
+            }
+            return parsed;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function setStoredVoiceResumeState(payload) {
+        if (!payload) {
+            pluginHost()?.sessionStore?.remove(VOICE_RESUME_STORAGE_KEY);
+            return;
+        }
+        pluginHost()?.sessionStore?.set(VOICE_RESUME_STORAGE_KEY, JSON.stringify(payload));
+    }
+
+    function clearStoredVoiceResumeState() {
+        pluginHost()?.sessionStore?.remove(VOICE_RESUME_STORAGE_KEY);
+    }
+
+    function persistVoiceResumeState() {
+        if (!voiceState.mode) {
+            return;
+        }
+        setStoredVoiceResumeState({
+            mode: voiceState.mode,
+            phoneSessionId: voiceState.mode === 'phone'
+                ? (voiceState.phoneSession?.id || getStoredPhoneSessionId() || '')
+                : '',
+            savedAt: Date.now()
+        });
+    }
+
+    function isVoiceSessionActive() {
+        return Boolean(
+            voiceState.active
+            || voiceState.socket
+            || voiceState.peerConnection
+            || voiceState.stream
+        );
+    }
+
     function runtime() {
         return window.GraphAssistantRuntime || null;
     }
@@ -135,6 +221,142 @@
 
     function emitPluginEvent(eventName, payload) {
         pluginEvents()?.emit?.(eventName, payload || {});
+    }
+
+    function surfaceProfileClient() {
+        return window.GraphPluginSurfaceProfileClient?.create?.({
+            getOptions: () => options,
+            setOptions: (nextOptions) => {
+                options = nextOptions || options;
+            },
+            getDefaults: () => DEFAULTS,
+            runtime,
+            requireApiClient,
+            emitPluginEvent
+        }) || null;
+    }
+
+    function requireSurfaceProfileClient() {
+        const client = surfaceProfileClient();
+        if (!client) {
+            throw new Error('No hay cliente de surface profile configurado para este plugin.');
+        }
+        return client;
+    }
+
+    function executionClient() {
+        return window.GraphPluginExecutionClient?.create?.({
+            getOptions: () => options,
+            getPluginHost: pluginHost,
+            runtime,
+            emitPluginEvent,
+            updateWorkflowPanelStatus,
+            executionState,
+            executionStoragePrefix: EXECUTION_STORAGE_PREFIX,
+            waitTimeoutMs: EXECUTION_WAIT_TIMEOUT_MS,
+            stepDelayMs: EXECUTION_STEP_DELAY_MS
+        }) || null;
+    }
+
+    function requireExecutionClient() {
+        const client = executionClient();
+        if (!client) {
+            throw new Error('No hay cliente de ejecucion configurado para este plugin.');
+        }
+        return client;
+    }
+
+    function learningClient() {
+        return window.GraphPluginLearningClient?.create?.({
+            getOptions: () => options,
+            runtime,
+            getPageContext,
+            emitPluginEvent,
+            markWorkflowPanelDirty: () => {
+                workflowPanelLoaded = false;
+            }
+        }) || null;
+    }
+
+    function requireLearningClient() {
+        const client = learningClient();
+        if (!client) {
+            throw new Error('No hay cliente de aprendizaje configurado para este plugin.');
+        }
+        return client;
+    }
+
+    function voiceClient() {
+        return window.GraphPluginVoiceClient?.create?.({
+            voiceState,
+            voiceLog,
+            runtime,
+            openChatPanel,
+            updateVoiceStatus,
+            setVoiceButton,
+            setPhonePairingVisible,
+            setPhoneConnectionActive,
+            getStoredPhoneSessionId,
+            setStoredPhoneSessionId,
+            getRealtimeSocketUrl,
+            getPageContext,
+            requireApiClient,
+            appendAgentMessage,
+            getAgentHistory: () => agentHistory.slice(-10),
+            playLinear16Audio,
+            handleRemoteVoiceSocketMessage,
+            handleRealtimeServerEvent,
+            resetRealtimeTranscriptState,
+            getRealtimeDataChannel,
+            sendRealtimeEvent,
+            getExecutionMode: () => 'openai-realtime',
+            updateImprovementPanelStatus,
+            startVoiceConversationImpl: async (config = {}) => startVoiceConversationImpl(config),
+            stopVoiceConversationImpl: (options = {}) => stopVoiceConversationImpl(options)
+        }) || null;
+    }
+
+    function requireVoiceClient() {
+        const client = voiceClient();
+        if (!client) {
+            throw new Error('No hay cliente de voz configurado para este plugin.');
+        }
+        return client;
+    }
+
+    function trainerShell() {
+        return window.GraphPluginTrainerShell?.create?.({
+            runtime,
+            longPressMs: LONG_PRESS_MS,
+            isWorkflowOverlayVisible: () => workflowOverlayVisible,
+            isFeedbackOverlayVisible: () => feedbackOverlayVisible,
+            renderWorkflowOverlay,
+            renderFeedbackOverlay,
+            loadWorkflowPanel,
+            loadImprovementPanel,
+            toggleFeedbackOverlay,
+            runPitchGeneration,
+            executeWorkflowFromPanel,
+            getWorkflowEntryById,
+            toggleWorkflowOverlay,
+            hideWorkflowOverlay,
+            deleteWorkflowFromPanel,
+            markWorkflowPanelDirty: () => {
+                workflowPanelLoaded = false;
+            },
+            onStartWorkflow: startWorkflow,
+            onStopWorkflow: stopWorkflow,
+            onStopWorkflowExecution: stopWorkflowExecution,
+            onWorkflowRecordingCheck: () => window.WorkflowRecorder.isRecording()
+        }) || null;
+    }
+
+    function requireTrainerShell() {
+        const shell = trainerShell();
+        if (!shell) {
+            throw new Error('No hay trainer shell configurado para este plugin.');
+        }
+        return shell;
     }
 
     function getSurfaceAdapter() {
@@ -179,110 +401,26 @@
     }
 
     async function persistLearningContextNote(note) {
-        if (!note || !note.transcript) {
-            return;
-        }
-        try {
-            await requireApiClient().appendWorkflowContextNote(note);
-        } catch (error) {
-            console.warn('[LearningContext] Could not persist note:', error.message || error);
-        }
+        return requireSurfaceProfileClient().persistLearningContextNote(note);
     }
 
     function getPageContext() {
-        const normalizePathname = window.GraphPluginAdapters?.normalizePathname;
-        return window.GraphPluginContext?.buildPageContext?.(options) || {
-            appId: options.appId || '',
-            sourceUrl: window.location.href,
-            sourceOrigin: window.location.origin,
-            sourcePathname: typeof normalizePathname === 'function'
-                ? normalizePathname(window.location.pathname)
-                : window.location.pathname,
-            sourceTitle: document.title,
-            browserLocale: navigator.language || '',
-            browserLanguages: Array.isArray(navigator.languages) ? navigator.languages.slice(0, 5) : [],
-            assistantProfile: options.assistantProfile || null,
-            assistantPrompt: options.assistantPrompt || '',
-            surfaceProfileId: options.surfaceProfile?.id || '',
-            surfaceProfileScope: options.surfaceProfile?.scope || 'global',
-            ownerId: options.surfaceProfile?.ownerId || '',
-            languageCode: options.surfaceProfile?.languageCode || (navigator.language || 'es').split(/[-_]/)[0].toLowerCase()
-        };
+        return requireSurfaceProfileClient().getPageContext();
     }
 
     function isGenericWorkflowDescription(value) {
-        const normalized = `${value || ''}`.trim();
-        return !normalized || /^workflow on /i.test(normalized);
+        return requireSurfaceProfileClient().isGenericWorkflowDescription(value);
     }
 
     function applySurfaceProfileToOptions(surfaceProfile) {
-        if (!surfaceProfile || typeof surfaceProfile !== 'object') {
-            return;
-        }
-
-        options.surfaceProfile = surfaceProfile;
-
-        if (surfaceProfile.assistantProfile && typeof surfaceProfile.assistantProfile === 'object') {
-            options.assistantProfile = surfaceProfile.assistantProfile;
-        }
-
-        if (`${surfaceProfile.systemPromptAddendum || ''}`.trim()) {
-            options.assistantPrompt = `${surfaceProfile.systemPromptAddendum || ''}`.trim();
-        }
-
-        if (surfaceProfile.assistantRuntime && typeof surfaceProfile.assistantRuntime === 'object') {
-            options.assistantRuntime = {
-                ...options.assistantRuntime,
-                ...surfaceProfile.assistantRuntime
-            };
-        }
-
-        if (isGenericWorkflowDescription(options.workflowDescription) && `${surfaceProfile.workflowDescription || ''}`.trim()) {
-            options.workflowDescription = `${surfaceProfile.workflowDescription || ''}`.trim();
-        }
-
-        if (`${surfaceProfile.welcomeMessage || ''}`.trim()) {
-            options.assistantRuntime = {
-                ...options.assistantRuntime,
-                idleMessage: `${surfaceProfile.welcomeMessage || ''}`.trim()
-            };
-        }
+        return requireSurfaceProfileClient().applySurfaceProfileToOptions(surfaceProfile);
     }
 
     async function hydrateSurfaceProfile() {
         if (surfaceProfileHydration) {
             return surfaceProfileHydration;
         }
-
-        surfaceProfileHydration = (async () => {
-            try {
-                const context = getPageContext();
-                const pageSnapshot = window.GraphPluginContext?.capturePageSnapshot?.() || {};
-                const payload = await requireApiClient().ensureSurfaceProfile(context, pageSnapshot);
-                const surfaceProfile = payload?.surfaceProfile || null;
-                if (!surfaceProfile) {
-                    return null;
-                }
-
-                applySurfaceProfileToOptions(surfaceProfile);
-                runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
-
-                const descriptionField = document.getElementById('wf-desc');
-                if (descriptionField && isGenericWorkflowDescription(descriptionField.value)) {
-                    descriptionField.value = options.workflowDescription || '';
-                }
-
-                emitPluginEvent('surface.profile.hydrated', {
-                    surfaceProfileId: surfaceProfile.id || '',
-                    generated: Boolean(payload?.generated)
-                });
-                return surfaceProfile;
-            } catch (error) {
-                console.warn('[SurfaceProfile] Could not hydrate surface profile:', error.message || error);
-                return null;
-            }
-        })();
-
+        surfaceProfileHydration = requireSurfaceProfileClient().hydrateSurfaceProfile();
         return surfaceProfileHydration;
     }
 
@@ -322,6 +460,9 @@
                 align-items: center;
                 justify-content: center;
                 gap: 10px;
+                position: relative;
+                width: 100%;
+                padding-top: 6px;
             }
             .console button.icon-btn {
                 width: 46px;
@@ -339,6 +480,13 @@
             .console button.icon-btn svg {
                 width: 20px;
                 height: 20px;
+            }
+            .console button.execution-stop-btn {
+                background: #c62828;
+                color: #ffffff;
+            }
+            .console button.execution-stop-btn[hidden] {
+                display: none;
             }
             #btn-record-toggle[data-recording="true"] {
                 background: #bbf7d0;
@@ -429,44 +577,66 @@
                 font-weight: 700;
             }
             .assistant-phone-mic-pairing {
-                position: fixed;
+                position: absolute;
                 display: none;
-                width: min(320px, calc(100vw - 32px));
-                padding: 12px;
-                border-radius: 20px;
-                background: rgba(255, 255, 255, 0.97);
-                border: 1px solid rgba(15, 95, 140, 0.14);
-                box-shadow: 0 28px 60px rgba(12, 28, 43, 0.22);
+                bottom: calc(100% + 12px);
+                left: 50%;
+                width: 156px;
+                padding: 14px 14px 16px;
+                border-radius: 24px;
+                background:
+                    linear-gradient(180deg, rgba(17, 17, 17, 0.98) 0%, rgba(29, 29, 29, 0.98) 100%),
+                    radial-gradient(circle at top center, rgba(255, 255, 255, 0.08), transparent 42%);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                box-shadow: 0 30px 60px rgba(12, 28, 43, 0.3);
                 backdrop-filter: blur(18px);
-                z-index: 2147483004;
-                grid-template-columns: 108px 1fr;
-                gap: 12px;
-                align-items: center;
+                z-index: 30;
+                grid-template-columns: 1fr;
+                gap: 10px;
+                justify-items: center;
+                text-align: center;
+                transform-origin: bottom center;
+                transform: translateX(-50%) translateY(12px) scale(0.92);
+                opacity: 0;
+                pointer-events: none;
             }
             .assistant-phone-mic-pairing.open {
                 display: grid;
+                transform: translateX(-50%) translateY(0) scale(1);
+                opacity: 1;
+                pointer-events: auto;
             }
             .assistant-phone-mic-pairing img {
-                width: 108px;
-                height: 108px;
+                width: 112px;
+                height: 112px;
                 border-radius: 12px;
                 background: #fff;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
             }
             .assistant-phone-mic-pairing-text {
                 display: grid;
-                gap: 7px;
+                gap: 0;
                 min-width: 0;
-                color: #1d2a33;
-                font-size: 12px;
-                line-height: 1.45;
+                color: #ffffff;
+                font-size: 13px;
+                line-height: 1.35;
+                justify-items: center;
             }
             .assistant-phone-mic-pairing-text strong {
                 font-size: 13px;
+                font-weight: 800;
             }
-            .assistant-phone-mic-pairing-url {
-                overflow-wrap: anywhere;
-                color: #0f5f8c;
-                font-weight: 700;
+            .assistant-phone-mic-pairing[data-docked="toolbar"]::after {
+                content: "";
+                position: absolute;
+                left: 50%;
+                bottom: -8px;
+                width: 18px;
+                height: 18px;
+                background: #1d1d1d;
+                border-right: 1px solid rgba(255, 255, 255, 0.08);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                transform: translateX(-50%) rotate(45deg);
             }
             .workflow-panel {
                 padding-top: 2px;
@@ -887,17 +1057,18 @@
                         <span class="phone-mic-pairing-url" id="phone-mic-url"></span>
                     </div>
                 </div>
-                <div class="assistant-phone-mic-pairing" id="assistant-phone-mic-pairing" aria-live="polite">
-                    <img id="assistant-phone-mic-qr" alt="QR para conectar el telefono como microfono">
-                    <div class="assistant-phone-mic-pairing-text">
-                        <strong>Usa tu telefono como microfono</strong>
-                        <span>Escanea este QR y activa el microfono desde el telefono sin salir de esta pagina.</span>
-                        <span class="assistant-phone-mic-pairing-url" id="assistant-phone-mic-url"></span>
-                    </div>
-                </div>
             </div>
             <div class="console-toolbar">
                 <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
+                <button class="icon-btn execution-stop-btn" id="btn-stop-execution" type="button" title="Detener automatizacion" aria-label="Detener automatizacion" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" fill="currentColor"/></svg>
+                </button>
+                <div class="assistant-phone-mic-pairing" id="assistant-phone-mic-pairing" data-docked="toolbar" aria-live="polite">
+                    <div class="assistant-phone-mic-pairing-text">
+                        <strong>Usa tu telefono como microfono</strong>
+                    </div>
+                    <img id="assistant-phone-mic-qr" alt="QR para conectar el telefono como microfono">
+                </div>
             </div>
             <input id="wf-desc" class="sr-only" value="">
             <textarea id="step-explanation" class="sr-only"></textarea>
@@ -939,78 +1110,35 @@
     }
 
     function updateConsoleExpandedState() {
-        const consoleEl = document.getElementById('teaching-console');
-        const panel = document.getElementById('workflow-panel');
-        const improvementPanel = document.getElementById('improvement-panel');
-        if (!consoleEl || !panel || !improvementPanel) return;
-
-        const shouldExpand = panel.classList.contains('open')
-            || improvementPanel.classList.contains('open');
-        consoleEl.classList.toggle('compact-open', shouldExpand);
+        return requireTrainerShell().updateConsoleExpandedState();
     }
 
     function closeWorkflowPanel() {
-        const panel = document.getElementById('workflow-panel');
-        if (!panel) return;
-        panel.classList.remove('open');
-        updateConsoleExpandedState();
+        return requireTrainerShell().closeWorkflowPanel();
     }
 
     function closeImprovementPanel() {
-        const panel = document.getElementById('improvement-panel');
-        if (!panel) return;
-        panel.classList.remove('open');
-        updateConsoleExpandedState();
+        return requireTrainerShell().closeImprovementPanel();
     }
 
     function openChatPanel() {
-        closeWorkflowPanel();
-        closeImprovementPanel();
-        updateConsoleExpandedState();
-        runtime()?.openChatComposer?.({ focus: true });
-        runtime()?.speak('Estoy listo para ayudarte con la reserva cuando quieras.', { mode: 'listening' });
+        return requireTrainerShell().openChatPanel();
     }
 
     function openWorkflowPanel() {
-        const panel = document.getElementById('workflow-panel');
-        const improvementPanel = document.getElementById('improvement-panel');
-        if (!panel || !improvementPanel) return;
-        runtime()?.closeChatComposer?.();
-        improvementPanel.classList.remove('open');
-        panel.classList.add('open');
-        updateConsoleExpandedState();
+        return requireTrainerShell().openWorkflowPanel();
     }
 
     function openImprovementPanel() {
-        const panel = document.getElementById('improvement-panel');
-        const workflowPanel = document.getElementById('workflow-panel');
-        if (!panel || !workflowPanel) return;
-        runtime()?.closeChatComposer?.();
-        workflowPanel.classList.remove('open');
-        panel.classList.add('open');
-        updateConsoleExpandedState();
+        return requireTrainerShell().openImprovementPanel();
     }
 
     function toggleWorkflowPanel() {
-        const panel = document.getElementById('workflow-panel');
-        if (!panel) return;
-        if (panel.classList.contains('open')) {
-            closeWorkflowPanel();
-            return;
-        }
-        openWorkflowPanel();
-        loadWorkflowPanel(true);
+        return requireTrainerShell().toggleWorkflowPanel();
     }
 
     function toggleImprovementPanel() {
-        const panel = document.getElementById('improvement-panel');
-        if (!panel) return;
-        if (panel.classList.contains('open')) {
-            closeImprovementPanel();
-            return;
-        }
-        openImprovementPanel();
-        loadImprovementPanel(true);
+        return requireTrainerShell().toggleImprovementPanel();
     }
 
     function escapeHtml(value) {
@@ -1160,7 +1288,7 @@
         return true;
     }
 
-    function appendAgentMessage(role, text, meta, pushHistory = true) {
+    function appendAgentMessage(role, text, meta, pushHistory = true, options = {}) {
         const agentChatLog = document.getElementById('console-chat-log');
         if (!agentChatLog) return;
 
@@ -1183,10 +1311,19 @@
         agentChatLog.scrollTop = agentChatLog.scrollHeight;
 
         if (role === 'assistant' && text) {
-            runtime()?.speak(text, { mode: 'assistant', audible: true });
+            const shouldSpeakAudibly = options.audible === undefined
+                ? !voiceState.active
+                : Boolean(options.audible);
+            runtime()?.speak(text, { mode: 'assistant', audible: shouldSpeakAudibly });
         } else if (role === 'user' && text) {
             runtime()?.showUserSpeech?.(text);
         }
+    }
+
+    function isPageExecutionFunctionName(functionName) {
+        const normalized = `${functionName || ''}`.trim();
+        return normalized === 'execute_workflow_on_page'
+            || normalized === 'execute_reservation_on_page';
     }
 
     function statusField() {
@@ -1194,43 +1331,38 @@
     }
 
     function updateWorkflowPanelStatus(text) {
-        const status = document.getElementById('workflow-panel-status');
-        if (status) {
-            status.textContent = text;
-        }
+        return requireTrainerShell().updateWorkflowPanelStatus(text);
     }
 
     function updateImprovementPanelStatus(text) {
-        const status = document.getElementById('improvement-panel-status');
-        if (status) {
-            status.textContent = text;
-        }
+        return requireTrainerShell().updateImprovementPanelStatus(text);
     }
 
     function updateVoiceStatus(text) {
-        const status = document.getElementById('voice-status');
-        if (status) {
-            status.textContent = text || '';
-        }
+        return requireTrainerShell().updateVoiceStatus(text);
     }
 
     function setVoiceButton(active) {
-        const button = document.getElementById('voice-toggle');
-        if (!button) return;
-        button.dataset.active = active ? 'true' : 'false';
-        button.setAttribute('aria-pressed', active ? 'true' : 'false');
-        button.title = active ? 'Detener conversacion de voz' : 'Conversacion de voz';
-        runtime()?.setVoiceButtonActive?.(active);
+        return requireTrainerShell().setVoiceButton(active);
     }
 
-    function setPhonePairingVisible(visible) {
+    function setExecutionStopButtonVisible(active) {
+        return requireTrainerShell().setExecutionStopButtonVisible(active);
+    }
+
+    function syncPhonePairingVisibility() {
+        const visible = Boolean(
+            voiceState.phonePairingRequested
+            && voiceState.phoneSession?.id
+            && !voiceState.phoneConnectionActive
+        );
         const panel = document.getElementById('phone-mic-pairing');
         if (panel) {
-            panel.classList.toggle('open', Boolean(visible));
+            panel.classList.toggle('open', visible);
         }
         const floatingPanel = document.getElementById('assistant-phone-mic-pairing');
         if (floatingPanel) {
-            floatingPanel.classList.toggle('open', Boolean(visible));
+            floatingPanel.classList.toggle('open', visible);
         }
         if (visible) {
             positionAssistantPhonePairing();
@@ -1243,10 +1375,30 @@
         }
     }
 
+    function setPhonePairingVisible(visible) {
+        voiceState.phonePairingRequested = Boolean(visible);
+        syncPhonePairingVisibility();
+    }
+
+    function setPhoneConnectionActive(active) {
+        voiceState.phoneConnectionActive = Boolean(active);
+        syncPhonePairingVisibility();
+    }
+
     function positionAssistantPhonePairing() {
         const panel = document.getElementById('assistant-phone-mic-pairing');
+        if (!panel || !panel.classList.contains('open')) {
+            return;
+        }
+
+        if (panel.dataset.docked === 'toolbar') {
+            panel.style.left = '';
+            panel.style.top = '';
+            return;
+        }
+
         const shell = document.getElementById('graph-assistant-shell');
-        if (!panel || !shell || !panel.classList.contains('open')) {
+        if (!shell) {
             return;
         }
 
@@ -1267,6 +1419,10 @@
     }
 
     function scheduleAssistantPhonePairingPosition() {
+        const panel = document.getElementById('assistant-phone-mic-pairing');
+        if (panel?.dataset.docked === 'toolbar') {
+            return;
+        }
         if (assistantPhonePairingFrame) {
             return;
         }
@@ -1333,556 +1489,24 @@
         }
     }
 
-    function cloneJson(value) {
-        return value ? JSON.parse(JSON.stringify(value)) : value;
-    }
-
-    function getExecutionStorageKey() {
-        const appId = `${options.appId || 'page'}`.trim() || 'page';
-        const platform = pluginHost()?.platform || 'web-page';
-        return `${EXECUTION_STORAGE_PREFIX}:${platform}:${appId}`;
-    }
-
     function readPendingExecution() {
-        try {
-            const raw = pluginHost()?.sessionStore?.get(getExecutionStorageKey()) || '';
-            if (!raw) return null;
-            const parsed = JSON.parse(raw);
-            if (!parsed || !parsed.workflowId || !Array.isArray(parsed.steps)) {
-                return null;
-            }
-            return parsed;
-        } catch (error) {
-            return null;
-        }
-    }
-
-    function persistPendingExecution(plan) {
-        if (!plan) {
-            executionState.running = false;
-            pluginHost()?.sessionStore?.remove(getExecutionStorageKey());
-            return;
-        }
-
-        executionState.running = true;
-        pluginHost()?.sessionStore?.set(getExecutionStorageKey(), JSON.stringify(plan));
+        return requireExecutionClient().readPendingExecution();
     }
 
     function clearPendingExecution() {
-        executionState.running = false;
-        pluginHost()?.sessionStore?.remove(getExecutionStorageKey());
+        return requireExecutionClient().clearPendingExecution();
     }
 
-    function normalizeExecutionUrl(rawUrl) {
-        if (!rawUrl) {
-            return window.location.href;
-        }
-
-        try {
-            const candidate = new URL(rawUrl, window.location.href);
-            if (candidate.origin === window.location.origin) {
-                return candidate.toString();
-            }
-
-            if (candidate.pathname) {
-                return new URL(`${candidate.pathname}${candidate.search}${candidate.hash}`, window.location.origin).toString();
-            }
-
-            return candidate.toString();
-        } catch (error) {
-            try {
-                return new URL(rawUrl, window.location.origin).toString();
-            } catch (nestedError) {
-                return `${rawUrl}`;
-            }
-        }
-    }
-
-    function urlsMatch(left, right) {
-        try {
-            const leftUrl = new URL(left, window.location.href);
-            const rightUrl = new URL(right, window.location.href);
-            return leftUrl.origin === rightUrl.origin
-                && leftUrl.pathname === rightUrl.pathname
-                && leftUrl.search === rightUrl.search;
-        } catch (error) {
-            return `${left || ''}` === `${right || ''}`;
-        }
-    }
-
-    function describeStep(step) {
-        if (!step) return 'workflow';
-        if (step.label) return step.label;
-        if (step.selector) return step.selector;
-        if (step.url) return step.url;
-        return step.actionType || 'workflow';
-    }
-
-    function resolveElementFromStep(step) {
-        if (step?.selector) {
-            const directMatch = document.querySelector(step.selector);
-            if (directMatch) {
-                return directMatch;
-            }
-        }
-
-        if (step?.actionType === 'click' && step?.label) {
-            const candidates = Array.from(document.querySelectorAll('button, a, input[type="submit"], input[type="button"]'));
-            return candidates.find((element) => {
-                const text = (element.textContent || element.value || element.getAttribute('aria-label') || '').trim();
-                return text === step.label;
-            }) || null;
-        }
-
-        return null;
-    }
-
-    async function waitForStepElement(step, timeoutMs = EXECUTION_WAIT_TIMEOUT_MS) {
-        const startedAt = Date.now();
-        while (Date.now() - startedAt < timeoutMs) {
-            const element = resolveElementFromStep(step);
-            if (element) {
-                return element;
-            }
-            await new Promise((resolve) => window.setTimeout(resolve, 120));
-        }
-
-        throw new Error(`No pude encontrar ${describeStep(step)} en esta pagina.`);
-    }
-
-    function fireDomEvent(element, eventName) {
-        element.dispatchEvent(new Event(eventName, { bubbles: true }));
-    }
-
-    function notifyAutomationStep(step, message, options = {}) {
-        const selector = options.selector || step?.selector || 'body';
-        runtime()?.handleAutomationEvent?.({
-            selector,
-            label: step?.label || '',
-            mode: options.mode || 'executing',
-            spotlight: options.spotlight !== false,
-            message: message || step?.label || step?.selector || 'Estoy trabajando en esta parte.'
-        });
+    function stopWorkflowExecution() {
+        return requireExecutionClient().cancelExecution();
     }
 
     function emitExtensionLog(level, message, details = null) {
-        const detail = {
-            level,
-            scope: 'trainer-plugin',
-            message,
-            details
-        };
-        try {
-            document.dispatchEvent(new CustomEvent('graph-trainer-extension-log', { detail }));
-            window.postMessage({
-                source: 'graph-trainer-extension',
-                type: 'log',
-                detail
-            }, '*');
-        } catch (error) {
-            // Ignore logging bridge issues.
-        }
-    }
-
-    async function applyInputStep(element, step, variables = {}) {
-        const variableName = `input_${step.stepOrder}`;
-        const nextValue = Object.prototype.hasOwnProperty.call(variables, variableName)
-            ? variables[variableName]
-            : step.value;
-        const inputType = (element.type || '').toLowerCase();
-
-        element.scrollIntoView({ block: 'center', inline: 'nearest' });
-        element.focus?.();
-
-        if (inputType === 'checkbox' || inputType === 'radio') {
-            const shouldCheck = ['1', 'true', 'yes', 'on', ''].includes(`${nextValue ?? ''}`.trim().toLowerCase());
-            if (shouldCheck && !element.checked) {
-                element.click();
-            } else if (!shouldCheck && inputType === 'checkbox' && element.checked) {
-                element.click();
-            }
-            return;
-        }
-
-        element.value = `${nextValue ?? ''}`;
-        fireDomEvent(element, 'input');
-        fireDomEvent(element, 'change');
-    }
-
-    function normalizeChoiceText(value) {
-        return `${value || ''}`
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, ' ')
-            .trim();
-    }
-
-    function buildSelectCandidates(step, variables = {}) {
-        const variableName = `input_${step.stepOrder}`;
-        const fromVariables = Object.prototype.hasOwnProperty.call(variables, variableName)
-            ? variables[variableName]
-            : null;
-        return [
-            fromVariables,
-            step.selectedValue,
-            step.selectedLabel,
-            step.value
-        ].filter((candidate, index, items) => {
-            if (candidate === null || candidate === undefined) {
-                return false;
-            }
-            const normalized = `${candidate}`.trim();
-            return normalized && items.findIndex((item) => `${item}`.trim() === normalized) === index;
-        });
-    }
-
-    function findMatchingSelectOption(optionsList, requestedValue) {
-        const normalizedRequested = normalizeChoiceText(requestedValue);
-        if (!normalizedRequested) {
-            return null;
-        }
-
-        const getNormalizedOptionParts = (option) => ({
-            value: normalizeChoiceText(option.value),
-            label: normalizeChoiceText(option.label || option.textContent || ''),
-            text: normalizeChoiceText(option.textContent || '')
-        });
-
-        return optionsList.find((option) =>
-            getNormalizedOptionParts(option).value === normalizedRequested
-            || getNormalizedOptionParts(option).label === normalizedRequested
-            || getNormalizedOptionParts(option).text === normalizedRequested
-        ) || optionsList.find((option) =>
-            {
-                const parts = getNormalizedOptionParts(option);
-                return (
-                    (parts.value && parts.value.includes(normalizedRequested))
-                    || (parts.label && parts.label.includes(normalizedRequested))
-                    || (parts.text && parts.text.includes(normalizedRequested))
-                    || (parts.value && normalizedRequested.includes(parts.value))
-                    || (parts.label && normalizedRequested.includes(parts.label))
-                    || (parts.text && normalizedRequested.includes(parts.text))
-                );
-            }
-        );
-    }
-
-    function dispatchMouseLikeEvent(element, eventName) {
-        element.dispatchEvent(new MouseEvent(eventName, {
-            bubbles: true,
-            cancelable: true,
-            view: window
-        }));
-    }
-
-    function dispatchKeyboardLikeEvent(element, eventName, key) {
-        element.dispatchEvent(new KeyboardEvent(eventName, {
-            bubbles: true,
-            cancelable: true,
-            key,
-            code: key,
-            view: window
-        }));
-    }
-
-    function waitMs(duration) {
-        return new Promise((resolve) => window.setTimeout(resolve, duration));
-    }
-
-    async function performSelectInteractionSequence(element) {
-        element.scrollIntoView({ block: 'center', inline: 'nearest' });
-        await waitMs(40);
-        element.focus?.();
-        dispatchMouseLikeEvent(element, 'pointerdown');
-        dispatchMouseLikeEvent(element, 'mousedown');
-        dispatchMouseLikeEvent(element, 'pointerup');
-        dispatchMouseLikeEvent(element, 'mouseup');
-        dispatchMouseLikeEvent(element, 'click');
-        dispatchKeyboardLikeEvent(element, 'keydown', 'ArrowDown');
-        dispatchKeyboardLikeEvent(element, 'keyup', 'ArrowDown');
-    }
-
-    function getSelectedOptionSnapshot(element) {
-        if (!(element instanceof HTMLSelectElement)) {
-            return {
-                value: `${element?.value || ''}`,
-                label: ''
-            };
-        }
-        const option = element.options[element.selectedIndex] || null;
-        return {
-            value: `${element.value || ''}`,
-            label: option ? `${option.label || option.textContent || ''}`.trim() : ''
-        };
-    }
-
-    function applyNativeSelectValue(element, selected) {
-        const optionsList = Array.from(element.options || []);
-        const selectedIndex = optionsList.findIndex((option) => option.value === selected.value);
-        if (selectedIndex >= 0) {
-            element.selectedIndex = selectedIndex;
-            optionsList.forEach((option, index) => {
-                option.selected = index === selectedIndex;
-            });
-        }
-        element.value = selected.value;
-    }
-
-    async function dispatchSelectCommitEvents(element) {
-        fireDomEvent(element, 'input');
-        fireDomEvent(element, 'change');
-        dispatchKeyboardLikeEvent(element, 'keydown', 'Enter');
-        dispatchKeyboardLikeEvent(element, 'keyup', 'Enter');
-        await waitMs(30);
-        fireDomEvent(element, 'blur');
-    }
-
-    async function verifyNativeSelectApplied(element, selected, timeoutMs = 1200) {
-        const startedAt = Date.now();
-        const normalizedTargetValue = normalizeChoiceText(selected?.value || '');
-        const normalizedTargetLabel = normalizeChoiceText(selected?.label || selected?.text || '');
-
-        while (Date.now() - startedAt < timeoutMs) {
-            const snapshot = getSelectedOptionSnapshot(element);
-            const currentValue = normalizeChoiceText(snapshot.value);
-            const currentLabel = normalizeChoiceText(snapshot.label);
-            if (
-                (normalizedTargetValue && currentValue === normalizedTargetValue)
-                || (normalizedTargetLabel && currentLabel === normalizedTargetLabel)
-            ) {
-                return true;
-            }
-            await waitMs(60);
-        }
-
-        return false;
-    }
-
-    async function applyNativeSelectWithKeyboardFallback(element, selected) {
-        if (typeof element.showPicker === 'function') {
-            try {
-                element.showPicker();
-                emitExtensionLog('info', 'Invoked showPicker() for native select.', {
-                    selector: element.id ? `#${element.id}` : '',
-                    currentValue: element.value || ''
-                });
-                await waitMs(80);
-            } catch (error) {
-                emitExtensionLog('info', 'showPicker() was not allowed for native select.', {
-                    selector: element.id ? `#${element.id}` : '',
-                    message: error?.message || 'showPicker failed'
-                });
-            }
-        }
-
-        const optionsList = Array.from(element.options || []);
-        const targetIndex = optionsList.findIndex((option) => option.value === selected.value);
-        if (targetIndex < 0) {
-            return false;
-        }
-
-        element.focus?.();
-        const startingIndex = Math.max(0, element.selectedIndex);
-        const directionKey = targetIndex >= startingIndex ? 'ArrowDown' : 'ArrowUp';
-        const moveCount = Math.abs(targetIndex - startingIndex);
-
-        for (let index = 0; index < moveCount; index += 1) {
-            dispatchKeyboardLikeEvent(element, 'keydown', directionKey);
-            if (directionKey === 'ArrowDown' && element.selectedIndex < optionsList.length - 1) {
-                element.selectedIndex += 1;
-            } else if (directionKey === 'ArrowUp' && element.selectedIndex > 0) {
-                element.selectedIndex -= 1;
-            }
-            applyNativeSelectValue(element, optionsList[element.selectedIndex] || selected);
-            dispatchKeyboardLikeEvent(element, 'keyup', directionKey);
-            fireDomEvent(element, 'input');
-            await waitMs(35);
-        }
-
-        applyNativeSelectValue(element, selected);
-        await dispatchSelectCommitEvents(element);
-        return verifyNativeSelectApplied(element, selected, 1200);
-    }
-
-    async function waitForMatchingSelectOption(element, candidates, timeoutMs = EXECUTION_WAIT_TIMEOUT_MS) {
-        const startedAt = Date.now();
-        while (Date.now() - startedAt < timeoutMs) {
-            const optionsList = Array.from(element.options || []);
-            for (const candidate of candidates) {
-                const selected = findMatchingSelectOption(optionsList, candidate);
-                if (selected) {
-                    return selected;
-                }
-            }
-            await new Promise((resolve) => window.setTimeout(resolve, 120));
-        }
-        return null;
-    }
-
-    async function applySelectStep(element, step, variables = {}) {
-        const candidates = buildSelectCandidates(step, variables);
-        emitExtensionLog('info', 'Applying select step.', {
-            selector: step.selector || '',
-            label: step.label || '',
-            candidates
-        });
-        const selected = await waitForMatchingSelectOption(element, candidates);
-
-        if (!selected) {
-            emitExtensionLog('error', 'No matching option found for select step.', {
-                selector: step.selector || '',
-                label: step.label || '',
-                candidates,
-                availableOptions: Array.from(element.options || []).map((option) => ({
-                    value: option.value,
-                    label: option.label || option.textContent || ''
-                }))
-            });
-            throw new Error(`No encontre una opcion compatible para ${describeStep(step)}.`);
-        }
-
-        await performSelectInteractionSequence(element);
-        applyNativeSelectValue(element, selected);
-        await dispatchSelectCommitEvents(element);
-
-        let applied = await verifyNativeSelectApplied(element, selected, 1000);
-        if (!applied) {
-            emitExtensionLog('info', 'Semantic native select apply did not stick, trying keyboard fallback.', {
-                selector: step.selector || '',
-                label: step.label || '',
-                targetValue: selected.value,
-                targetLabel: selected.label || selected.text || ''
-            });
-            applied = await applyNativeSelectWithKeyboardFallback(element, selected);
-        }
-
-        if (!applied) {
-            const snapshot = getSelectedOptionSnapshot(element);
-            emitExtensionLog('error', 'Native select value did not persist after fallback.', {
-                selector: step.selector || '',
-                label: step.label || '',
-                targetValue: selected.value,
-                targetLabel: selected.label || selected.text || '',
-                currentValue: snapshot.value,
-                currentLabel: snapshot.label
-            });
-            throw new Error(`No pude confirmar la seleccion para ${describeStep(step)}.`);
-        }
-
-        emitExtensionLog('info', 'Applied select step.', {
-            selector: step.selector || '',
-            label: step.label || '',
-            selectedValue: selected.value,
-            resultingValue: element.value || '',
-            selectedLabel: selected.label || selected.text || ''
-        });
-    }
-
-    function updateExecutionProgress(plan, nextStepIndex) {
-        const nextPlan = {
-            ...plan,
-            nextStepIndex,
-            updatedAt: Date.now()
-        };
-        persistPendingExecution(nextPlan);
-        return nextPlan;
+        return requireExecutionClient().emitExtensionLog(level, message, details);
     }
 
     async function executeWorkflowPlan(plan, trigger = 'panel') {
-        if (!plan || !plan.workflowId || !Array.isArray(plan.steps) || plan.steps.length === 0) {
-            throw new Error('No pude preparar la automatizacion para ayudarte con la reserva.');
-        }
-
-        if (executionState.running) {
-            throw new Error('Ya estoy completando una reserva en esta pagina.');
-        }
-
-        let currentPlan = updateExecutionProgress({
-            ...cloneJson(plan),
-            trigger,
-            nextStepIndex: Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0,
-            startedAt: plan.startedAt || Date.now()
-        }, Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0);
-
-        updateWorkflowPanelStatus('Completando la reserva en esta pagina...');
-        emitPluginEvent('workflow.execution.started', {
-            workflowId: currentPlan.workflowId,
-            trigger,
-            stepCount: currentPlan.steps.length
-        });
-
-        for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
-            const step = currentPlan.steps[stepIndex];
-            const expectedUrl = step.url ? normalizeExecutionUrl(step.url) : '';
-            emitPluginEvent('workflow.execution.step_started', {
-                workflowId: currentPlan.workflowId,
-                trigger,
-                stepIndex,
-                step
-            });
-
-            if (step.actionType === 'navigation') {
-                const targetUrl = normalizeExecutionUrl(step.url);
-                notifyAutomationStep(step, `Abriendo ${step.label || targetUrl}.`, {
-                    selector: 'body',
-                    spotlight: false
-                });
-                if (!urlsMatch(window.location.href, targetUrl)) {
-                    currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-                    updateWorkflowPanelStatus(`Abriendo ${targetUrl}...`);
-                    window.location.assign(targetUrl);
-                    return;
-                }
-
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-                continue;
-            }
-
-            if (expectedUrl && !urlsMatch(window.location.href, expectedUrl)) {
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex);
-                updateWorkflowPanelStatus(`Cambiando a la pagina correcta para ${describeStep(step)}...`);
-                window.location.assign(expectedUrl);
-                return;
-            }
-
-            const element = await waitForStepElement(step);
-            if (step.actionType === 'click') {
-                element.scrollIntoView({ block: 'center', inline: 'nearest' });
-                notifyAutomationStep(step, `Estoy interactuando con ${step.label || step.selector || 'este control'}.`);
-                if ('disabled' in element && element.disabled) {
-                    throw new Error(`El elemento ${describeStep(step)} sigue deshabilitado.`);
-                }
-
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-                element.click();
-            } else if (step.actionType === 'input') {
-                notifyAutomationStep(step, `Estoy completando ${step.label || step.selector || 'este campo'}.`);
-                await applyInputStep(element, step, currentPlan.variables || {});
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-            } else if (step.actionType === 'select') {
-                notifyAutomationStep(step, `Estoy eligiendo una opcion en ${step.label || step.selector || 'este selector'}.`);
-                await applySelectStep(element, step, currentPlan.variables || {});
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-            } else {
-                currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
-            }
-
-            await new Promise((resolve) => window.setTimeout(resolve, EXECUTION_STEP_DELAY_MS));
-        }
-
-        clearPendingExecution();
-        runtime()?.clearSpotlight?.();
-        updateWorkflowPanelStatus('Reserva completada en esta pagina.');
-        runtime()?.speak('Listo, termine de completar la reserva aqui mismo.', { mode: 'idle' });
-        emitExtensionLog('info', 'Workflow execution finished on page.', {
-            workflowId: currentPlan.workflowId,
-            trigger
-        });
-        emitPluginEvent('workflow.execution.finished', {
-            workflowId: currentPlan.workflowId,
-            trigger
-        });
+        return requireExecutionClient().executeWorkflowPlan(plan, trigger);
     }
 
     async function fetchExecutionPlan(workflowId, variables = {}) {
@@ -1940,8 +1564,8 @@
             try {
                 await executeWorkflowPlan(payload.executionPlan, trigger);
             } catch (error) {
-                appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                updateWorkflowPanelStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                updateWorkflowPanelStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
                 throw error;
             }
         }
@@ -1988,8 +1612,19 @@
     }
 
     async function executeVoiceFunctionCall(call) {
+        const callId = `${call?.id || ''}`.trim();
         const functionName = `${call?.name || ''}`.trim();
-        if (functionName !== 'execute_reservation_on_page') {
+        if (callId && voiceState.processedFunctionCalls.has(callId)) {
+            voiceLog('voice_function_call_ignored_duplicate', {
+                id: callId,
+                name: functionName || ''
+            });
+            return;
+        }
+        if (callId) {
+            voiceState.processedFunctionCalls.add(callId);
+        }
+        if (!isPageExecutionFunctionName(functionName)) {
             await respondToVoiceFunctionCall(call, JSON.stringify({
                 ok: false,
                 error: `Funcion no soportada en cliente: ${functionName || 'unknown'}`
@@ -2014,12 +1649,12 @@
         if (!workflowId) {
             await respondToVoiceFunctionCall(call, JSON.stringify({
                 ok: false,
-                error: 'Falto workflowId para ejecutar la reserva.'
+                error: 'Falto workflowId para ejecutar el workflow.'
             }));
             return;
         }
 
-        updateVoiceStatus('Ejecutando la reserva en esta pagina...');
+        updateVoiceStatus('Ejecutando el workflow en esta pagina...');
         runtime()?.speak('Voy a resolverlo aqui mismo en la pagina.', { mode: 'executing' });
 
         try {
@@ -2036,7 +1671,7 @@
             await respondToVoiceFunctionCall(call, JSON.stringify({
                 ok: false,
                 workflowId,
-                error: error.message || 'No pude completar la reserva en esta pagina.'
+                error: error.message || 'No pude completar la automatizacion en esta pagina.'
             }));
             throw error;
         }
@@ -2058,14 +1693,42 @@
             await executeWorkflowPlan(pending, pending.trigger || 'resume');
         } catch (error) {
             clearPendingExecution();
-            updateWorkflowPanelStatus(error.message || 'No pude retomar la reserva en esta pagina.');
-            appendAgentMessage('assistant', error.message || 'No pude retomar la reserva en esta pagina.', null, false);
+            updateWorkflowPanelStatus(error.message || 'No pude retomar la automatizacion en esta pagina.');
+            appendAgentMessage('assistant', error.message || 'No pude retomar la automatizacion en esta pagina.', null, false);
+        }
+    }
+
+    async function resumeVoiceAfterNavigation() {
+        const pendingExecution = readPendingExecution();
+        const resumeState = getStoredVoiceResumeState();
+        if (!pendingExecution || !resumeState || isVoiceSessionActive()) {
+            return;
+        }
+
+        const savedAt = Number(resumeState.savedAt || 0);
+        if (!Number.isFinite(savedAt) || Date.now() - savedAt > 120000) {
+            clearStoredVoiceResumeState();
+            return;
+        }
+
+        try {
+            voiceLog('resuming_voice_after_navigation', {
+                mode: resumeState.mode || '',
+                hasPendingExecution: true
+            });
+            await startVoiceConversation(resumeState.mode === 'phone'
+                ? { phoneSessionId: resumeState.phoneSessionId || getStoredPhoneSessionId() || null }
+                : {});
+        } catch (error) {
+            voiceLog('resume_voice_after_navigation_error', error.message || 'resume failed');
+        } finally {
+            clearStoredVoiceResumeState();
         }
     }
 
     async function executeWorkflowFromPanel(workflowId) {
-        updateWorkflowPanelStatus('Empezando la reserva...');
-        runtime()?.speak('Voy a encargarme de la reserva y moverme por la pagina por ti.', { mode: 'executing' });
+        updateWorkflowPanelStatus('Empezando la automatizacion...');
+        runtime()?.speak('Voy a moverme por la pagina y encargarme de esta tarea por ti.', { mode: 'executing' });
         const executionPlan = await fetchExecutionPlan(workflowId, {});
         await executeWorkflowPlan(executionPlan, 'panel');
     }
@@ -2448,13 +2111,13 @@
         });
     }
 
-    async function startVoiceConversation(config = {}) {
+    async function startVoiceConversationImpl(config = {}) {
         if (voiceState.active) {
             voiceLog('start_ignored_already_active');
             return;
         }
 
-        const effectivePhoneSessionId = config.phoneSessionId || voiceState.phoneSession?.id || null;
+        const effectivePhoneSessionId = config.phoneSessionId || null;
         voiceLog('start_voice_conversation', {
             phoneSessionId: effectivePhoneSessionId,
             hasStoredPhoneSession: Boolean(voiceState.phoneSession?.id)
@@ -2462,9 +2125,12 @@
         openChatPanel();
         updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
         if (!effectivePhoneSessionId) {
-            runtime()?.speak('Te escucho. Habla con naturalidad y me encargo de la reserva cuando tenga lo necesario.', { mode: 'listening' });
+            setPhoneConnectionActive(false);
+            setPhonePairingVisible(false);
+            runtime()?.speak('Te escucho. Habla con naturalidad y me encargo de la tarea cuando tenga lo necesario.', { mode: 'listening' });
         } else {
-            runtime()?.speak('Estoy retomando el audio de tu telefono para seguir con la reserva.', { mode: 'listening' });
+            setPhoneConnectionActive(false);
+            runtime()?.speak('Voy a esperar a que tu telefono se conecte para seguir con la tarea.', { mode: 'listening' });
         }
 
         const socket = new WebSocket(getRealtimeSocketUrl());
@@ -2557,39 +2223,41 @@
 
             if (payload.type === 'ready') {
                 voiceLog('server_event_ready', { phoneSessionId: effectivePhoneSessionId });
-                updateVoiceStatus(effectivePhoneSessionId ? 'Te escucho desde el telefono.' : 'Deepgram listo. Puedes hablar.');
-                if (effectivePhoneSessionId) {
-                    runtime()?.speak('Te escucho desde el telefono. Habla con naturalidad.', { mode: 'listening' });
-                }
+                updateVoiceStatus(effectivePhoneSessionId ? 'Esperando que el telefono se conecte por QR...' : 'Deepgram listo. Puedes hablar.');
                 return;
             }
 
             if (payload.type === 'phone_waiting') {
                 voiceLog('server_event_phone_waiting');
+                setPhoneConnectionActive(false);
                 updateVoiceStatus('Esperando que el telefono se conecte por QR...');
                 return;
             }
 
             if (payload.type === 'phone_connected') {
                 voiceLog('server_event_phone_connected');
+                setPhoneConnectionActive(true);
                 updateVoiceStatus('Telefono conectado. Activa el microfono en el telefono cuando quieras empezar.');
                 return;
             }
 
             if (payload.type === 'phone_audio_started') {
                 voiceLog('server_event_phone_audio_started');
+                setPhoneConnectionActive(true);
                 updateVoiceStatus('Audio del telefono recibido. Conectando Deepgram...');
                 return;
             }
 
             if (payload.type === 'phone_disconnected') {
                 voiceLog('server_event_phone_disconnected');
+                setPhoneConnectionActive(false);
                 updateVoiceStatus('Telefono desconectado. Puedes escanear el QR otra vez.');
                 return;
             }
 
             if (payload.type === 'phone_status') {
                 voiceLog('server_event_phone_status', payload.status || 'Telefono conectado.');
+                setPhoneConnectionActive(true);
                 updateVoiceStatus(payload.status || 'Telefono conectado.');
                 return;
             }
@@ -2604,14 +2272,14 @@
             if (payload.type === 'user_turn') {
                 voiceLog('server_event_user_turn', payload.text);
                 appendAgentMessage('user', payload.text);
-                updateVoiceStatus('Pensando y preparando la reserva...');
+                updateVoiceStatus('Pensando y preparando la tarea...');
                 runtime()?.showUserSpeech?.(payload.text);
                 return;
             }
 
             if (payload.type === 'thinking') {
                 voiceLog('server_event_thinking');
-                updateVoiceStatus('Pensando y preparando la reserva...');
+                updateVoiceStatus('Pensando y preparando la tarea...');
                 return;
             }
 
@@ -2626,8 +2294,8 @@
                 if (payload.executionPlan) {
                     executeWorkflowPlan(payload.executionPlan, 'voice').catch((error) => {
                         voiceLog('browser_execution_error', error.message || 'plan execution failed');
-                        appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                        updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                        appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                        updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
                     });
                 }
                 return;
@@ -2645,8 +2313,8 @@
                 try {
                     await handleVoiceFunctionRequests(payload.functions || []);
                 } catch (error) {
-                    appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                    updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                    appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                    updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
                 }
                 return;
             }
@@ -2679,7 +2347,7 @@
         });
     }
 
-    function stopVoiceConversation(options = {}) {
+    function stopVoiceConversationImpl(options = {}) {
         voiceLog('stop_voice_conversation', {
             announce: options.announce !== false,
             active: voiceState.active,
@@ -2715,6 +2383,8 @@
         voiceState.processor = null;
         voiceState.source = null;
         voiceState.silenceGain = null;
+        setPhoneConnectionActive(false);
+        setPhonePairingVisible(false);
         setVoiceButton(false);
         if (options.clearStatus !== false) {
             updateVoiceStatus('');
@@ -2738,6 +2408,7 @@
 
         voiceState.phoneSession = payload;
         setStoredPhoneSessionId(payload.id);
+        setPhonePairingVisible(true);
         voiceLog('phone_session_created', {
             id: payload.id,
             phoneUrl: payload.phoneUrl
@@ -2854,7 +2525,7 @@
         }
         voiceState.processedFunctionCalls.add(callId);
 
-        if (functionName !== 'execute_reservation_on_page') {
+        if (!isPageExecutionFunctionName(functionName)) {
             await respondToRealtimeFunctionCall(callId, {
                 ok: false,
                 error: `Funcion no soportada en cliente: ${functionName || 'unknown'}`
@@ -2879,12 +2550,12 @@
         if (!workflowId) {
             await respondToRealtimeFunctionCall(callId, {
                 ok: false,
-                error: 'Falto workflowId para ejecutar la reserva.'
+                error: 'Falto workflowId para ejecutar el workflow.'
             });
             return;
         }
 
-        updateVoiceStatus('Ejecutando la reserva en esta pagina...');
+        updateVoiceStatus('Ejecutando el workflow en esta pagina...');
         runtime()?.speak('Voy a resolverlo aqui mismo en la pagina.', { mode: 'executing' });
 
         try {
@@ -2901,7 +2572,7 @@
             await respondToRealtimeFunctionCall(callId, {
                 ok: false,
                 workflowId,
-                error: error.message || 'No pude completar la reserva en esta pagina.'
+                error: error.message || 'No pude completar la automatizacion en esta pagina.'
             });
             throw error;
         }
@@ -2945,7 +2616,7 @@
             });
             appendAgentMessage('user', transcript);
             runtime()?.showUserSpeech?.(transcript);
-            updateVoiceStatus('Pensando y preparando la reserva...');
+            updateVoiceStatus('Pensando y preparando la tarea...');
             try {
                 cancelActiveVoiceResponse();
             } catch (error) {
@@ -2957,9 +2628,9 @@
                     trigger: 'voice',
                     speakReply: false
                 });
-                updateVoiceStatus('Reserva ejecutada desde el chat del asistente...');
+                updateVoiceStatus('Tarea ejecutada desde el chat del asistente...');
             } catch (error) {
-                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
             }
             return;
         }
@@ -2990,8 +2661,8 @@
             try {
                 await executeRealtimeFunctionCall(payload.item);
             } catch (error) {
-                appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
             }
             return;
         }
@@ -3004,8 +2675,8 @@
                 try {
                     await executeRealtimeFunctionCall(item);
                 } catch (error) {
-                    appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                    updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                    appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                    updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
                 }
             }
             return;
@@ -3052,39 +2723,41 @@
     async function handleRemoteVoiceSocketMessage(payload, effectivePhoneSessionId) {
         if (payload.type === 'ready') {
             voiceLog('server_event_ready', { phoneSessionId: effectivePhoneSessionId });
-            updateVoiceStatus(effectivePhoneSessionId ? 'Te escucho desde el telefono.' : 'OpenAI Realtime listo. Puedes hablar.');
-            if (effectivePhoneSessionId) {
-                runtime()?.speak('Te escucho desde el telefono. Habla con naturalidad.', { mode: 'listening' });
-            }
+            updateVoiceStatus(effectivePhoneSessionId ? 'Esperando que el telefono se conecte por QR...' : 'OpenAI Realtime listo. Puedes hablar.');
             return;
         }
 
         if (payload.type === 'phone_waiting') {
             voiceLog('server_event_phone_waiting');
+            setPhoneConnectionActive(false);
             updateVoiceStatus('Esperando que el telefono se conecte por QR...');
             return;
         }
 
         if (payload.type === 'phone_connected') {
             voiceLog('server_event_phone_connected');
+            setPhoneConnectionActive(true);
             updateVoiceStatus('Telefono conectado. Activa el microfono en el telefono cuando quieras empezar.');
             return;
         }
 
         if (payload.type === 'phone_audio_started') {
             voiceLog('server_event_phone_audio_started');
+            setPhoneConnectionActive(true);
             updateVoiceStatus('Audio del telefono recibido. Conectando OpenAI Realtime...');
             return;
         }
 
         if (payload.type === 'phone_disconnected') {
             voiceLog('server_event_phone_disconnected');
+            setPhoneConnectionActive(false);
             updateVoiceStatus('Telefono desconectado. Puedes escanear el QR otra vez.');
             return;
         }
 
         if (payload.type === 'phone_status') {
             voiceLog('server_event_phone_status', payload.status || 'Telefono conectado.');
+            setPhoneConnectionActive(true);
             updateVoiceStatus(payload.status || 'Telefono conectado.');
             return;
         }
@@ -3105,7 +2778,7 @@
                 mode: 'phone-realtime'
             });
             appendAgentMessage('user', payload.text);
-            updateVoiceStatus('Pensando y preparando la reserva...');
+            updateVoiceStatus('Pensando y preparando la tarea...');
             runtime()?.showUserSpeech?.(payload.text);
             try {
                 cancelActiveVoiceResponse();
@@ -3118,16 +2791,16 @@
                     trigger: 'voice',
                     speakReply: false
                 });
-                updateVoiceStatus('Reserva ejecutada desde el chat del asistente...');
+                updateVoiceStatus('Tarea ejecutada desde el chat del asistente...');
             } catch (error) {
-                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
             }
             return;
         }
 
         if (payload.type === 'thinking') {
             voiceLog('server_event_thinking');
-            updateVoiceStatus('Pensando y preparando la reserva...');
+            updateVoiceStatus('Pensando y preparando la tarea...');
             return;
         }
 
@@ -3161,8 +2834,8 @@
             try {
                 await handleVoiceFunctionRequests(payload.functions || []);
             } catch (error) {
-                appendAgentMessage('assistant', error.message || 'No pude completar la reserva en esta pagina.', null, false);
-                updateVoiceStatus(error.message || 'No pude completar la reserva en esta pagina.');
+                appendAgentMessage('assistant', error.message || 'No pude completar la automatizacion en esta pagina.', null, false);
+                updateVoiceStatus(error.message || 'No pude completar la automatizacion en esta pagina.');
             }
             return;
         }
@@ -3191,18 +2864,21 @@
             return;
         }
 
-        const effectivePhoneSessionId = config.phoneSessionId || voiceState.phoneSession?.id || null;
+        resetRealtimeTranscriptState();
+        const effectivePhoneSessionId = config.phoneSessionId || null;
         openChatPanel();
         updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
         runtime()?.speak(
             effectivePhoneSessionId
-                ? 'Estoy retomando el audio de tu telefono para seguir con la reserva.'
-                : 'Te escucho. Habla con naturalidad y yo me encargo de la reserva.',
+                ? 'Voy a esperar a que tu telefono se conecte para seguir con la tarea.'
+                : 'Te escucho. Habla con naturalidad y yo me encargo de la tarea.',
             { mode: 'listening' }
         );
 
         try {
             if (effectivePhoneSessionId) {
+                voiceState.mode = 'phone';
+                persistVoiceResumeState();
                 const socket = new WebSocket(getRealtimeSocketUrl());
                 socket.binaryType = 'arraybuffer';
                 voiceState.socket = socket;
@@ -3333,6 +3009,8 @@
             voiceState.dataChannel = dataChannel;
             voiceState.remoteAudio = remoteAudio;
             voiceState.phoneSession = null;
+            voiceState.mode = 'local';
+            persistVoiceResumeState();
             voiceState.active = true;
             setVoiceButton(true);
             updateVoiceStatus('Escuchando...');
@@ -3352,7 +3030,7 @@
             const message = error.message || 'No pude acceder al microfono o iniciar la voz en tiempo real.';
             voiceLog('openai_realtime_error', message);
             updateVoiceStatus(message);
-            appendAgentMessage('assistant', message, null, false);
+                    appendAgentMessage('assistant', message, null, false);
             stopVoiceConversation({ announce: false });
         }
     }
@@ -3363,6 +3041,11 @@
             active: voiceState.active,
             usingPhoneSession: Boolean(voiceState.socket)
         });
+        if (options.preserveResume === true) {
+            persistVoiceResumeState();
+        } else {
+            clearStoredVoiceResumeState();
+        }
         clearVoicePlayback();
         const shouldAnnounce = options.announce !== false && voiceState.active;
 
@@ -3426,6 +3109,7 @@
         voiceState.source = null;
         voiceState.silenceGain = null;
         voiceState.remoteAudio = null;
+        voiceState.mode = null;
         resetRealtimeTranscriptState();
         setVoiceButton(false);
         if (options.clearStatus !== false) {
@@ -3437,209 +3121,41 @@
         }
     }
 
+    async function startVoiceConversation(config = {}) {
+        return requireVoiceClient().startVoiceConversation(config);
+    }
+
+    function stopVoiceConversation(options = {}) {
+        return requireVoiceClient().stopVoiceConversation(options);
+    }
+
     async function openPhoneMicPairing() {
-        openChatPanel();
-        updateVoiceStatus('Preparando QR para usar el telefono como microfono...');
-        setPhonePairingVisible(true);
-        const requestedId = getStoredPhoneSessionId() || `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
-
-        const payload = await requireApiClient().createPhoneSession({
-            context: getPageContext(),
-            requestedId
-        });
-
-        voiceState.phoneSession = payload;
-        setStoredPhoneSessionId(payload.id);
-        voiceLog('phone_session_created', {
-            id: payload.id,
-            phoneUrl: payload.phoneUrl
-        });
-        const qr = document.getElementById('phone-mic-qr');
-        const url = document.getElementById('phone-mic-url');
-        const floatingQr = document.getElementById('assistant-phone-mic-qr');
-        const floatingUrl = document.getElementById('assistant-phone-mic-url');
-        if (qr) qr.src = payload.qrDataUrl;
-        if (url) url.textContent = payload.phoneUrl;
-        if (floatingQr) floatingQr.src = payload.qrDataUrl;
-        if (floatingUrl) floatingUrl.textContent = payload.phoneUrl;
-
-        updateVoiceStatus('Escanea el QR con el telefono. Luego toca "Activar microfono" en el telefono.');
-        await startVoiceConversation({ phoneSessionId: payload.id });
+        return requireVoiceClient().openPhoneMicPairing();
     }
 
     async function processVoiceComplaints() {
-        updateImprovementPanelStatus('Procesando quejas reales capturadas por voz...');
-        return requireApiClient().processVoiceComplaints({
-            ...getPageContext(),
-            workflowDescription: options.workflowDescription || ''
-        });
+        return requireVoiceClient().processVoiceComplaints(options.workflowDescription || '');
     }
 
     async function startWorkflow() {
-        const descField = document.getElementById('wf-desc');
-        const description = (descField?.value || '').trim() || options.workflowDescription || document.title;
-        if (descField && !descField.value) {
-            descField.value = description;
-        }
-        runtime()?.pinBottomRight();
-        runtime()?.speak(`Empece a aprender este recorrido: "${description}".`, { mode: 'recording' });
-        emitPluginEvent('learning.session.requested', {
-            description,
-            context: getPageContext()
-        });
-        await window.WorkflowRecorder.startWorkflow(description, getPageContext());
-        workflowPanelLoaded = false;
+        return requireLearningClient().startWorkflow();
     }
 
     async function stopWorkflow() {
-        runtime()?.unpin();
-        runtime()?.speak('Listo, guarde este recorrido.', { mode: 'idle' });
-        await window.WorkflowRecorder.stopWorkflow();
-        emitPluginEvent('learning.session.stop_requested', {
-            context: getPageContext()
-        });
-        workflowPanelLoaded = false;
+        return requireLearningClient().stopWorkflow();
     }
 
     async function resetWorkflow() {
-        await window.WorkflowRecorder.resetWorkflow();
-        workflowPanelLoaded = false;
-    }
-
-    function clearLongPressTimer() {
-        if (longPressTimer) {
-            window.clearTimeout(longPressTimer);
-            longPressTimer = null;
-        }
-    }
-
-    function bindLongPressGesture(buttonId, onLongPress, onClick) {
-        const button = document.getElementById(buttonId);
-        if (!button) return;
-
-        button.addEventListener('pointerdown', () => {
-            longPressTriggered = false;
-            clearLongPressTimer();
-            longPressTimer = window.setTimeout(() => {
-                longPressTriggered = true;
-                onLongPress();
-            }, LONG_PRESS_MS);
-        });
-
-        ['pointerup', 'pointerleave', 'pointercancel'].forEach((eventName) => {
-            button.addEventListener(eventName, clearLongPressTimer);
-        });
-
-        button.addEventListener('click', async (event) => {
-            if (longPressTriggered) {
-                event.preventDefault();
-                event.stopPropagation();
-                longPressTriggered = false;
-                return;
-            }
-
-            await onClick();
-        });
+        return requireLearningClient().resetWorkflow();
     }
 
     function bindControls() {
-        document.getElementById('btn-start').addEventListener('click', startWorkflow);
-        document.getElementById('btn-stop').addEventListener('click', stopWorkflow);
+        return bindControlsDelegated();
+    }
 
-        bindLongPressGesture('btn-record-toggle', toggleWorkflowPanel, async () => {
-            closeImprovementPanel();
-            closeWorkflowPanel();
-
-            if (window.WorkflowRecorder.isRecording()) {
-                await stopWorkflow();
-                return;
-            }
-            await startWorkflow();
-        });
-
-        document.getElementById('workflow-panel-close').addEventListener('click', () => {
-            closeWorkflowPanel();
-        });
-
-        document.getElementById('improvement-panel-refresh').addEventListener('click', () => {
-            improvementPanelLoaded = false;
-            loadImprovementPanel(true);
-        });
-        document.getElementById('feedback-overlay-toggle').addEventListener('click', () => {
-            toggleFeedbackOverlay();
-        });
-        document.getElementById('improvement-run-pitch').addEventListener('click', async () => {
-            await runPitchGeneration();
-        });
-        window.addEventListener('scroll', () => {
-            if (feedbackOverlayVisible) {
-                renderFeedbackOverlay();
-            }
-            if (workflowOverlayVisible) {
-                renderWorkflowOverlay();
-            }
-        }, { passive: true });
-        window.addEventListener('resize', () => {
-            if (feedbackOverlayVisible) {
-                renderFeedbackOverlay();
-            }
-            if (workflowOverlayVisible) {
-                renderWorkflowOverlay();
-            }
-        });
+    function bindControlsDelegated() {
+        requireTrainerShell().bindControls();
         updateFeedbackOverlayButton();
-
-        document.getElementById('workflow-panel-list').addEventListener('click', async (event) => {
-            const button = event.target.closest('button[data-action]');
-            if (!button) return;
-
-            const workflowId = button.getAttribute('data-workflow-id');
-            const action = button.getAttribute('data-action');
-            if (!workflowId || !action) return;
-
-            if (action === 'run-workflow') {
-                button.disabled = true;
-                try {
-                    await executeWorkflowFromPanel(workflowId);
-                } catch (error) {
-                    updateWorkflowPanelStatus(error.message || 'No pude completar la reserva.');
-                } finally {
-                    button.disabled = false;
-                }
-                return;
-            }
-
-            if (action === 'view-workflow') {
-                const workflow = getWorkflowEntryById(workflowId);
-                if (!workflow) {
-                    updateWorkflowPanelStatus(`No encontré el workflow ${workflowId}.`);
-                    return;
-                }
-                toggleWorkflowOverlay(workflow);
-                return;
-            }
-
-            if (action === 'delete-workflow') {
-                const confirmed = window.confirm(`¿Borrar el workflow ${workflowId}? Esta accion no se puede deshacer.`);
-                if (!confirmed) {
-                    return;
-                }
-
-                button.disabled = true;
-                try {
-                    if (workflowOverlayWorkflow?.id === workflowId) {
-                        hideWorkflowOverlay();
-                    }
-                    await deleteWorkflowFromPanel(workflowId);
-                    workflowPanelLoaded = false;
-                    await loadWorkflowPanel(true);
-                } catch (error) {
-                    updateWorkflowPanelStatus(error.message || 'No se pudo borrar el workflow.');
-                } finally {
-                    button.disabled = false;
-                }
-            }
-        });
     }
 
     window.TrainerPlugin = {
@@ -3647,13 +3163,7 @@
             options = buildMountOptions(config);
             ensureStyles();
             ensureConsole();
-            if (!voiceState.phoneSession?.id) {
-                const storedPhoneSessionId = getStoredPhoneSessionId();
-                if (storedPhoneSessionId) {
-                    voiceState.phoneSession = { id: storedPhoneSessionId };
-                    voiceLog('restored_phone_session_id', storedPhoneSessionId);
-                }
-            }
+            requireVoiceClient().restoreStoredPhoneSession();
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
             if (!runtimeTouchBound) {
                 runtime()?.subscribe?.('touched', () => {
@@ -3662,7 +3172,7 @@
                     playAssistantGreeting(greeting).catch(() => {});
                 });
                 runtime()?.subscribe?.('voice-button', async () => {
-                    if (voiceState.active) {
+                    if (isVoiceSessionActive()) {
                         stopVoiceConversation();
                         return;
                     }
@@ -3688,15 +3198,28 @@
                 pluginEvents()?.on?.('learning.context.captured', (payload) => {
                     persistLearningContextNote(payload?.note || null);
                 });
+                pluginEvents()?.on?.('workflow.execution.started', () => {
+                    setExecutionStopButtonVisible(true);
+                });
+                pluginEvents()?.on?.('workflow.execution.finished', () => {
+                    setExecutionStopButtonVisible(false);
+                });
+                pluginEvents()?.on?.('workflow.execution.cancelled', () => {
+                    setExecutionStopButtonVisible(false);
+                });
+                pluginEvents()?.on?.('workflow.execution.failed', () => {
+                    setExecutionStopButtonVisible(false);
+                });
                 runtimeTouchBound = true;
             }
 
             document.getElementById('wf-desc').value = options.workflowDescription || '';
             surfaceProfileHydration = null;
+            requireSurfaceProfileClient().resetHydration();
             hydrateSurfaceProfile().catch(() => {});
 
             if (!mounted) {
-                bindControls();
+                bindControlsDelegated();
                 mounted = true;
             }
 
@@ -3705,15 +3228,17 @@
             closeWorkflowPanel();
             closeImprovementPanel();
             hideWorkflowOverlay();
+            setExecutionStopButtonVisible(Boolean(executionState.running));
             updateConsoleExpandedState();
 
-            if (options.autoSyncStatus && window.WorkflowRecorder?.syncStatus) {
-                window.WorkflowRecorder.syncStatus();
-            }
+            requireLearningClient().syncRecorderStatus();
 
             window.setTimeout(() => {
+                resumeVoiceAfterNavigation().catch((error) => {
+                    voiceLog('resume_voice_after_navigation_mount_error', error.message || 'resume failed');
+                });
                 resumePendingExecution().catch((error) => {
-                    updateWorkflowPanelStatus(error.message || 'No pude retomar la reserva pendiente.');
+                    updateWorkflowPanelStatus(error.message || 'No pude retomar la automatizacion pendiente.');
                 });
             }, 120);
 
@@ -3721,6 +3246,21 @@
                 window.addEventListener('resize', positionAssistantPhonePairing, { passive: true });
                 window.addEventListener('scroll', positionAssistantPhonePairing, { passive: true });
                 assistantPhonePairingBound = true;
+            }
+
+            if (!voiceLifecycleBound) {
+                window.addEventListener('pagehide', () => {
+                    if (!isVoiceSessionActive()) {
+                        clearStoredVoiceResumeState();
+                        return;
+                    }
+                    if (executionState.running || readPendingExecution()) {
+                        persistVoiceResumeState();
+                        return;
+                    }
+                    clearStoredVoiceResumeState();
+                });
+                voiceLifecycleBound = true;
             }
         },
         appendAgentMessage,
@@ -3768,3 +3308,4 @@
         }
     };
 })();
+

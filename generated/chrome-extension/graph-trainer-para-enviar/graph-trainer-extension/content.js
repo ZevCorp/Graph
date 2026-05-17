@@ -1,6 +1,12 @@
 const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
 const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_LIMIT = 200;
+const EXECUTION_LOG_SCOPES = new Set(['execution']);
+const VOICE_LOG_SCOPES = new Set(['voice']);
+const SELECTED_ELEMENT_STORAGE_KEY = 'graphTrainerSelectedElement';
+
+let inspectModeActive = false;
+let inspectAbortController = null;
 
 function getStorage() {
   return chrome.storage?.sync || chrome.storage?.local;
@@ -80,6 +86,142 @@ function requestPageImprovementData() {
   });
 }
 
+function buildElementSelector(element) {
+  if (!element) {
+    return '';
+  }
+  if (element.dataset?.testid) {
+    return `[data-testid="${element.dataset.testid}"]`;
+  }
+  if (element.id) {
+    return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(element.id)
+      ? `#${element.id}`
+      : `[id="${element.id.replace(/"/g, '\\"')}"]`;
+  }
+  if (element.getAttribute?.('name')) {
+    return `[name="${element.getAttribute('name').replace(/"/g, '\\"')}"]`;
+  }
+  if (element.tagName === 'A' && element.getAttribute('href')) {
+    return `a[href="${element.getAttribute('href').replace(/"/g, '\\"')}"]`;
+  }
+  return element.tagName ? element.tagName.toLowerCase() : '';
+}
+
+function describeElementText(element) {
+  return `${element?.textContent || element?.value || element?.getAttribute?.('aria-label') || ''}`
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 220);
+}
+
+function collectElementContextTrail(element) {
+  const trail = [];
+  let current = element;
+  let depth = 0;
+  while (current && depth < 4) {
+    trail.push({
+      tagName: `${current.tagName || ''}`.toLowerCase(),
+      id: current.id || '',
+      className: typeof current.className === 'string' ? current.className.trim().slice(0, 180) : '',
+      selector: buildElementSelector(current),
+      text: describeElementText(current)
+    });
+    current = current.parentElement;
+    depth += 1;
+  }
+  return trail;
+}
+
+function buildSelectedElementPayload(element) {
+  const rect = element.getBoundingClientRect();
+  return {
+    capturedAt: new Date().toISOString(),
+    pageTitle: document.title || '',
+    pageUrl: window.location.href,
+    selector: buildElementSelector(element),
+    tagName: `${element.tagName || ''}`.toLowerCase(),
+    id: element.id || '',
+    name: element.getAttribute?.('name') || '',
+    href: element.getAttribute?.('href') || '',
+    type: element.getAttribute?.('type') || '',
+    role: element.getAttribute?.('role') || '',
+    ariaLabel: element.getAttribute?.('aria-label') || '',
+    text: describeElementText(element),
+    isVisible: !!(rect.width > 0 && rect.height > 0),
+    rect: {
+      top: Math.round(rect.top),
+      left: Math.round(rect.left),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height)
+    },
+    contextTrail: collectElementContextTrail(element),
+    outerHtmlSnippet: (element.outerHTML || '').slice(0, 1600)
+  };
+}
+
+function persistSelectedElement(payload) {
+  const storage = getLocalStorage();
+  return new Promise((resolve) => {
+    storage.set({ [SELECTED_ELEMENT_STORAGE_KEY]: payload || null }, resolve);
+  });
+}
+
+async function startInspectMode() {
+  if (inspectModeActive) {
+    return;
+  }
+
+  inspectModeActive = true;
+  inspectAbortController = new AbortController();
+  const { signal } = inspectAbortController;
+
+  const completeSelection = async (target) => {
+    inspectModeActive = false;
+    inspectAbortController = null;
+    const element = target instanceof Element ? target : null;
+    if (!element) {
+      await persistSelectedElement(null);
+      return;
+    }
+
+    const payload = buildSelectedElementPayload(element);
+    await persistSelectedElement(payload);
+    await log('info', 'content', 'Captured element for diagnostics inspection.', {
+      selector: payload.selector,
+      tagName: payload.tagName,
+      text: payload.text,
+      pageUrl: payload.pageUrl
+    });
+  };
+
+  document.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const target = event.target?.closest?.('*') || event.target;
+    await completeSelection(target);
+  }, {
+    capture: true,
+    once: true,
+    signal
+  });
+
+  document.addEventListener('keydown', async (event) => {
+    if (event.key !== 'Escape') {
+      return;
+    }
+    event.preventDefault();
+    inspectAbortController?.abort();
+    inspectModeActive = false;
+    inspectAbortController = null;
+    await log('info', 'content', 'Diagnostics element inspection cancelled.');
+  }, {
+    capture: true,
+    once: true,
+    signal
+  });
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'graph:open-improvements') {
     requestPageImprovementData()
@@ -102,6 +244,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     `);
     sendResponse({ ok: true });
     return false;
+  }
+
+  if (message?.type === 'graph:start-element-inspection') {
+    startInspectMode()
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || 'inspection failed' }));
+    return true;
   }
 
   return false;
@@ -127,7 +276,29 @@ function writeLog(entry) {
   });
 }
 
+function shouldPersistLogEntry(entry = {}) {
+  const level = `${entry.level || 'info'}`.trim().toLowerCase();
+  const scope = `${entry.scope || ''}`.trim().toLowerCase();
+
+  if (level === 'error' || level === 'warn') {
+    return true;
+  }
+
+  if (EXECUTION_LOG_SCOPES.has(scope)) {
+    return true;
+  }
+
+  if (VOICE_LOG_SCOPES.has(scope)) {
+    return true;
+  }
+
+  return false;
+}
+
 function log(level, scope, message, details = null) {
+  if (!shouldPersistLogEntry({ level, scope, message, details })) {
+    return Promise.resolve();
+  }
   return writeLog({ level, scope, message, details }).catch(() => {});
 }
 
@@ -141,22 +312,15 @@ function normalizeHostname(value) {
 
 async function bootstrap() {
   if (window.top !== window) {
-    await log('info', 'content', 'Skipped iframe mount.');
     return;
   }
 
   const settings = await readSettings();
-  await log('info', 'content', 'Loaded extension settings.', {
-    enabled: Boolean(settings.enabled),
-    backendUrl: settings.backendUrl || DEFAULT_BACKEND_URL
-  });
   if (!settings.enabled) {
-    await log('info', 'content', 'Extension disabled for pages.');
     return;
   }
 
   if (document.documentElement.dataset.graphTrainerExtensionMounted === 'true') {
-    await log('info', 'content', 'Skipped duplicate mount.');
     return;
   }
   document.documentElement.dataset.graphTrainerExtensionMounted = 'true';
@@ -171,6 +335,11 @@ async function bootstrap() {
     'assets/plugin/plugin-context.js',
     'assets/plugin/plugin-api.js',
     'assets/plugin/plugin-learning-bridge.js',
+    'assets/plugin/plugin-learning-client.js',
+    'assets/plugin/plugin-voice-client.js',
+    'assets/plugin/plugin-trainer-shell.js',
+    'assets/plugin/plugin-surface-profile-client.js',
+    'assets/plugin/plugin-execution-client.js',
     'assets/plugin/plugin-workflow-overlay-bridge.js',
     'assets/trainer-plugin.js',
     'bootstrap.js'
@@ -180,13 +349,6 @@ async function bootstrap() {
   document.documentElement.dataset.graphTrainerAppId = `chrome-extension-${normalizeHostname(window.location.hostname)}`;
   document.documentElement.dataset.graphTrainerStorageKey = `graph-extension-state-${normalizeHostname(window.location.hostname)}`;
   document.documentElement.dataset.graphTrainerWorkflowDescription = `Workflow on ${window.location.hostname || 'current-page'}`;
-  await log('info', 'content', 'Prepared page dataset for Graph Trainer.', {
-    backendUrl: document.documentElement.dataset.graphTrainerBackendUrl,
-    appId: document.documentElement.dataset.graphTrainerAppId,
-    storageKey: document.documentElement.dataset.graphTrainerStorageKey,
-    hostname: window.location.hostname,
-    pathname: window.location.pathname
-  });
 
   document.addEventListener('graph-trainer-extension-log', (event) => {
     const detail = event?.detail || {};
@@ -205,12 +367,8 @@ async function bootstrap() {
   });
 
   for (const path of runtimeScripts) {
-    await log('info', 'content', `Injecting ${path}.`);
     await injectExternalScript(path);
-    await log('info', 'content', `Injected ${path}.`);
   }
-
-  await log('info', 'content', 'All runtime scripts injected.');
 }
 
 bootstrap().catch((error) => {

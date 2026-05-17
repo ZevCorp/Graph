@@ -18,6 +18,7 @@
         const markWorkflowPanelDirty = typeof deps.markWorkflowPanelDirty === 'function' ? deps.markWorkflowPanelDirty : () => {};
         const onStartWorkflow = typeof deps.onStartWorkflow === 'function' ? deps.onStartWorkflow : async () => {};
         const onStopWorkflow = typeof deps.onStopWorkflow === 'function' ? deps.onStopWorkflow : async () => {};
+        const onStopWorkflowExecution = typeof deps.onStopWorkflowExecution === 'function' ? deps.onStopWorkflowExecution : async () => {};
         const onWorkflowRecordingCheck = typeof deps.onWorkflowRecordingCheck === 'function' ? deps.onWorkflowRecordingCheck : () => false;
 
         let longPressTimer = null;
@@ -128,6 +129,14 @@
             runtime()?.setVoiceButtonActive?.(active);
         }
 
+        function setExecutionStopButtonVisible(active) {
+            const button = document.getElementById('btn-stop-execution');
+            if (!button) return;
+            button.hidden = !active;
+            button.disabled = !active;
+            button.setAttribute('aria-hidden', active ? 'false' : 'true');
+        }
+
         function clearLongPressTimer() {
             if (longPressTimer) {
                 window.clearTimeout(longPressTimer);
@@ -167,6 +176,7 @@
         function bindControls() {
             document.getElementById('btn-start').addEventListener('click', onStartWorkflow);
             document.getElementById('btn-stop').addEventListener('click', onStopWorkflow);
+            document.getElementById('btn-stop-execution').addEventListener('click', onStopWorkflowExecution);
 
             bindLongPressGesture('btn-record-toggle', toggleWorkflowPanel, async () => {
                 closeImprovementPanel();
@@ -273,6 +283,7 @@
             updateImprovementPanelStatus,
             updateVoiceStatus,
             setVoiceButton,
+            setExecutionStopButtonVisible,
             bindControls
         };
     }
