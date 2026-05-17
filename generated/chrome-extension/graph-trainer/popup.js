@@ -2,6 +2,7 @@ const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
 const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowLogs';
 const EXECUTION_LOG_SCOPES = new Set(['execution']);
+const RECORDER_LOG_SCOPE = 'recorder';
 const SELECTED_ELEMENT_STORAGE_KEY = 'graphTrainerSelectedElement';
 const diagnosticsChatHistory = [];
 
@@ -44,30 +45,53 @@ function isExecutionDiagnostic(entry = {}) {
   return EXECUTION_LOG_SCOPES.has(scope);
 }
 
+function isRecorderDiagnostic(entry = {}) {
+  const scope = `${entry.scope || ''}`.trim().toLowerCase();
+  const level = `${entry.level || ''}`.trim().toLowerCase();
+  return scope === RECORDER_LOG_SCOPE && (level === 'warn' || level === 'error');
+}
+
+function isDiagnosticEntry(entry = {}) {
+  return isExecutionDiagnostic(entry) || isRecorderDiagnostic(entry);
+}
+
 function isErrorDiagnostic(entry = {}) {
   return `${entry.level || ''}`.trim().toLowerCase() === 'error';
 }
 
+function isAlertDiagnostic(entry = {}) {
+  const level = `${entry.level || ''}`.trim().toLowerCase();
+  return level === 'warn' || level === 'error';
+}
+
 function buildExecutionDiagnosticSummary(logs = []) {
-  const diagnostics = logs.filter(isExecutionDiagnostic);
+  const diagnostics = logs.filter(isDiagnosticEntry);
   const errors = diagnostics.filter((entry) => `${entry.level || ''}`.toLowerCase() === 'error').length;
   const warnings = diagnostics.filter((entry) => `${entry.level || ''}`.toLowerCase() === 'warn').length;
+  const executionEvents = diagnostics.filter(isExecutionDiagnostic).length;
+  const learningAlerts = diagnostics.filter(isRecorderDiagnostic).length;
 
   if (!diagnostics.length) {
-    return 'Sin diagnosticos de ejecucion todavia.';
+    return 'Sin diagnosticos de ejecucion o aprendizaje todavia.';
   }
 
   if (!errors && !warnings) {
-    return `${diagnostics.length} evento(s) recientes de ejecucion sin fallos reportados.`;
+    return `${diagnostics.length} evento(s) recientes sin fallos reportados.`;
   }
 
-  return `${errors} error(es), ${warnings} alerta(s) y ${diagnostics.length} evento(s) de ejecucion recientes.`;
+  const segments = [
+    `${errors} error(es)`,
+    `${warnings} alerta(s)`,
+    `${executionEvents} evento(s) de ejecucion`,
+    `${learningAlerts} alerta(s) de aprendizaje`
+  ];
+  return `${segments.join(', ')} y ${diagnostics.length} diagnostico(s) recientes.`;
 }
 
 function collectErrorContextWindows(logs = [], radius = 3) {
-  const executionLogs = logs.filter(isExecutionDiagnostic);
+  const executionLogs = logs.filter(isDiagnosticEntry);
   const errorIndexes = executionLogs
-    .map((entry, index) => (isErrorDiagnostic(entry) ? index : -1))
+    .map((entry, index) => (isAlertDiagnostic(entry) ? index : -1))
     .filter((index) => index >= 0);
 
   if (!errorIndexes.length) {
@@ -156,8 +180,10 @@ async function saveLogPanelState(isOpen) {
 function formatLogEntry(entry = {}) {
   const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'unknown-time';
   const level = `${entry.level || 'info'}`.toUpperCase();
+  const scope = `${entry.scope || 'unknown'}`.trim().toLowerCase();
   const details = entry.details && typeof entry.details === 'object' ? entry.details : {};
   const stepText = [
+    scope && scope !== 'execution' ? `scope=${scope}` : '',
     details.workflowId ? `workflow=${details.workflowId}` : '',
     Number.isFinite(details.stepOrder) ? `step=${details.stepOrder}` : '',
     details.actionType ? `action=${details.actionType}` : '',
