@@ -89,6 +89,10 @@ window.WorkflowRecorder = (() => {
       .replace(/\f/g, '\\f');
   }
 
+  function isCssSafeId(value) {
+    return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(`${value || ''}`.trim());
+  }
+
   function buildAttributeSelector(attributeName, attributeValue, tagName = '') {
     const normalizedAttributeName = `${attributeName || ''}`.trim();
     const normalizedAttributeValue = `${attributeValue || ''}`;
@@ -106,17 +110,19 @@ window.WorkflowRecorder = (() => {
     if (element.dataset && element.dataset.testid) {
       return buildAttributeSelector('data-testid', element.dataset.testid);
     }
+    if (element.id) {
+      return isCssSafeId(element.id)
+        ? `#${element.id}`
+        : buildAttributeSelector('id', element.id);
+    }
+    if (element.name) {
+      return buildAttributeSelector('name', element.name);
+    }
     if (element.tagName === 'A' && element.getAttribute('href')) {
       return buildAttributeSelector('href', element.getAttribute('href'), 'a');
     }
     if (element.tagName === 'BUTTON' && element.type) {
       return buildAttributeSelector('type', element.type, 'button');
-    }
-    if (element.id) {
-      return buildAttributeSelector('id', element.id);
-    }
-    if (element.name) {
-      return buildAttributeSelector('name', element.name);
     }
     return element.tagName ? element.tagName.toLowerCase() : '';
   }

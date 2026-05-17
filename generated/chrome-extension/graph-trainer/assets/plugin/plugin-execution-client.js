@@ -183,6 +183,31 @@
             return fallbackMatch;
         }
 
+        function resolveStepSilently(step) {
+            if (!step?.selector) {
+                return null;
+            }
+
+            const directResult = safeQuerySelector(step.selector);
+            if (directResult.element) {
+                return directResult.element;
+            }
+
+            if (!step?.label) {
+                return null;
+            }
+
+            const matches = Array.from(document.querySelectorAll('input, textarea, select, button, a'));
+            return matches.find((element) => {
+                const text = (element.textContent || element.value || element.getAttribute('aria-label') || '').trim();
+                return text === step.label;
+            }) || null;
+        }
+
+        function canResolveStepImmediately(step) {
+            return Boolean(resolveStepSilently(step));
+        }
+
         async function waitForStepElement(step, timeoutMs = waitTimeoutMs) {
             const startedAt = Date.now();
             while (Date.now() - startedAt < timeoutMs) {
@@ -197,6 +222,54 @@
                 timeoutMs
             });
             throw new Error(`No pude encontrar ${describeStep(step)} en esta pagina.`);
+        }
+
+        async function waitForPostClickProgress(step, nextStep, options = {}) {
+            const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : waitTimeoutMs;
+            const startedAt = Date.now();
+            const baselineUrl = normalizeExecutionUrl(options.baselineUrl || window.location.href);
+            const nextExpectedUrl = normalizeExecutionUrl(nextStep?.url || '');
+            const currentExpectedUrl = normalizeExecutionUrl(step?.url || '');
+            const shouldWaitForUrlChange = Boolean(nextExpectedUrl && nextExpectedUrl !== baselineUrl);
+
+            while (Date.now() - startedAt < timeoutMs) {
+                const currentUrl = normalizeExecutionUrl(window.location.href);
+
+                if (shouldWaitForUrlChange && currentUrl === nextExpectedUrl) {
+                    return {
+                        progress: 'next_expected_url_reached',
+                        currentUrl
+                    };
+                }
+
+                if (!nextExpectedUrl && currentUrl !== baselineUrl) {
+                    return {
+                        progress: 'url_changed',
+                        currentUrl
+                    };
+                }
+
+                if (nextStep?.selector && canResolveStepImmediately(nextStep)) {
+                    return {
+                        progress: 'next_step_available',
+                        currentUrl
+                    };
+                }
+
+                if (currentExpectedUrl && currentUrl !== currentExpectedUrl) {
+                    return {
+                        progress: 'left_current_step_url',
+                        currentUrl
+                    };
+                }
+
+                await waitMs(120);
+            }
+
+            return {
+                progress: 'timeout',
+                currentUrl: normalizeExecutionUrl(window.location.href)
+            };
         }
 
         function fireDomEvent(element, eventName) {
@@ -573,6 +646,7 @@
 
                 for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
                     const step = currentPlan.steps[stepIndex];
+                    const nextStep = currentPlan.steps[stepIndex + 1] || null;
                     const expectedUrl = step.url ? normalizeExecutionUrl(step.url) : '';
                     emitPluginEvent('workflow.execution.step_started', {
                         workflowId: currentPlan.workflowId,
@@ -626,6 +700,7 @@
 
                     const element = await waitForStepElement(step);
                     if (step.actionType === 'click') {
+                        const baselineUrl = window.location.href;
                         element.scrollIntoView({ block: 'center', inline: 'nearest' });
                         notifyAutomationStep(step, `Estoy interactuando con ${step.label || step.selector || 'este control'}.`);
                         if ('disabled' in element && element.disabled) {
@@ -646,6 +721,26 @@
                             stepIndex,
                             resolution: 'click_applied'
                         }));
+
+                        if (nextStep) {
+                            const postClickProgress = await waitForPostClickProgress(step, nextStep, {
+                                baselineUrl,
+                                timeoutMs: waitTimeoutMs
+                            });
+                            emitExtensionLog(
+                                postClickProgress.progress === 'timeout' ? 'warn' : 'info',
+                                'Observed post-click workflow progress.',
+                                buildStepDiagnostics(step, {
+                                    workflowId: currentPlan.workflowId,
+                                    trigger,
+                                    stepIndex,
+                                    resolution: postClickProgress.progress,
+                                    nextStepOrder: Number.isFinite(nextStep.stepOrder) ? nextStep.stepOrder : null,
+                                    nextStepSelector: nextStep.selector || '',
+                                    progressedUrl: postClickProgress.currentUrl || ''
+                                })
+                            );
+                        }
                     } else if (step.actionType === 'input') {
                         notifyAutomationStep(step, `Estoy completando ${step.label || step.selector || 'este campo'}.`);
                         await applyInputStep(element, step, currentPlan.variables || {});
