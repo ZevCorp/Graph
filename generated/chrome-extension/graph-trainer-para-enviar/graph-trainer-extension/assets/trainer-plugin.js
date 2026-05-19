@@ -2149,13 +2149,39 @@
     async function resumePendingExecution() {
         await ensurePendingExecutionLoaded();
         const pending = readPendingExecution();
+        emitExtensionLog('info', 'Evaluating pending execution resume.', {
+            hasPendingExecution: Boolean(pending),
+            executionRunning: Boolean(executionState.running),
+            nextStepIndex: Number.isFinite(pending?.nextStepIndex) ? pending.nextStepIndex : null,
+            workflowId: `${pending?.workflowId || ''}`.trim(),
+            currentUrl: window.location.href
+        });
         if (!pending || executionState.running) {
+            emitExtensionLog('info', 'Skipping pending execution resume.', {
+                hasPendingExecution: Boolean(pending),
+                executionRunning: Boolean(executionState.running),
+                nextStepIndex: Number.isFinite(pending?.nextStepIndex) ? pending.nextStepIndex : null,
+                workflowId: `${pending?.workflowId || ''}`.trim(),
+                currentUrl: window.location.href
+            });
             return;
         }
 
         try {
+            emitExtensionLog('info', 'Resuming pending execution on page.', {
+                nextStepIndex: Number.isFinite(pending?.nextStepIndex) ? pending.nextStepIndex : null,
+                workflowId: `${pending?.workflowId || ''}`.trim(),
+                trigger: pending?.trigger || 'resume',
+                currentUrl: window.location.href
+            });
             await executeWorkflowPlan(pending, pending.trigger || 'resume');
         } catch (error) {
+            emitExtensionLog('error', 'Failed to resume pending execution on page.', {
+                nextStepIndex: Number.isFinite(pending?.nextStepIndex) ? pending.nextStepIndex : null,
+                workflowId: `${pending?.workflowId || ''}`.trim(),
+                currentUrl: window.location.href,
+                errorMessage: error.message || 'No pude retomar la automatizacion en esta pagina.'
+            });
             clearPendingExecution();
             updateWorkflowPanelStatus(error.message || 'No pude retomar la automatizacion en esta pagina.');
             appendAgentMessage('assistant', error.message || 'No pude retomar la automatizacion en esta pagina.', null, false);
