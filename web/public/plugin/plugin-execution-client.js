@@ -50,18 +50,55 @@
             pendingExecutionLoadPromise = (async () => {
                 const host = getPluginHost();
                 const storageKey = getExecutionStorageKey();
+                let raw = '';
+                let source = 'none';
                 if (host?.globalStore?.isExtensionBacked) {
-                    const raw = await host.globalStore.get(storageKey).catch(() => '');
-                    cachedPendingExecution = parsePendingExecution(raw);
+                    try {
+                        raw = await host.globalStore.get(storageKey);
+                        if (raw) {
+                            source = 'extension_store';
+                        }
+                    } catch (error) {
+                        emitExtensionLog('error', 'Failed to load pending execution state from extension store.', {
+                            executionScopeId: storageKey,
+                            errorMessage: error?.message || 'Extension store read failed.'
+                        });
+                    }
                     if (typeof host.globalStore.subscribe === 'function') {
                         host.globalStore.subscribe(storageKey, (nextRaw) => {
                             cachedPendingExecution = parsePendingExecution(nextRaw);
+                            emitExtensionLog('info', 'Observed pending execution state change from extension store.', {
+                                executionScopeId: storageKey,
+                                hasPendingExecution: Boolean(cachedPendingExecution),
+                                nextStepIndex: Number.isFinite(cachedPendingExecution?.nextStepIndex) ? cachedPendingExecution.nextStepIndex : null,
+                                workflowId: `${cachedPendingExecution?.workflowId || ''}`.trim()
+                            });
                         });
                     }
-                    return cachedPendingExecution;
                 }
 
-                cachedPendingExecution = parsePendingExecution(host?.sessionStore?.get(storageKey) || '');
+                if (!raw) {
+                    raw = readBrowserSessionStorage(storageKey);
+                    if (raw) {
+                        source = 'browser_session_storage';
+                    }
+                }
+
+                if (!raw) {
+                    raw = host?.sessionStore?.get(storageKey) || '';
+                    if (raw) {
+                        source = 'host_session_store';
+                    }
+                }
+
+                cachedPendingExecution = parsePendingExecution(raw);
+                emitExtensionLog('info', 'Loaded pending execution state.', {
+                    executionScopeId: storageKey,
+                    source,
+                    hasPendingExecution: Boolean(cachedPendingExecution),
+                    nextStepIndex: Number.isFinite(cachedPendingExecution?.nextStepIndex) ? cachedPendingExecution.nextStepIndex : null,
+                    workflowId: `${cachedPendingExecution?.workflowId || ''}`.trim()
+                });
                 return cachedPendingExecution;
             })();
 
@@ -72,35 +109,111 @@
             return cachedPendingExecution;
         }
 
+        function readBrowserSessionStorage(key) {
+            try {
+                return window.sessionStorage?.getItem?.(key) || '';
+            } catch (error) {
+                return '';
+            }
+        }
+
+        function writeBrowserSessionStorage(key, value) {
+            try {
+                if (value === null || value === undefined || value === '') {
+                    window.sessionStorage?.removeItem?.(key);
+                    return true;
+                }
+                window.sessionStorage?.setItem?.(key, value);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+
         async function persistPendingExecution(plan) {
             const host = getPluginHost();
             const storageKey = getExecutionStorageKey();
             cachedPendingExecution = parsePendingExecution(plan || null);
             const serialized = JSON.stringify(plan || {});
+            const workflowId = `${plan?.workflowId || ''}`.trim();
+            const nextStepIndex = Number.isFinite(plan?.nextStepIndex) ? plan.nextStepIndex : null;
 
-            if (host?.globalStore?.isExtensionBacked) {
-                await host.globalStore.set(storageKey, serialized).catch(() => {});
-                return;
-            }
-
+            const browserSessionPersisted = writeBrowserSessionStorage(storageKey, serialized);
             try {
                 host?.sessionStore?.set(storageKey, serialized);
             } catch (error) {
-                // Ignore session storage failures.
+                // Ignore host session storage failures.
             }
+
+            emitExtensionLog('info', 'Persisting pending execution state.', {
+                executionScopeId: storageKey,
+                workflowId,
+                nextStepIndex,
+                browserSessionPersisted,
+                usingExtensionStore: Boolean(host?.globalStore?.isExtensionBacked)
+            });
+
+            if (host?.globalStore?.isExtensionBacked) {
+                try {
+                    await host.globalStore.set(storageKey, serialized);
+                    emitExtensionLog('info', 'Persisted pending execution state to extension store.', {
+                        executionScopeId: storageKey,
+                        workflowId,
+                        nextStepIndex,
+                        browserSessionPersisted
+                    });
+                    return;
+                } catch (error) {
+                    emitExtensionLog('error', 'Failed to persist pending execution state to extension store.', {
+                        executionScopeId: storageKey,
+                        workflowId,
+                        nextStepIndex,
+                        browserSessionPersisted,
+                        errorMessage: error?.message || 'Extension store write failed.'
+                    });
+                }
+            }
+
+            emitExtensionLog('info', 'Persisted pending execution state to browser session fallback.', {
+                executionScopeId: storageKey,
+                workflowId,
+                nextStepIndex
+            });
         }
 
         async function clearPendingExecution() {
             const host = getPluginHost();
             const storageKey = getExecutionStorageKey();
             cachedPendingExecution = null;
+            const browserSessionCleared = writeBrowserSessionStorage(storageKey, '');
 
-            if (host?.globalStore?.isExtensionBacked) {
-                await host.globalStore.remove(storageKey).catch(() => {});
-                return;
+            try {
+                host?.sessionStore?.remove(storageKey);
+            } catch (error) {
+                // Ignore host session storage failures.
             }
 
-            host?.sessionStore?.remove(storageKey);
+            if (host?.globalStore?.isExtensionBacked) {
+                try {
+                    await host.globalStore.remove(storageKey);
+                    emitExtensionLog('info', 'Cleared pending execution state from extension store.', {
+                        executionScopeId: storageKey,
+                        browserSessionCleared
+                    });
+                    return;
+                } catch (error) {
+                    emitExtensionLog('error', 'Failed to clear pending execution state from extension store.', {
+                        executionScopeId: storageKey,
+                        browserSessionCleared,
+                        errorMessage: error?.message || 'Extension store remove failed.'
+                    });
+                }
+            }
+
+            emitExtensionLog('info', 'Cleared pending execution state from browser session fallback.', {
+                executionScopeId: storageKey,
+                browserSessionCleared
+            });
         }
 
         function normalizeExecutionUrl(rawUrl) {
