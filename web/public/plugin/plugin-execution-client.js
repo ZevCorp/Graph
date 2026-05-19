@@ -124,6 +124,42 @@
             return step.label || step.selector || step.url || step.actionType || 'workflow';
         }
 
+        function isNewTabIntent(step, element) {
+            const labelText = `${step?.label || ''} ${element?.textContent || ''}`.toLowerCase();
+            if (labelText.includes('nueva pesta') || labelText.includes('new tab')) {
+                return true;
+            }
+
+            if (element instanceof HTMLAnchorElement) {
+                return `${element.getAttribute('target') || ''}`.trim().toLowerCase() === '_blank';
+            }
+
+            return false;
+        }
+
+        function resolveClickNavigationTarget(step, element) {
+            const candidateHref = `${step?.href || element?.getAttribute?.('href') || ''}`.trim();
+            if (!candidateHref) {
+                return '';
+            }
+
+            const lowerHref = candidateHref.toLowerCase();
+            if (
+                lowerHref.startsWith('#')
+                || lowerHref.startsWith('javascript:')
+                || lowerHref.startsWith('mailto:')
+                || lowerHref.startsWith('tel:')
+            ) {
+                return '';
+            }
+
+            if (!isNewTabIntent(step, element)) {
+                return '';
+            }
+
+            return normalizeExecutionUrl(candidateHref);
+        }
+
         function buildStepDiagnostics(step, extra = {}) {
             return {
                 workflowId: extra.workflowId || '',
@@ -1025,6 +1061,7 @@
                     throwIfExecutionCancelled();
                     if (step.actionType === 'click') {
                         const baselineUrl = window.location.href;
+                        const clickNavigationTarget = resolveClickNavigationTarget(step, element);
                         element.scrollIntoView({ block: 'center', inline: 'nearest' });
                         notifyAutomationStep(step, `Estoy interactuando con ${step.label || step.selector || 'este control'}.`);
                         if ('disabled' in element && element.disabled) {
@@ -1038,6 +1075,19 @@
                         }
 
                         currentPlan = await updateExecutionProgress(currentPlan, stepIndex + 1);
+                        if (clickNavigationTarget && !urlsMatch(window.location.href, clickNavigationTarget)) {
+                            emitExtensionLog('info', 'Redirecting current tab for learned new-tab link.', buildStepDiagnostics(step, {
+                                workflowId: currentPlan.workflowId,
+                                trigger,
+                                stepIndex,
+                                resolution: 'click_redirect_same_tab',
+                                targetUrl: clickNavigationTarget
+                            }));
+                            updateWorkflowPanelStatus(`Abriendo ${clickNavigationTarget} en esta misma pestaña...`);
+                            window.location.assign(clickNavigationTarget);
+                            return;
+                        }
+
                         element.click();
                         emitExtensionLog('info', 'Applied click step.', buildStepDiagnostics(step, {
                             workflowId: currentPlan.workflowId,

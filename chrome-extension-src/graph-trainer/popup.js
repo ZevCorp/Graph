@@ -2,8 +2,10 @@ const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
 const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowLogs';
 const VOICE_LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowVoiceLogs';
+const CONTINUITY_LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowContinuityLogs';
 const EXECUTION_LOG_SCOPES = new Set(['execution']);
 const VOICE_LOG_SCOPES = new Set(['voice']);
+const CONTINUITY_LOG_SCOPES = new Set(['content', 'bootstrap', 'recorder', 'execution']);
 const RECORDER_LOG_SCOPE = 'recorder';
 const SELECTED_ELEMENT_STORAGE_KEY = 'graphTrainerSelectedElement';
 const AUTO_CAPTURE_ANALYSIS_STORAGE_KEY = 'graphTrainerAutoCaptureAnalysis';
@@ -57,6 +59,11 @@ function isRecorderDiagnostic(entry = {}) {
 function isVoiceDiagnostic(entry = {}) {
   const scope = `${entry.scope || ''}`.trim().toLowerCase();
   return VOICE_LOG_SCOPES.has(scope);
+}
+
+function isContinuityDiagnostic(entry = {}) {
+  const scope = `${entry.scope || ''}`.trim().toLowerCase();
+  return CONTINUITY_LOG_SCOPES.has(scope);
 }
 
 function isDiagnosticEntry(entry = {}) {
@@ -203,6 +210,15 @@ async function loadVoiceLogPanelState() {
   });
 }
 
+async function loadContinuityLogPanelState() {
+  const storage = getLocalStorage();
+  return new Promise((resolve) => {
+    storage.get({ [CONTINUITY_LOG_PANEL_STATE_KEY]: false }, (result) => {
+      resolve(Boolean(result?.[CONTINUITY_LOG_PANEL_STATE_KEY]));
+    });
+  });
+}
+
 async function saveLogPanelState(isOpen) {
   const storage = getLocalStorage();
   return new Promise((resolve) => {
@@ -214,6 +230,13 @@ async function saveVoiceLogPanelState(isOpen) {
   const storage = getLocalStorage();
   return new Promise((resolve) => {
     storage.set({ [VOICE_LOG_PANEL_STATE_KEY]: Boolean(isOpen) }, resolve);
+  });
+}
+
+async function saveContinuityLogPanelState(isOpen) {
+  const storage = getLocalStorage();
+  return new Promise((resolve) => {
+    storage.set({ [CONTINUITY_LOG_PANEL_STATE_KEY]: Boolean(isOpen) }, resolve);
   });
 }
 
@@ -527,6 +550,19 @@ function buildVoiceLogSummary(logs = []) {
   return `${voiceLogs.length} evento(s) de voz recientes, ${errors} error(es), ${warnings} alerta(s).`;
 }
 
+function buildContinuityLogSummary(logs = []) {
+  const continuityLogs = logs.filter(isContinuityDiagnostic);
+  if (!continuityLogs.length) {
+    return 'Sin logs de continuidad todavia.';
+  }
+  const errors = continuityLogs.filter((entry) => `${entry.level || ''}`.trim().toLowerCase() === 'error').length;
+  const warnings = continuityLogs.filter((entry) => `${entry.level || ''}`.trim().toLowerCase() === 'warn').length;
+  const bridgeEvents = continuityLogs.filter((entry) => ['content', 'bootstrap'].includes(`${entry.scope || ''}`.trim().toLowerCase())).length;
+  const learningEvents = continuityLogs.filter((entry) => `${entry.scope || ''}`.trim().toLowerCase() === 'recorder').length;
+  const executionEvents = continuityLogs.filter((entry) => `${entry.scope || ''}`.trim().toLowerCase() === 'execution').length;
+  return `${continuityLogs.length} evento(s) de continuidad, ${errors} error(es), ${warnings} alerta(s), ${bridgeEvents} bridge/scope, ${learningEvents} aprendizaje, ${executionEvents} ejecucion.`;
+}
+
 async function renderVoiceLogs(logOutputEl) {
   const logs = await readLogs();
   const voiceLogs = logs.filter(isVoiceDiagnostic);
@@ -542,6 +578,25 @@ async function renderVoiceLogs(logOutputEl) {
 
   logOutputEl.textContent = voiceLogs
     .slice(-40)
+    .map((entry) => formatLogEntry(entry))
+    .join('\n\n');
+}
+
+async function renderContinuityLogs(logOutputEl) {
+  const logs = await readLogs();
+  const continuityLogs = logs.filter(isContinuityDiagnostic);
+  const summaryEl = document.getElementById('continuityLogSummary');
+  if (summaryEl) {
+    summaryEl.textContent = buildContinuityLogSummary(logs);
+  }
+
+  if (!continuityLogs.length) {
+    logOutputEl.textContent = 'No hay logs de continuidad todavia.';
+    return;
+  }
+
+  logOutputEl.textContent = continuityLogs
+    .slice(-80)
     .map((entry) => formatLogEntry(entry))
     .join('\n\n');
 }
@@ -564,6 +619,15 @@ async function setVoiceLogPanelOpen(panelEl, buttonEl, logOutputEl, isOpen) {
   }
 }
 
+async function setContinuityLogPanelOpen(panelEl, buttonEl, logOutputEl, isOpen) {
+  panelEl.classList.toggle('open', isOpen);
+  buttonEl.textContent = isOpen ? 'Ocultar logs de continuidad' : 'Ver logs de continuidad';
+  await saveContinuityLogPanelState(isOpen);
+  if (isOpen) {
+    await renderContinuityLogs(logOutputEl);
+  }
+}
+
 async function init() {
   const enabledEl = document.getElementById('enabled');
   const backendUrlEl = document.getElementById('backendUrl');
@@ -571,12 +635,15 @@ async function init() {
   const showImprovementsButton = document.getElementById('showImprovements');
   const toggleLogsButton = document.getElementById('toggleLogs');
   const toggleVoiceLogsButton = document.getElementById('toggleVoiceLogs');
+  const toggleContinuityLogsButton = document.getElementById('toggleContinuityLogs');
   const clearLogsButton = document.getElementById('clearLogs');
   const statusEl = document.getElementById('status');
   const logPanelEl = document.getElementById('logPanel');
   const logOutputEl = document.getElementById('logOutput');
   const voiceLogPanelEl = document.getElementById('voiceLogPanel');
   const voiceLogOutputEl = document.getElementById('voiceLogOutput');
+  const continuityLogPanelEl = document.getElementById('continuityLogPanel');
+  const continuityLogOutputEl = document.getElementById('continuityLogOutput');
   const diagnosticsChatInput = document.getElementById('diagnosticsChatInput');
   const diagnosticsChatSend = document.getElementById('diagnosticsChatSend');
   const diagnosticsChatStatus = document.getElementById('diagnosticsChatStatus');
@@ -588,10 +655,12 @@ async function init() {
   const settings = await loadSettings();
   const showLogs = await loadLogPanelState();
   const showVoiceLogs = await loadVoiceLogPanelState();
+  const showContinuityLogs = await loadContinuityLogPanelState();
   enabledEl.checked = Boolean(settings.enabled);
   backendUrlEl.value = `${settings.backendUrl || DEFAULT_BACKEND_URL}`.trim() || DEFAULT_BACKEND_URL;
   await setLogPanelOpen(logPanelEl, toggleLogsButton, logOutputEl, showLogs);
   await setVoiceLogPanelOpen(voiceLogPanelEl, toggleVoiceLogsButton, voiceLogOutputEl, showVoiceLogs);
+  await setContinuityLogPanelOpen(continuityLogPanelEl, toggleContinuityLogsButton, continuityLogOutputEl, showContinuityLogs);
   renderDiagnosticsChat();
   await renderSelectedElementSummary();
   await runAutomaticCaptureGapAnalysis(diagnosticsChatStatus);
@@ -667,10 +736,16 @@ async function init() {
     await setVoiceLogPanelOpen(voiceLogPanelEl, toggleVoiceLogsButton, voiceLogOutputEl, isOpen);
   });
 
+  toggleContinuityLogsButton.addEventListener('click', async () => {
+    const isOpen = !continuityLogPanelEl.classList.contains('open');
+    await setContinuityLogPanelOpen(continuityLogPanelEl, toggleContinuityLogsButton, continuityLogOutputEl, isOpen);
+  });
+
   clearLogsButton.addEventListener('click', async () => {
     await clearLogs();
     await renderLogs(logOutputEl);
     await renderVoiceLogs(voiceLogOutputEl);
+    await renderContinuityLogs(continuityLogOutputEl);
     statusEl.textContent = 'Logs cleared.';
     window.setTimeout(() => {
       statusEl.textContent = '';

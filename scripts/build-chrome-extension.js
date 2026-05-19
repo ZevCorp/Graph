@@ -4,7 +4,11 @@ const path = require('path');
 const repoRoot = path.resolve(__dirname, '..');
 const sourceRoot = path.join(repoRoot, 'chrome-extension-src', 'graph-trainer');
 const runtimeRoot = path.join(repoRoot, 'web', 'public');
-const outputRoot = path.join(repoRoot, 'generated', 'chrome-extension', 'graph-trainer');
+const generatedRoot = path.join(repoRoot, 'generated', 'chrome-extension');
+const outputRoot = path.join(generatedRoot, 'graph-trainer');
+const shareRoot = path.join(generatedRoot, 'graph-trainer-para-enviar');
+const shareExtensionRoot = path.join(shareRoot, 'graph-trainer-extension');
+const shareZipPath = path.join(shareRoot, 'graph-trainer-extension.zip');
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -54,11 +58,48 @@ function build() {
     '3. Click "Load unpacked".',
     `4. Select this folder: ${outputRoot}`,
     '5. Open the extension popup and confirm the backend URL.',
-    '6. Reload the target webpage.'
+    '6. Reload the target webpage.',
+    '7. Miracle link: https://www.miracle.clinic/'
   ].join('\n');
 
   fs.writeFileSync(path.join(outputRoot, 'README.txt'), readme);
+
+  removeDir(shareExtensionRoot);
+  ensureDir(shareRoot);
+  copyDirectoryContents(outputRoot, shareExtensionRoot);
+
+  const shareReadme = [
+    '# Graph Trainer Chrome Extension',
+    '',
+    '1. Open `chrome://extensions`.',
+    '2. Enable Developer mode.',
+    '3. Click "Load unpacked".',
+    `4. Select this folder: ${shareExtensionRoot}`,
+    '5. Open the extension popup and confirm the backend URL.',
+    '6. Reload the target webpage.',
+    '7. Miracle link: https://www.miracle.clinic/'
+  ].join('\n');
+  fs.writeFileSync(path.join(shareExtensionRoot, 'README.txt'), shareReadme);
+
+  if (fs.existsSync(shareZipPath)) {
+    fs.rmSync(shareZipPath, { force: true });
+  }
+
+  try {
+    const zip = require('child_process').spawnSync('powershell', [
+      '-NoProfile',
+      '-Command',
+      `Compress-Archive -Path '${shareExtensionRoot}\\*' -DestinationPath '${shareZipPath}'`
+    ], { stdio: 'inherit' });
+    if (zip.status !== 0) {
+      throw new Error(`Zip packaging failed with status ${zip.status}`);
+    }
+  } catch (error) {
+    console.warn(`Could not create zip package automatically: ${error.message}`);
+  }
+
   console.log(`Chrome extension generated at: ${outputRoot}`);
+  console.log(`Shareable extension generated at: ${shareExtensionRoot}`);
 }
 
 build();

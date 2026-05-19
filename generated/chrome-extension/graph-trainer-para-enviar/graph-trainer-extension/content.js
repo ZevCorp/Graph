@@ -4,6 +4,13 @@ const LOG_LIMIT = 200;
 const EXECUTION_LOG_SCOPES = new Set(['execution']);
 const VOICE_LOG_SCOPES = new Set(['voice']);
 const SELECTED_ELEMENT_STORAGE_KEY = 'graphTrainerSelectedElement';
+const EXTENSION_BRIDGE_SOURCE = 'graph-trainer-page';
+const EXTENSION_BRIDGE_RESPONSE_SOURCE = 'graph-trainer-extension-bridge';
+const GLOBAL_STORE_PREFIX = 'graphTrainerGlobalStore';
+const COMMON_HOST_TOKENS = new Set(['www', 'login', 'auth', 'secure', 'portal', 'app', 'm']);
+const COMMON_PATH_TOKENS = new Set(['home', 'index', 'login', 'signin', 'auth', 'sso', 'oauth', 'callback', 'servicelogin.aspx']);
+const CONTINUITY_URL_PARAM_NAMES = ['continueto', 'continue', 'redirect_uri', 'redirect', 'returnurl', 'return', 'target', 'dest', 'next'];
+const JOURNEY_PARAM_NAMES = ['service', 'product', 'app', 'flow', 'journey', 'scope', 'experience'];
 
 let inspectModeActive = false;
 let inspectAbortController = null;
@@ -310,6 +317,216 @@ function normalizeHostname(value) {
     .replace(/^-+|-+$/g, '') || 'page';
 }
 
+function normalizeToken(value, fallback = '') {
+  return `${value || ''}`
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || fallback;
+}
+
+function parseUrlCandidate(value) {
+  const raw = `${value || ''}`.trim();
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return new URL(raw, window.location.href);
+  } catch (error) {
+    return null;
+  }
+}
+
+function collectSignificantHostTokens(hostname = '') {
+  return `${hostname || ''}`
+    .trim()
+    .toLowerCase()
+    .split('.')
+    .filter(Boolean)
+    .filter((token) => !COMMON_HOST_TOKENS.has(token))
+    .filter((token) => !['com', 'co', 'net', 'org', 'gov', 'edu'].includes(token))
+    .map((token) => normalizeToken(token))
+    .filter(Boolean);
+}
+
+function getBrandToken(url, relatedUrl = null, referrerUrl = null) {
+  const candidates = [
+    ...collectSignificantHostTokens(url?.hostname || ''),
+    ...collectSignificantHostTokens(relatedUrl?.hostname || ''),
+    ...collectSignificantHostTokens(referrerUrl?.hostname || '')
+  ];
+  return candidates[0] || normalizeHostname(url?.hostname || 'page');
+}
+
+function firstMeaningfulPathToken(url) {
+  if (!url) {
+    return '';
+  }
+
+  const segments = `${url.pathname || ''}`
+    .split('/')
+    .map((segment) => normalizeToken(segment))
+    .filter(Boolean)
+    .filter((segment) => !COMMON_PATH_TOKENS.has(segment));
+
+  return segments[0] || '';
+}
+
+function extractRelatedUrl(url) {
+  if (!url?.searchParams) {
+    return null;
+  }
+
+  for (const name of CONTINUITY_URL_PARAM_NAMES) {
+    const value = Array.from(url.searchParams.entries()).find(([entryName]) => `${entryName || ''}`.trim().toLowerCase() === name)?.[1] || '';
+    const parsed = parseUrlCandidate(value);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function extractJourneyToken(url, relatedUrl = null, referrerUrl = null) {
+  const params = [url, relatedUrl, referrerUrl].filter(Boolean);
+
+  for (const current of params) {
+    for (const name of JOURNEY_PARAM_NAMES) {
+      const value = normalizeToken(
+        Array.from(current.searchParams?.entries?.() || []).find(([entryName]) => `${entryName || ''}`.trim().toLowerCase() === name)?.[1] || ''
+      );
+      if (value) {
+        return value;
+      }
+    }
+  }
+
+  return firstMeaningfulPathToken(url)
+    || firstMeaningfulPathToken(relatedUrl)
+    || firstMeaningfulPathToken(referrerUrl)
+    || '';
+}
+
+function buildLearningSessionScope() {
+  const currentUrl = parseUrlCandidate(window.location.href);
+  const referrerUrl = parseUrlCandidate(document.referrer || '');
+  const relatedUrl = extractRelatedUrl(currentUrl);
+  const brandToken = getBrandToken(currentUrl, relatedUrl, referrerUrl);
+  const journeyToken = extractJourneyToken(currentUrl, relatedUrl, referrerUrl);
+  const mode = journeyToken ? 'journey' : 'host';
+  const id = mode === 'journey'
+    ? `journey:${brandToken}:${journeyToken}`
+    : `host:${brandToken}:${normalizeHostname(currentUrl?.hostname || 'page')}`;
+
+  return {
+    id,
+    mode,
+    brandToken,
+    journeyToken,
+    hostname: normalizeHostname(currentUrl?.hostname || 'page'),
+    relatedHostname: normalizeHostname(relatedUrl?.hostname || ''),
+    referrerHostname: normalizeHostname(referrerUrl?.hostname || '')
+  };
+}
+
+function buildGlobalStoreStorageKey(scopeId, key) {
+  return `${GLOBAL_STORE_PREFIX}:${normalizeToken(scopeId, 'default-scope')}:${normalizeToken(key, 'value')}`;
+}
+
+function postBridgeResponse(requestId, ok, payload = null, error = '') {
+  window.postMessage({
+    source: EXTENSION_BRIDGE_RESPONSE_SOURCE,
+    requestId,
+    ok,
+    payload,
+    error: error || ''
+  }, '*');
+}
+
+function readGlobalStoreEntry(scopeId, key) {
+  const storage = getLocalStorage();
+  const storageKey = buildGlobalStoreStorageKey(scopeId, key);
+  return new Promise((resolve) => {
+    storage.get({ [storageKey]: '' }, (result) => {
+      resolve(result?.[storageKey] || '');
+    });
+  });
+}
+
+function writeGlobalStoreEntry(scopeId, key, value) {
+  const storage = getLocalStorage();
+  const storageKey = buildGlobalStoreStorageKey(scopeId, key);
+  return new Promise((resolve) => {
+    storage.set({ [storageKey]: value || '' }, resolve);
+  });
+}
+
+function removeGlobalStoreEntry(scopeId, key) {
+  const storage = getLocalStorage();
+  const storageKey = buildGlobalStoreStorageKey(scopeId, key);
+  return new Promise((resolve) => {
+    storage.remove(storageKey, resolve);
+  });
+}
+
+window.addEventListener('message', (event) => {
+  if (event.source !== window) {
+    return;
+  }
+
+  const payload = event.data;
+  if (!payload || payload.source !== EXTENSION_BRIDGE_SOURCE || payload.type !== 'global-store-request') {
+    return;
+  }
+
+  const requestId = `${payload.requestId || ''}`.trim();
+  const scopeId = `${payload.scopeId || ''}`.trim();
+  const key = `${payload.key || ''}`.trim();
+  const operation = `${payload.operation || ''}`.trim();
+
+  if (!requestId || !scopeId || !key || !operation) {
+    postBridgeResponse(requestId, false, null, 'Invalid global store request.');
+    return;
+  }
+
+  const handler = operation === 'get'
+    ? readGlobalStoreEntry(scopeId, key)
+    : operation === 'set'
+      ? writeGlobalStoreEntry(scopeId, key, `${payload.value || ''}`)
+      : operation === 'remove'
+        ? removeGlobalStoreEntry(scopeId, key)
+        : Promise.reject(new Error('Unsupported global store operation.'));
+
+  handler
+    .then((result) => {
+      postBridgeResponse(requestId, true, operation === 'get' ? result : true);
+    })
+    .catch((error) => {
+      postBridgeResponse(requestId, false, null, error?.message || 'Global store request failed.');
+    });
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' && areaName !== 'sync') {
+    return;
+  }
+
+  Object.entries(changes || {}).forEach(([storageKey, change]) => {
+    if (!storageKey.startsWith(`${GLOBAL_STORE_PREFIX}:`)) {
+      return;
+    }
+
+    window.postMessage({
+      source: EXTENSION_BRIDGE_RESPONSE_SOURCE,
+      type: 'global-store-changed',
+      storageKey,
+      value: `${change?.newValue || ''}`
+    }, '*');
+  });
+});
+
 async function bootstrap() {
   if (window.top !== window) {
     return;
@@ -324,6 +541,9 @@ async function bootstrap() {
     return;
   }
   document.documentElement.dataset.graphTrainerExtensionMounted = 'true';
+  document.documentElement.dataset.graphTrainerExtensionBridge = 'true';
+
+  const learningSessionScope = buildLearningSessionScope();
 
   const runtimeScripts = [
     'assets/page-state.js',
@@ -349,6 +569,10 @@ async function bootstrap() {
   document.documentElement.dataset.graphTrainerAppId = `chrome-extension-${normalizeHostname(window.location.hostname)}`;
   document.documentElement.dataset.graphTrainerStorageKey = `graph-extension-state-${normalizeHostname(window.location.hostname)}`;
   document.documentElement.dataset.graphTrainerWorkflowDescription = `Workflow on ${window.location.hostname || 'current-page'}`;
+  document.documentElement.dataset.graphTrainerLearningScopeId = learningSessionScope.id;
+  document.documentElement.dataset.graphTrainerLearningScopeMode = learningSessionScope.mode;
+  document.documentElement.dataset.graphTrainerLearningScopeBrand = learningSessionScope.brandToken;
+  document.documentElement.dataset.graphTrainerLearningScopeJourney = learningSessionScope.journeyToken || '';
 
   document.addEventListener('graph-trainer-extension-log', (event) => {
     const detail = event?.detail || {};

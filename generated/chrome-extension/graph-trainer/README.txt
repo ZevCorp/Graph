@@ -6,3 +6,4 @@
 4. Select this folder: C:\Users\User\Desktop\Graph\generated\chrome-extension\graph-trainer
 5. Open the extension popup and confirm the backend URL.
 6. Reload the target webpage.
+7. Miracle link: https://www.miracle.clinic/
