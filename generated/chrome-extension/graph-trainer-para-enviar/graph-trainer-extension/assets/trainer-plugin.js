@@ -77,6 +77,7 @@
         cancelRequested: false,
         workflowId: ''
     };
+    let executionClientInstance = null;
     const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
     const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
     const VOICE_RESUME_STORAGE_KEY = 'graph-voice-resume-state';
@@ -262,7 +263,11 @@
     }
 
     function executionClient() {
-        return window.GraphPluginExecutionClient?.create?.({
+        if (executionClientInstance) {
+            return executionClientInstance;
+        }
+
+        executionClientInstance = window.GraphPluginExecutionClient?.create?.({
             getOptions: () => options,
             getPluginHost: pluginHost,
             runtime,
@@ -273,6 +278,7 @@
             waitTimeoutMs: EXECUTION_WAIT_TIMEOUT_MS,
             stepDelayMs: EXECUTION_STEP_DELAY_MS
         }) || null;
+        return executionClientInstance;
     }
 
     function requireExecutionClient() {
@@ -3652,6 +3658,7 @@
     window.TrainerPlugin = {
         mount(config = {}) {
             options = buildMountOptions(config);
+            executionClientInstance = null;
             ensureStyles();
             ensureConsole();
             const miracleButton = miracleMicButton();
