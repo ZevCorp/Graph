@@ -124,7 +124,7 @@
             return step.label || step.selector || step.url || step.actionType || 'workflow';
         }
 
-        function isNewTabIntent(step, element) {
+        function isNewTabIntent(step, element, nextStep = null) {
             const labelText = `${step?.label || ''} ${element?.textContent || ''}`.toLowerCase();
             if (labelText.includes('nueva pesta') || labelText.includes('new tab')) {
                 return true;
@@ -134,10 +134,16 @@
                 return `${element.getAttribute('target') || ''}`.trim().toLowerCase() === '_blank';
             }
 
+             const nextNavigationUrl = normalizeExecutionUrl(nextStep?.actionType === 'navigation' ? nextStep?.url || '' : '');
+             const stepHref = normalizeExecutionUrl(step?.href || element?.getAttribute?.('href') || '');
+             if (nextNavigationUrl && stepHref && nextNavigationUrl === stepHref) {
+                 return true;
+             }
+
             return false;
         }
 
-        function resolveClickNavigationTarget(step, element) {
+        function resolveClickNavigationTarget(step, element, nextStep = null) {
             const candidateHref = `${step?.href || element?.getAttribute?.('href') || ''}`.trim();
             if (!candidateHref) {
                 return '';
@@ -153,7 +159,7 @@
                 return '';
             }
 
-            if (!isNewTabIntent(step, element)) {
+            if (!isNewTabIntent(step, element, nextStep)) {
                 return '';
             }
 
@@ -1061,7 +1067,7 @@
                     throwIfExecutionCancelled();
                     if (step.actionType === 'click') {
                         const baselineUrl = window.location.href;
-                        const clickNavigationTarget = resolveClickNavigationTarget(step, element);
+                        const clickNavigationTarget = resolveClickNavigationTarget(step, element, nextStep);
                         element.scrollIntoView({ block: 'center', inline: 'nearest' });
                         notifyAutomationStep(step, `Estoy interactuando con ${step.label || step.selector || 'este control'}.`);
                         if ('disabled' in element && element.disabled) {
