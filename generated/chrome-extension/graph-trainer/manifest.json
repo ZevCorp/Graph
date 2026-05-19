@@ -19,6 +19,9 @@
       "matches": [
         "<all_urls>"
       ],
+      "exclude_matches": [
+        "https://web.whatsapp.com/*"
+      ],
       "js": [
         "content.js"
       ],
@@ -34,6 +37,9 @@
       ],
       "matches": [
         "<all_urls>"
+      ],
+      "exclude_matches": [
+        "https://web.whatsapp.com/*"
       ]
     }
   ]

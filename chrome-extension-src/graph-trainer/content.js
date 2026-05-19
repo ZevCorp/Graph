@@ -12,6 +12,7 @@ const COMMON_HOST_TOKENS = new Set(['www', 'login', 'auth', 'secure', 'portal', 
 const COMMON_PATH_TOKENS = new Set(['home', 'index', 'login', 'signin', 'auth', 'sso', 'oauth', 'callback', 'servicelogin.aspx']);
 const CONTINUITY_URL_PARAM_NAMES = ['continueto', 'continue', 'redirect_uri', 'redirect', 'returnurl', 'return', 'target', 'dest', 'next'];
 const JOURNEY_PARAM_NAMES = ['service', 'product', 'app', 'flow', 'journey', 'scope', 'experience'];
+const BLOCKED_HOSTNAMES = new Set(['web.whatsapp.com']);
 
 let inspectModeActive = false;
 let inspectAbortController = null;
@@ -552,6 +553,14 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 async function bootstrap() {
   if (window.top !== window) {
+    return;
+  }
+
+  if (BLOCKED_HOSTNAMES.has(window.location.hostname)) {
+    await log('info', 'content', 'Skipping extension bootstrap on blocked hostname.', {
+      currentUrl: window.location.href,
+      hostname: window.location.hostname
+    });
     return;
   }
 
