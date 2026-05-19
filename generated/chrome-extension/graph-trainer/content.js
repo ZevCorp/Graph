@@ -3,6 +3,7 @@ const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_LIMIT = 200;
 const EXECUTION_LOG_SCOPES = new Set(['execution']);
 const VOICE_LOG_SCOPES = new Set(['voice']);
+const CONTINUITY_LOG_SCOPES = new Set(['content', 'bootstrap', 'recorder', 'execution']);
 const SELECTED_ELEMENT_STORAGE_KEY = 'graphTrainerSelectedElement';
 const EXTENSION_BRIDGE_SOURCE = 'graph-trainer-page';
 const EXTENSION_BRIDGE_RESPONSE_SOURCE = 'graph-trainer-extension-bridge';
@@ -299,6 +300,10 @@ function shouldPersistLogEntry(entry = {}) {
     return true;
   }
 
+  if (CONTINUITY_LOG_SCOPES.has(scope)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -499,11 +504,29 @@ window.addEventListener('message', (event) => {
         ? removeGlobalStoreEntry(scopeId, key)
         : Promise.reject(new Error('Unsupported global store operation.'));
 
+  log('info', 'content', 'Processing global store bridge request.', {
+    operation,
+    scopeId,
+    key
+  });
+
   handler
     .then((result) => {
+      log('info', 'content', 'Processed global store bridge request.', {
+        operation,
+        scopeId,
+        key,
+        ok: true
+      });
       postBridgeResponse(requestId, true, operation === 'get' ? result : true);
     })
     .catch((error) => {
+      log('error', 'content', 'Global store bridge request failed.', {
+        operation,
+        scopeId,
+        key,
+        message: error?.message || 'Global store request failed.'
+      });
       postBridgeResponse(requestId, false, null, error?.message || 'Global store request failed.');
     });
 });
@@ -574,6 +597,13 @@ async function bootstrap() {
   document.documentElement.dataset.graphTrainerLearningScopeBrand = learningSessionScope.brandToken;
   document.documentElement.dataset.graphTrainerLearningScopeJourney = learningSessionScope.journeyToken || '';
 
+  log('info', 'content', 'Resolved extension learning scope.', learningSessionScope);
+  log('info', 'bootstrap', 'Starting extension runtime injection.', {
+    currentUrl: window.location.href,
+    scriptCount: runtimeScripts.length,
+    learningSessionScope
+  });
+
   document.addEventListener('graph-trainer-extension-log', (event) => {
     const detail = event?.detail || {};
     log(detail.level || 'info', detail.scope || 'page', detail.message || 'Page event received.', detail.details || null);
@@ -591,8 +621,22 @@ async function bootstrap() {
   });
 
   for (const path of runtimeScripts) {
-    await injectExternalScript(path);
+    try {
+      await injectExternalScript(path);
+    } catch (error) {
+      await log('error', 'content', 'Failed to inject runtime script into page.', {
+        currentUrl: window.location.href,
+        path,
+        message: error?.message || 'Script injection failed.'
+      });
+      throw error;
+    }
   }
+
+  await log('info', 'bootstrap', 'Extension runtime injection completed.', {
+    currentUrl: window.location.href,
+    scriptCount: runtimeScripts.length
+  });
 }
 
 bootstrap().catch((error) => {
