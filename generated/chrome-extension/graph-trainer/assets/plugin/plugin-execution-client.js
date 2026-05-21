@@ -17,7 +17,12 @@
             return JSON.parse(JSON.stringify(value));
         }
 
-        function getExecutionScopeId() {
+        function getExecutionScopeId(plan = null) {
+            const explicitScopeId = `${plan?.executionScopeId || ''}`.trim();
+            if (explicitScopeId) {
+                return `${executionStoragePrefix}:scope:${explicitScopeId}`;
+            }
+
             const learningScopeId = `${getPluginHost()?.learningSessionScope?.id || ''}`.trim();
             if (learningScopeId) {
                 return `${executionStoragePrefix}:scope:${learningScopeId}`;
@@ -25,8 +30,8 @@
             return `${executionStoragePrefix}:app:${getOptions()?.appId || 'page'}`;
         }
 
-        function getExecutionStorageKey() {
-            return getExecutionScopeId();
+        function getExecutionStorageKey(plan = null) {
+            return getExecutionScopeId(plan);
         }
 
         function parsePendingExecution(raw) {
@@ -52,12 +57,13 @@
                 const storageKey = getExecutionStorageKey();
                 let raw = '';
                 let source = 'none';
+                let extensionStoreResolved = false;
                 if (host?.globalStore?.isExtensionBacked) {
                     try {
                         raw = await host.globalStore.get(storageKey);
-                        if (raw) {
-                            source = 'extension_store';
-                        }
+                        source = 'extension_store';
+                        extensionStoreResolved = true;
+                        syncLocalPendingExecutionFallback(storageKey, raw);
                     } catch (error) {
                         emitExtensionLog('error', 'Failed to load pending execution state from extension store.', {
                             executionScopeId: storageKey,
@@ -66,6 +72,7 @@
                     }
                     if (typeof host.globalStore.subscribe === 'function') {
                         host.globalStore.subscribe(storageKey, (nextRaw) => {
+                            syncLocalPendingExecutionFallback(storageKey, nextRaw);
                             cachedPendingExecution = parsePendingExecution(nextRaw);
                             emitExtensionLog('info', 'Observed pending execution state change from extension store.', {
                                 executionScopeId: storageKey,
@@ -77,14 +84,14 @@
                     }
                 }
 
-                if (!raw) {
+                if (!raw && !extensionStoreResolved) {
                     raw = readBrowserSessionStorage(storageKey);
                     if (raw) {
                         source = 'browser_session_storage';
                     }
                 }
 
-                if (!raw) {
+                if (!raw && !extensionStoreResolved) {
                     raw = host?.sessionStore?.get(storageKey) || '';
                     if (raw) {
                         source = 'host_session_store';
@@ -130,20 +137,32 @@
             }
         }
 
+        function syncLocalPendingExecutionFallback(storageKey, value) {
+            const serialized = value === null || value === undefined ? '' : `${value}`;
+            const browserSessionPersisted = writeBrowserSessionStorage(storageKey, serialized);
+
+            try {
+                if (!serialized) {
+                    getPluginHost()?.sessionStore?.remove(storageKey);
+                } else {
+                    getPluginHost()?.sessionStore?.set(storageKey, serialized);
+                }
+            } catch (error) {
+                // Ignore host session storage failures.
+            }
+
+            return browserSessionPersisted;
+        }
+
         async function persistPendingExecution(plan) {
             const host = getPluginHost();
-            const storageKey = getExecutionStorageKey();
+            const storageKey = getExecutionStorageKey(plan);
             cachedPendingExecution = parsePendingExecution(plan || null);
             const serialized = JSON.stringify(plan || {});
             const workflowId = `${plan?.workflowId || ''}`.trim();
             const nextStepIndex = Number.isFinite(plan?.nextStepIndex) ? plan.nextStepIndex : null;
 
-            const browserSessionPersisted = writeBrowserSessionStorage(storageKey, serialized);
-            try {
-                host?.sessionStore?.set(storageKey, serialized);
-            } catch (error) {
-                // Ignore host session storage failures.
-            }
+            const browserSessionPersisted = syncLocalPendingExecutionFallback(storageKey, serialized);
 
             emitExtensionLog('info', 'Persisting pending execution state.', {
                 executionScopeId: storageKey,
@@ -181,17 +200,10 @@
             });
         }
 
-        async function clearPendingExecution() {
+        async function clearPendingExecutionStorageKey(storageKey) {
             const host = getPluginHost();
-            const storageKey = getExecutionStorageKey();
             cachedPendingExecution = null;
-            const browserSessionCleared = writeBrowserSessionStorage(storageKey, '');
-
-            try {
-                host?.sessionStore?.remove(storageKey);
-            } catch (error) {
-                // Ignore host session storage failures.
-            }
+            const browserSessionCleared = syncLocalPendingExecutionFallback(storageKey, '');
 
             if (host?.globalStore?.isExtensionBacked) {
                 try {
@@ -216,6 +228,10 @@
             });
         }
 
+        async function clearPendingExecution(plan = null) {
+            return clearPendingExecutionStorageKey(getExecutionStorageKey(plan));
+        }
+
         function normalizeExecutionUrl(rawUrl) {
             if (!rawUrl) {
                 return '';
@@ -230,6 +246,101 @@
 
         function urlsMatch(left, right) {
             return normalizeExecutionUrl(left) === normalizeExecutionUrl(right);
+        }
+
+        function normalizeScopeToken(value, fallback = '') {
+            return `${value || ''}`
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9.-]+/g, '-')
+                .replace(/^-+|-+$/g, '') || fallback;
+        }
+
+        function normalizeJourneyToken(value, fallback = '') {
+            return `${value || ''}`
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '') || fallback;
+        }
+
+        function parseExecutionUrlCandidate(value) {
+            const raw = `${value || ''}`.trim();
+            if (!raw) {
+                return null;
+            }
+
+            try {
+                return new URL(raw, window.location.href);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function collectExecutionHostTokens(hostname = '') {
+            const commonHostTokens = new Set(['www', 'login', 'auth', 'secure', 'portal', 'app', 'm']);
+            return `${hostname || ''}`
+                .trim()
+                .toLowerCase()
+                .split('.')
+                .filter(Boolean)
+                .filter((token) => !commonHostTokens.has(token))
+                .filter((token) => !['com', 'co', 'net', 'org', 'gov', 'edu'].includes(token))
+                .map((token) => normalizeJourneyToken(token))
+                .filter(Boolean);
+        }
+
+        function extractJourneyTokenFromUrl(url) {
+            if (!url) {
+                return '';
+            }
+
+            const journeyParamNames = ['service', 'product', 'app', 'flow', 'journey', 'scope', 'experience'];
+            for (const name of journeyParamNames) {
+                const value = normalizeJourneyToken(
+                    Array.from(url.searchParams?.entries?.() || []).find(([entryName]) => `${entryName || ''}`.trim().toLowerCase() === name)?.[1] || ''
+                );
+                if (value) {
+                    return value;
+                }
+            }
+
+            const commonPathTokens = new Set(['home', 'index', 'login', 'signin', 'auth', 'sso', 'oauth', 'callback', 'servicelogin.aspx']);
+            const segments = `${url.pathname || ''}`
+                .split('/')
+                .map((segment) => normalizeJourneyToken(segment))
+                .filter(Boolean)
+                .filter((segment) => !commonPathTokens.has(segment));
+
+            return segments[0] || '';
+        }
+
+        function buildCanonicalExecutionScope(plan) {
+            const explicitScopeId = `${plan?.executionScopeId || ''}`.trim();
+            if (explicitScopeId) {
+                return explicitScopeId;
+            }
+
+            const currentScope = `${getPluginHost()?.learningSessionScope?.id || ''}`.trim();
+            const candidates = [
+                parseExecutionUrlCandidate(plan?.sourceUrl || ''),
+                parseExecutionUrlCandidate(window.location.href),
+                ...((Array.isArray(plan?.steps) ? plan.steps : []).flatMap((step) => ([
+                    parseExecutionUrlCandidate(step?.url || ''),
+                    parseExecutionUrlCandidate(step?.href || '')
+                ])))
+            ].filter(Boolean);
+
+            const journeyUrl = candidates.find((candidate) => extractJourneyTokenFromUrl(candidate));
+            if (journeyUrl) {
+                const journeyToken = extractJourneyTokenFromUrl(journeyUrl);
+                const brandToken = collectExecutionHostTokens(journeyUrl.hostname)[0]
+                    || collectExecutionHostTokens(candidates[0]?.hostname || '')[0]
+                    || 'page';
+                return `journey:${brandToken}:${journeyToken}`;
+            }
+
+            return currentScope || '';
         }
 
         function describeStep(step) {
@@ -1098,11 +1209,24 @@
             let currentPlan = null;
 
             try {
+                const canonicalExecutionScopeId = buildCanonicalExecutionScope(plan);
+                const pageExecutionStorageKey = getExecutionStorageKey();
+                const canonicalExecutionStorageKey = getExecutionStorageKey({
+                    executionScopeId: canonicalExecutionScopeId
+                });
+                if (
+                    canonicalExecutionStorageKey
+                    && pageExecutionStorageKey
+                    && canonicalExecutionStorageKey !== pageExecutionStorageKey
+                ) {
+                    await clearPendingExecutionStorageKey(pageExecutionStorageKey);
+                }
                 if (!Number.isFinite(plan.nextStepIndex) || plan.nextStepIndex <= 0) {
                     resetSurfaceStateForFreshExecution();
                 }
                 currentPlan = await updateExecutionProgress({
                     ...cloneJson(plan),
+                    executionScopeId: canonicalExecutionScopeId,
                     trigger,
                     nextStepIndex: Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0,
                     startedAt: plan.startedAt || Date.now()
@@ -1118,7 +1242,8 @@
                     workflowId: currentPlan.workflowId,
                     trigger,
                     stepCount: currentPlan.steps.length,
-                    currentUrl: window.location.href
+                    currentUrl: window.location.href,
+                    executionScopeId: currentPlan.executionScopeId || ''
                 });
 
                 for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
@@ -1249,7 +1374,7 @@
                     await waitMs(stepDelayMs);
                 }
 
-                await clearPendingExecution();
+                await clearPendingExecution(currentPlan);
                 runtime()?.clearSpotlight?.();
                 updateWorkflowPanelStatus('Automatizacion completada en esta pagina.');
                 runtime()?.speak('Listo, termine de completar la tarea aqui mismo.', { mode: 'idle' });
@@ -1264,7 +1389,7 @@
                 });
             } catch (error) {
                 if (error?.code === 'EXECUTION_CANCELLED') {
-                    await clearPendingExecution();
+                    await clearPendingExecution(currentPlan);
                     runtime()?.clearSpotlight?.();
                     updateWorkflowPanelStatus('Automatizacion detenida.');
                     runtime()?.speak('Detuve la automatizacion.', { mode: 'idle' });
