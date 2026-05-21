@@ -200,3 +200,13 @@ Still intentionally incomplete:
 - adapters for frameworks beyond the current demos
 - real-time voice input/output
 - assistant-managed long-term memory and CRM sync
+
+## Branch Note: Tab Execution Research
+
+This branch is being kept as a research snapshot for understanding execution state across tabs and windows.
+
+It was originally created to follow execution through Sura tab handoffs, and later to stop those executions correctly across tabs. That structure did produce a functional path for cross-tab execution continuity and stop behavior, so it should be treated as useful inspiration for a transversal and global system for tab coordination and synchronization of execution state, stop flows, and learning.
+
+The key conclusion from this branch is that we should not keep inventing a new tracing mechanism every time a workflow opens a new tab. Instead, the product needs a single, maintainable, reusable execution-state core that works across the whole system. That core should make it possible to follow execution, stop executions, and preserve learning effectively across different flows and tabs.
+
+This branch also shows an important limit: in this implementation, the behavior was assembled through patches instead of a centralized core. Because of that, it ended up breaking base application behavior, including normal, calm execution on any page. So the direction is not to copy these patches as-is, but to extract the valid ideas and rebuild them into a shared global state architecture.
