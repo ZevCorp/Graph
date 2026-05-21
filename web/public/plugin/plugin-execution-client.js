@@ -11,6 +11,7 @@
         const stepDelayMs = Number.isFinite(deps.stepDelayMs) ? deps.stepDelayMs : 180;
         const emittedDiagnostics = new Set();
         let cachedPendingExecution = null;
+        let cachedPendingExecutionStorageKey = '';
         let pendingExecutionLoadPromise = null;
 
         function cloneJson(value) {
@@ -34,6 +35,11 @@
             return getExecutionScopeId(plan);
         }
 
+        function getExecutionScopeIdFromStorageKey(storageKey) {
+            const match = `${storageKey || ''}`.match(new RegExp(`^${executionStoragePrefix}:(?:scope|app):(.+)$`));
+            return match?.[1] || '';
+        }
+
         function parsePendingExecution(raw) {
             if (!raw) return null;
             try {
@@ -47,6 +53,78 @@
             }
         }
 
+        function getPlanExecutionUrls(plan = null) {
+            const urls = [];
+            if (plan?.sourceUrl) {
+                urls.push(plan.sourceUrl);
+            }
+            for (const step of Array.isArray(plan?.steps) ? plan.steps : []) {
+                if (step?.url) {
+                    urls.push(step.url);
+                }
+                if (step?.href) {
+                    urls.push(step.href);
+                }
+            }
+            return urls
+                .map((value) => parseExecutionUrlCandidate(value))
+                .filter(Boolean);
+        }
+
+        function getExecutionSurfaceId(url) {
+            if (!url) {
+                return '';
+            }
+            return `${url.origin}${url.pathname}`.toLowerCase();
+        }
+
+        function buildHostExecutionScope(plan = null) {
+            const learningScope = getPluginHost()?.learningSessionScope || {};
+            const candidates = [
+                parseExecutionUrlCandidate(window.location.href),
+                ...getPlanExecutionUrls(plan)
+            ].filter(Boolean);
+            const primaryUrl = candidates[0] || null;
+            const brandToken = `${learningScope.brandToken || ''}`.trim()
+                || collectExecutionHostTokens(primaryUrl?.hostname || '')[0]
+                || 'page';
+            const hostname = normalizeScopeToken(
+                primaryUrl?.hostname || learningScope.hostname || window.location.hostname || 'page',
+                'page'
+            );
+            if (!hostname) {
+                return '';
+            }
+            return `host:${brandToken}:${hostname}`;
+        }
+
+        function planSpansMultipleSurfaces(plan = null) {
+            const surfaceIds = new Set(
+                getPlanExecutionUrls(plan)
+                    .map((url) => getExecutionSurfaceId(url))
+                    .filter(Boolean)
+            );
+            return surfaceIds.size > 1;
+        }
+
+        function getPendingExecutionStorageKeys(plan = null) {
+            const keys = [];
+            const addKey = (value) => {
+                const normalized = `${value || ''}`.trim();
+                if (normalized && !keys.includes(normalized)) {
+                    keys.push(normalized);
+                }
+            };
+
+            addKey(getExecutionStorageKey(plan));
+            if (!plan?.executionScopeId) {
+                addKey(getExecutionStorageKey({
+                    executionScopeId: buildHostExecutionScope(plan)
+                }));
+            }
+            return keys;
+        }
+
         async function ensurePendingExecutionLoaded() {
             if (pendingExecutionLoadPromise) {
                 return pendingExecutionLoadPromise;
@@ -54,53 +132,85 @@
 
             pendingExecutionLoadPromise = (async () => {
                 const host = getPluginHost();
-                const storageKey = getExecutionStorageKey();
+                const storageKeys = getPendingExecutionStorageKeys();
                 let raw = '';
                 let source = 'none';
+                let resolvedStorageKey = '';
                 let extensionStoreResolved = false;
                 if (host?.globalStore?.isExtensionBacked) {
-                    try {
-                        raw = await host.globalStore.get(storageKey);
-                        source = 'extension_store';
-                        extensionStoreResolved = true;
-                        syncLocalPendingExecutionFallback(storageKey, raw);
-                    } catch (error) {
-                        emitExtensionLog('error', 'Failed to load pending execution state from extension store.', {
-                            executionScopeId: storageKey,
-                            errorMessage: error?.message || 'Extension store read failed.'
-                        });
+                    for (const storageKey of storageKeys) {
+                        try {
+                            const nextRaw = await host.globalStore.get(storageKey);
+                            extensionStoreResolved = true;
+                            if (nextRaw) {
+                                raw = nextRaw;
+                                resolvedStorageKey = storageKey;
+                                source = storageKey === storageKeys[0]
+                                    ? 'extension_store'
+                                    : 'extension_store_fallback';
+                                syncLocalPendingExecutionFallback(storageKey, nextRaw);
+                                break;
+                            }
+                        } catch (error) {
+                            emitExtensionLog('error', 'Failed to load pending execution state from extension store.', {
+                                executionScopeId: storageKey,
+                                errorMessage: error?.message || 'Extension store read failed.'
+                            });
+                        }
                     }
                     if (typeof host.globalStore.subscribe === 'function') {
-                        host.globalStore.subscribe(storageKey, (nextRaw) => {
-                            syncLocalPendingExecutionFallback(storageKey, nextRaw);
-                            cachedPendingExecution = parsePendingExecution(nextRaw);
-                            emitExtensionLog('info', 'Observed pending execution state change from extension store.', {
-                                executionScopeId: storageKey,
-                                hasPendingExecution: Boolean(cachedPendingExecution),
-                                nextStepIndex: Number.isFinite(cachedPendingExecution?.nextStepIndex) ? cachedPendingExecution.nextStepIndex : null,
-                                workflowId: `${cachedPendingExecution?.workflowId || ''}`.trim()
+                        for (const storageKey of storageKeys) {
+                            host.globalStore.subscribe(storageKey, (nextRaw) => {
+                                syncLocalPendingExecutionFallback(storageKey, nextRaw);
+                                cachedPendingExecution = parsePendingExecution(nextRaw);
+                                cachedPendingExecutionStorageKey = cachedPendingExecution ? storageKey : '';
+                                if (cachedPendingExecution && !cachedPendingExecution.executionScopeId) {
+                                    cachedPendingExecution.executionScopeId = getExecutionScopeIdFromStorageKey(storageKey);
+                                }
+                                emitExtensionLog('info', 'Observed pending execution state change from extension store.', {
+                                    executionScopeId: storageKey,
+                                    hasPendingExecution: Boolean(cachedPendingExecution),
+                                    nextStepIndex: Number.isFinite(cachedPendingExecution?.nextStepIndex) ? cachedPendingExecution.nextStepIndex : null,
+                                    workflowId: `${cachedPendingExecution?.workflowId || ''}`.trim()
+                                });
                             });
-                        });
+                        }
                     }
                 }
 
                 if (!raw && !extensionStoreResolved) {
-                    raw = readBrowserSessionStorage(storageKey);
-                    if (raw) {
-                        source = 'browser_session_storage';
+                    for (const storageKey of storageKeys) {
+                        raw = readBrowserSessionStorage(storageKey);
+                        if (raw) {
+                            resolvedStorageKey = storageKey;
+                            source = storageKey === storageKeys[0]
+                                ? 'browser_session_storage'
+                                : 'browser_session_storage_fallback';
+                            break;
+                        }
                     }
                 }
 
                 if (!raw && !extensionStoreResolved) {
-                    raw = host?.sessionStore?.get(storageKey) || '';
-                    if (raw) {
-                        source = 'host_session_store';
+                    for (const storageKey of storageKeys) {
+                        raw = host?.sessionStore?.get(storageKey) || '';
+                        if (raw) {
+                            resolvedStorageKey = storageKey;
+                            source = storageKey === storageKeys[0]
+                                ? 'host_session_store'
+                                : 'host_session_store_fallback';
+                            break;
+                        }
                     }
                 }
 
                 cachedPendingExecution = parsePendingExecution(raw);
+                cachedPendingExecutionStorageKey = cachedPendingExecution ? (resolvedStorageKey || storageKeys[0] || '') : '';
+                if (cachedPendingExecution && !cachedPendingExecution.executionScopeId) {
+                    cachedPendingExecution.executionScopeId = getExecutionScopeIdFromStorageKey(cachedPendingExecutionStorageKey);
+                }
                 emitExtensionLog('info', 'Loaded pending execution state.', {
-                    executionScopeId: storageKey,
+                    executionScopeId: cachedPendingExecutionStorageKey || storageKeys[0] || '',
                     source,
                     hasPendingExecution: Boolean(cachedPendingExecution),
                     nextStepIndex: Number.isFinite(cachedPendingExecution?.nextStepIndex) ? cachedPendingExecution.nextStepIndex : null,
@@ -158,6 +268,7 @@
             const host = getPluginHost();
             const storageKey = getExecutionStorageKey(plan);
             cachedPendingExecution = parsePendingExecution(plan || null);
+            cachedPendingExecutionStorageKey = storageKey;
             const serialized = JSON.stringify(plan || {});
             const workflowId = `${plan?.workflowId || ''}`.trim();
             const nextStepIndex = Number.isFinite(plan?.nextStepIndex) ? plan.nextStepIndex : null;
@@ -203,6 +314,9 @@
         async function clearPendingExecutionStorageKey(storageKey) {
             const host = getPluginHost();
             cachedPendingExecution = null;
+            if (cachedPendingExecutionStorageKey === storageKey) {
+                cachedPendingExecutionStorageKey = '';
+            }
             const browserSessionCleared = syncLocalPendingExecutionFallback(storageKey, '');
 
             if (host?.globalStore?.isExtensionBacked) {
@@ -229,7 +343,11 @@
         }
 
         async function clearPendingExecution(plan = null) {
-            return clearPendingExecutionStorageKey(getExecutionStorageKey(plan));
+            const storageKey = getExecutionStorageKey(plan) || cachedPendingExecutionStorageKey;
+            if (!storageKey) {
+                return;
+            }
+            return clearPendingExecutionStorageKey(storageKey);
         }
 
         function normalizeExecutionUrl(rawUrl) {
@@ -319,6 +437,13 @@
             const explicitScopeId = `${plan?.executionScopeId || ''}`.trim();
             if (explicitScopeId) {
                 return explicitScopeId;
+            }
+
+            if (planSpansMultipleSurfaces(plan)) {
+                const hostExecutionScope = buildHostExecutionScope(plan);
+                if (hostExecutionScope) {
+                    return hostExecutionScope;
+                }
             }
 
             const currentScope = `${getPluginHost()?.learningSessionScope?.id || ''}`.trim();
