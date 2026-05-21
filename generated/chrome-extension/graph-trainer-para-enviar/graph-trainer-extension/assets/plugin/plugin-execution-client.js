@@ -468,6 +468,52 @@
             return currentScope || '';
         }
 
+        function alignPendingExecutionForCurrentPage(plan) {
+            if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
+                return plan;
+            }
+
+            const nextStepIndex = Number.isFinite(plan.nextStepIndex) ? plan.nextStepIndex : 0;
+            if (nextStepIndex <= 0 || nextStepIndex >= plan.steps.length) {
+                return plan;
+            }
+
+            const currentUrl = normalizeExecutionUrl(window.location.href);
+            if (!currentUrl) {
+                return plan;
+            }
+
+            const nextStep = plan.steps[nextStepIndex] || null;
+            const nextStepUrl = normalizeExecutionUrl(nextStep?.url || '');
+            if (nextStep?.actionType !== 'navigation' && (!nextStepUrl || nextStepUrl === currentUrl)) {
+                return plan;
+            }
+
+            for (let index = nextStepIndex; index < plan.steps.length; index += 1) {
+                const step = plan.steps[index];
+                const stepUrl = normalizeExecutionUrl(step?.url || '');
+                if (step?.actionType === 'navigation') {
+                    const targetUrl = normalizeExecutionUrl(step?.url || '');
+                    if (targetUrl && targetUrl === currentUrl) {
+                        return {
+                            ...plan,
+                            nextStepIndex: index + 1
+                        };
+                    }
+                    continue;
+                }
+
+                if (stepUrl && stepUrl === currentUrl) {
+                    return {
+                        ...plan,
+                        nextStepIndex: index
+                    };
+                }
+            }
+
+            return plan;
+        }
+
         function describeStep(step) {
             if (!step) return 'workflow';
             return step.label || step.selector || step.url || step.actionType || 'workflow';
@@ -1562,6 +1608,7 @@
             cloneJson,
             ensurePendingExecutionLoaded,
             getExecutionStorageKey,
+            alignPendingExecutionForCurrentPage,
             readPendingExecution,
             persistPendingExecution,
             clearPendingExecution,

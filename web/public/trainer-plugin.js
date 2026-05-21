@@ -1962,6 +1962,10 @@
         return requireExecutionClient().ensurePendingExecutionLoaded();
     }
 
+    function alignPendingExecutionForCurrentPage(plan) {
+        return requireExecutionClient().alignPendingExecutionForCurrentPage(plan);
+    }
+
     function clearPendingExecution() {
         return requireExecutionClient().clearPendingExecution();
     }
@@ -2154,7 +2158,8 @@
 
     async function resumePendingExecution() {
         await ensurePendingExecutionLoaded();
-        const pending = readPendingExecution();
+        const rawPending = readPendingExecution();
+        const pending = alignPendingExecutionForCurrentPage(rawPending);
         emitExtensionLog('info', 'Evaluating pending execution resume.', {
             hasPendingExecution: Boolean(pending),
             executionRunning: Boolean(executionState.running),
@@ -2162,6 +2167,14 @@
             workflowId: `${pending?.workflowId || ''}`.trim(),
             currentUrl: window.location.href
         });
+        if (pending && rawPending && pending.nextStepIndex !== rawPending.nextStepIndex) {
+            emitExtensionLog('info', 'Aligned pending execution step to current page.', {
+                workflowId: `${pending?.workflowId || ''}`.trim(),
+                currentUrl: window.location.href,
+                previousNextStepIndex: Number.isFinite(rawPending?.nextStepIndex) ? rawPending.nextStepIndex : null,
+                nextStepIndex: Number.isFinite(pending?.nextStepIndex) ? pending.nextStepIndex : null
+            });
+        }
         if (!pending || executionState.running) {
             emitExtensionLog('info', 'Skipping pending execution resume.', {
                 hasPendingExecution: Boolean(pending),
