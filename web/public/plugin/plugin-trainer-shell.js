@@ -129,12 +129,24 @@
             runtime()?.setVoiceButtonActive?.(active);
         }
 
-        function setExecutionStopButtonVisible(active) {
+        function setExecutionStopButtonVisible(active, count = 0) {
             const button = document.getElementById('btn-stop-execution');
+            const badge = document.getElementById('btn-stop-execution-count');
             if (!button) return;
             button.hidden = !active;
             button.disabled = !active;
             button.setAttribute('aria-hidden', active ? 'false' : 'true');
+            button.setAttribute('aria-label', active
+                ? `Detener automatizacion. ${count || 0} ejecuciones activas.`
+                : 'Detener automatizacion');
+            button.title = active
+                ? `Detener automatizacion (${count || 0})`
+                : 'Detener automatizacion';
+            if (badge) {
+                const normalizedCount = Math.max(0, Number(count) || 0);
+                badge.textContent = `${normalizedCount}`;
+                badge.hidden = !active || normalizedCount <= 0;
+            }
         }
 
         function clearLongPressTimer() {

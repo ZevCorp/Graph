@@ -78,6 +78,7 @@
         workflowId: ''
     };
     let executionClientInstance = null;
+    let activeExecutionSummaryUnsubscribe = null;
     const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
     const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
     const VOICE_RESUME_STORAGE_KEY = 'graph-voice-resume-state';
@@ -507,8 +508,28 @@
             .console button.execution-stop-btn {
                 background: #c62828;
                 color: #ffffff;
+                position: relative;
             }
             .console button.execution-stop-btn[hidden] {
+                display: none;
+            }
+            .console button.execution-stop-btn .execution-stop-count {
+                position: absolute;
+                top: -5px;
+                right: -5px;
+                min-width: 16px;
+                height: 16px;
+                padding: 0 4px;
+                border-radius: 999px;
+                background: #111111;
+                color: #ffffff;
+                font-size: 10px;
+                font-weight: 700;
+                line-height: 16px;
+                text-align: center;
+                box-shadow: 0 0 0 2px #c62828;
+            }
+            .console button.execution-stop-btn .execution-stop-count[hidden] {
                 display: none;
             }
             .console button.miracle-mic-btn {
@@ -1153,6 +1174,7 @@
                 </button>
                 <button class="icon-btn execution-stop-btn" id="btn-stop-execution" type="button" title="Detener automatizacion" aria-label="Detener automatizacion" hidden>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" fill="currentColor"/></svg>
+                    <span class="execution-stop-count" id="btn-stop-execution-count" hidden>0</span>
                 </button>
                 <div class="assistant-phone-mic-pairing" id="assistant-phone-mic-pairing" data-docked="toolbar" aria-live="polite">
                     <div class="assistant-phone-mic-pairing-text">
@@ -1437,8 +1459,8 @@
         return requireTrainerShell().setVoiceButton(active);
     }
 
-    function setExecutionStopButtonVisible(active) {
-        return requireTrainerShell().setExecutionStopButtonVisible(active);
+    function setExecutionStopButtonVisible(active, count = 0) {
+        return requireTrainerShell().setExecutionStopButtonVisible(active, count);
     }
 
     function miracleMicButton() {
@@ -1970,8 +1992,25 @@
         return requireExecutionClient().clearPendingExecution();
     }
 
+    async function ensureActiveExecutionsLoaded() {
+        return requireExecutionClient().ensureActiveExecutionsLoaded();
+    }
+
+    function readActiveExecutionSummary() {
+        return requireExecutionClient().readActiveExecutionSummary();
+    }
+
+    function subscribeToActiveExecutionSummary(listener) {
+        return requireExecutionClient().subscribeToActiveExecutionSummary(listener);
+    }
+
     function stopWorkflowExecution() {
-        return requireExecutionClient().cancelExecution();
+        return requireExecutionClient().requestStopAllActiveExecutions();
+    }
+
+    function updateExecutionStopButtonFromSummary(summary = null) {
+        const count = Math.max(0, Number(summary?.count) || 0);
+        setExecutionStopButtonVisible(count > 0, count);
     }
 
     function emitExtensionLog(level, message, details = null) {
@@ -3723,16 +3762,16 @@
                     persistLearningContextNote(payload?.note || null);
                 });
                 pluginEvents()?.on?.('workflow.execution.started', () => {
-                    setExecutionStopButtonVisible(true);
+                    updateExecutionStopButtonFromSummary(readActiveExecutionSummary());
                 });
                 pluginEvents()?.on?.('workflow.execution.finished', () => {
-                    setExecutionStopButtonVisible(false);
+                    updateExecutionStopButtonFromSummary(readActiveExecutionSummary());
                 });
                 pluginEvents()?.on?.('workflow.execution.cancelled', () => {
-                    setExecutionStopButtonVisible(false);
+                    updateExecutionStopButtonFromSummary(readActiveExecutionSummary());
                 });
                 pluginEvents()?.on?.('workflow.execution.failed', () => {
-                    setExecutionStopButtonVisible(false);
+                    updateExecutionStopButtonFromSummary(readActiveExecutionSummary());
                 });
                 runtimeTouchBound = true;
             }
@@ -3752,7 +3791,15 @@
             closeWorkflowPanel();
             closeImprovementPanel();
             hideWorkflowOverlay();
-            setExecutionStopButtonVisible(Boolean(executionState.running));
+            if (activeExecutionSummaryUnsubscribe) {
+                activeExecutionSummaryUnsubscribe();
+                activeExecutionSummaryUnsubscribe = null;
+            }
+            activeExecutionSummaryUnsubscribe = subscribeToActiveExecutionSummary((summary) => {
+                updateExecutionStopButtonFromSummary(summary);
+            });
+            ensureActiveExecutionsLoaded().catch(() => {});
+            updateExecutionStopButtonFromSummary(readActiveExecutionSummary());
             updateConsoleExpandedState();
 
             requireLearningClient().syncRecorderStatus();

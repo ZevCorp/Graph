@@ -196,6 +196,9 @@
         const globalStore = canUseExtensionBridge()
             ? createExtensionBridgeStore(learningSessionScope.id)
             : null;
+        const appGlobalStore = canUseExtensionBridge()
+            ? createExtensionBridgeStore(`app:${appId}`)
+            : null;
 
         const createdHost = {
             platform,
@@ -204,6 +207,7 @@
             learningSessionScope,
             fetchImpl: typeof window !== 'undefined' ? window.fetch.bind(window) : null,
             globalStore,
+            appGlobalStore,
             localStore: createStorage(`${platform}:${appId}:local`, window.localStorage),
             sessionStore: createStorage(`${platform}:${appId}:session`, window.sessionStorage)
         };

@@ -9,13 +9,25 @@
         const executionStoragePrefix = deps.executionStoragePrefix || 'graph-browser-workflow-execution-v1';
         const waitTimeoutMs = Number.isFinite(deps.waitTimeoutMs) ? deps.waitTimeoutMs : 15000;
         const stepDelayMs = Number.isFinite(deps.stepDelayMs) ? deps.stepDelayMs : 180;
+        const activeExecutionsRegistryKey = 'graph-browser-active-executions-v1';
+        const activeExecutionsControlKey = 'graph-browser-active-executions-control-v1';
+        const activeExecutionTtlMs = 30 * 60 * 1000;
         const emittedDiagnostics = new Set();
         let cachedPendingExecution = null;
         let cachedPendingExecutionStorageKey = '';
         let pendingExecutionLoadPromise = null;
+        let activeExecutionsSnapshot = { entries: {} };
+        let activeExecutionsLoadPromise = null;
+        let activeExecutionsSubscribed = false;
+        let lastHandledStopRequestId = '';
+        const activeExecutionListeners = new Set();
 
         function cloneJson(value) {
             return JSON.parse(JSON.stringify(value));
+        }
+
+        function getAppGlobalStore() {
+            return getPluginHost()?.appGlobalStore || null;
         }
 
         function getExecutionScopeId(plan = null) {
@@ -50,6 +62,225 @@
                 return parsed;
             } catch (error) {
                 return null;
+            }
+        }
+
+        function parseActiveExecutionsRegistry(raw) {
+            if (!raw) {
+                return { entries: {} };
+            }
+            try {
+                const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                const entries = parsed?.entries && typeof parsed.entries === 'object' ? parsed.entries : {};
+                const sanitizedEntries = {};
+                const now = Date.now();
+                for (const [entryId, entry] of Object.entries(entries)) {
+                    if (!entry || typeof entry !== 'object') {
+                        continue;
+                    }
+                    const workflowId = `${entry.workflowId || ''}`.trim();
+                    const updatedAt = Number(entry.updatedAt || 0);
+                    if (!workflowId || !Number.isFinite(updatedAt) || updatedAt <= 0) {
+                        continue;
+                    }
+                    if (now - updatedAt > activeExecutionTtlMs) {
+                        continue;
+                    }
+                    sanitizedEntries[entryId] = {
+                        workflowId,
+                        executionScopeId: `${entry.executionScopeId || ''}`.trim(),
+                        pageUrl: `${entry.pageUrl || ''}`.trim(),
+                        updatedAt,
+                        startedAt: Number(entry.startedAt || 0) || updatedAt
+                    };
+                }
+                return { entries: sanitizedEntries };
+            } catch (error) {
+                return { entries: {} };
+            }
+        }
+
+        function serializeActiveExecutionsRegistry(registry = null) {
+            return JSON.stringify(registry && typeof registry === 'object'
+                ? registry
+                : { entries: {} });
+        }
+
+        function notifyActiveExecutionListeners() {
+            const summary = {
+                count: Object.keys(activeExecutionsSnapshot?.entries || {}).length,
+                entries: Object.values(activeExecutionsSnapshot?.entries || {}).map((entry) => ({ ...entry }))
+            };
+            activeExecutionListeners.forEach((listener) => {
+                try {
+                    listener(summary);
+                } catch (error) {
+                    // Ignore listener issues to keep execution state stable.
+                }
+            });
+        }
+
+        function getActiveExecutionEntryId(plan = null) {
+            const workflowId = `${plan?.workflowId || cachedPendingExecution?.workflowId || ''}`.trim();
+            if (!workflowId) {
+                return '';
+            }
+            const startedAt = Number(plan?.startedAt || cachedPendingExecution?.startedAt || 0);
+            return startedAt > 0 ? `${workflowId}:${startedAt}` : workflowId;
+        }
+
+        async function writeActiveExecutionsRegistry(registry) {
+            const appGlobalStore = getAppGlobalStore();
+            activeExecutionsSnapshot = parseActiveExecutionsRegistry(registry);
+            notifyActiveExecutionListeners();
+            const serialized = serializeActiveExecutionsRegistry(activeExecutionsSnapshot);
+            if (appGlobalStore?.isExtensionBacked) {
+                await appGlobalStore.set(activeExecutionsRegistryKey, serialized);
+                return;
+            }
+            try {
+                getPluginHost()?.localStore?.set(activeExecutionsRegistryKey, serialized);
+            } catch (error) {
+                // Ignore local fallback write failures.
+            }
+        }
+
+        async function ensureActiveExecutionsLoaded() {
+            if (activeExecutionsLoadPromise) {
+                return activeExecutionsLoadPromise;
+            }
+
+            activeExecutionsLoadPromise = (async () => {
+                const appGlobalStore = getAppGlobalStore();
+                let raw = '';
+                if (appGlobalStore?.isExtensionBacked) {
+                    try {
+                        raw = await appGlobalStore.get(activeExecutionsRegistryKey);
+                    } catch (error) {
+                        emitExtensionLog('error', 'Failed to load active execution registry from app store.', {
+                            appId: `${getOptions()?.appId || ''}`.trim(),
+                            errorMessage: error?.message || 'App execution registry read failed.'
+                        });
+                    }
+                    if (!activeExecutionsSubscribed && typeof appGlobalStore.subscribe === 'function') {
+                        appGlobalStore.subscribe(activeExecutionsRegistryKey, (nextRaw) => {
+                            activeExecutionsSnapshot = parseActiveExecutionsRegistry(nextRaw);
+                            notifyActiveExecutionListeners();
+                        });
+                        appGlobalStore.subscribe(activeExecutionsControlKey, (nextRaw) => {
+                            handleAppExecutionControlChange(nextRaw).catch(() => {});
+                        });
+                        activeExecutionsSubscribed = true;
+                    }
+                }
+
+                if (!raw) {
+                    raw = getPluginHost()?.localStore?.get(activeExecutionsRegistryKey) || '';
+                }
+
+                activeExecutionsSnapshot = parseActiveExecutionsRegistry(raw);
+                notifyActiveExecutionListeners();
+                return activeExecutionsSnapshot;
+            })();
+
+            return activeExecutionsLoadPromise;
+        }
+
+        async function upsertActiveExecution(plan = null) {
+            const entryId = getActiveExecutionEntryId(plan);
+            if (!entryId) {
+                return;
+            }
+            await ensureActiveExecutionsLoaded();
+            const nextEntries = {
+                ...(activeExecutionsSnapshot?.entries || {})
+            };
+            nextEntries[entryId] = {
+                workflowId: `${plan?.workflowId || ''}`.trim(),
+                executionScopeId: `${plan?.executionScopeId || getExecutionScopeId(plan) || ''}`.trim(),
+                pageUrl: window.location.href,
+                updatedAt: Date.now(),
+                startedAt: Number(plan?.startedAt || 0) || Date.now()
+            };
+            await writeActiveExecutionsRegistry({ entries: nextEntries });
+        }
+
+        async function removeActiveExecution(plan = null) {
+            const entryId = getActiveExecutionEntryId(plan);
+            if (!entryId) {
+                return;
+            }
+            await ensureActiveExecutionsLoaded();
+            const nextEntries = {
+                ...(activeExecutionsSnapshot?.entries || {})
+            };
+            delete nextEntries[entryId];
+            await writeActiveExecutionsRegistry({ entries: nextEntries });
+        }
+
+        function readActiveExecutionSummary() {
+            return {
+                count: Object.keys(activeExecutionsSnapshot?.entries || {}).length,
+                entries: Object.values(activeExecutionsSnapshot?.entries || {}).map((entry) => ({ ...entry }))
+            };
+        }
+
+        function subscribeToActiveExecutionSummary(listener) {
+            if (typeof listener !== 'function') {
+                return () => {};
+            }
+            activeExecutionListeners.add(listener);
+            listener(readActiveExecutionSummary());
+            return () => {
+                activeExecutionListeners.delete(listener);
+            };
+        }
+
+        async function handleAppExecutionControlChange(raw) {
+            if (!raw) {
+                return;
+            }
+            let payload = null;
+            try {
+                payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            } catch (error) {
+                return;
+            }
+            const requestId = `${payload?.requestId || ''}`.trim();
+            if (!requestId || requestId === lastHandledStopRequestId) {
+                return;
+            }
+            lastHandledStopRequestId = requestId;
+            await clearPendingExecution(cachedPendingExecution || null);
+            cancelExecution();
+            emitExtensionLog('info', 'Processed app-wide execution stop request.', {
+                appId: `${getOptions()?.appId || ''}`.trim(),
+                requestId,
+                currentUrl: window.location.href
+            });
+        }
+
+        async function requestStopAllActiveExecutions() {
+            await ensureActiveExecutionsLoaded();
+            const appGlobalStore = getAppGlobalStore();
+            const requestId = `stop-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            lastHandledStopRequestId = requestId;
+            await clearPendingExecution(cachedPendingExecution || null);
+            cancelExecution();
+            await writeActiveExecutionsRegistry({ entries: {} });
+            const payload = JSON.stringify({
+                requestId,
+                requestedAt: Date.now(),
+                sourceUrl: window.location.href
+            });
+            if (appGlobalStore?.isExtensionBacked) {
+                await appGlobalStore.set(activeExecutionsControlKey, payload);
+                return;
+            }
+            try {
+                getPluginHost()?.localStore?.set(activeExecutionsControlKey, payload);
+            } catch (error) {
+                // Ignore local fallback write failures.
             }
         }
 
@@ -282,6 +513,7 @@
                 browserSessionPersisted,
                 usingExtensionStore: Boolean(host?.globalStore?.isExtensionBacked)
             });
+            await upsertActiveExecution(plan);
 
             if (host?.globalStore?.isExtensionBacked) {
                 try {
@@ -313,11 +545,13 @@
 
         async function clearPendingExecutionStorageKey(storageKey) {
             const host = getPluginHost();
+            const pendingExecutionToRemove = cachedPendingExecution;
             cachedPendingExecution = null;
             if (cachedPendingExecutionStorageKey === storageKey) {
                 cachedPendingExecutionStorageKey = '';
             }
             const browserSessionCleared = syncLocalPendingExecutionFallback(storageKey, '');
+            await removeActiveExecution(pendingExecutionToRemove);
 
             if (host?.globalStore?.isExtensionBacked) {
                 try {
@@ -1612,6 +1846,10 @@
             readPendingExecution,
             persistPendingExecution,
             clearPendingExecution,
+            ensureActiveExecutionsLoaded,
+            readActiveExecutionSummary,
+            subscribeToActiveExecutionSummary,
+            requestStopAllActiveExecutions,
             normalizeExecutionUrl,
             urlsMatch,
             describeStep,
