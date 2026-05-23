@@ -70,6 +70,16 @@ class ExecutionIntelligenceService {
   buildMessages(workflow = {}, payload = {}) {
     const currentStep = payload.currentStep || null;
     const nextSteps = Array.isArray(payload.nextSteps) ? payload.nextSteps : [];
+    const stepVariableName = currentStep?.stepOrder ? `input_${currentStep.stepOrder}` : '';
+    const stepVariable = stepVariableName
+      ? {
+          name: stepVariableName,
+          value: payload.variables?.[stepVariableName],
+          metadata: Array.isArray(workflow.variables)
+            ? workflow.variables.find((variable) => variable?.name === stepVariableName) || null
+            : null
+        }
+      : null;
     return [
       {
         role: 'system',
@@ -94,6 +104,7 @@ class ExecutionIntelligenceService {
             nextSteps,
             variables: payload.variables || {},
             failure: payload.failure || null,
+            stepVariable,
             previousRuntimeDecisions: payload.previousRuntimeDecisions || []
           },
           pageSnapshot: payload.pageSnapshot || {}

@@ -7,6 +7,8 @@ function buildRuntimeDecisionPrompt() {
     'Use the workflow executionGuide as domain guidance, but reason from the current pageSnapshot for what actually exists now.',
     'When a transversal click changed the selected visible entity, reinterpret upcoming steps against the current page instead of copying stale learned values blindly.',
     'Use pageSnapshot controls and candidates for the upcoming steps; for select steps, choose values only from the current pageSnapshot select options. Prefer semantic meaning over learned numeric values or option position.',
+    'If executionState.stepVariable is present, it represents the user-requested value for the current step. Map that request through the original workflow variable allowedOptions, then choose the semantically equivalent current page option.',
+    'When stepVariable conflicts with the learned currentStep selectedValue or selectedLabel, prioritize stepVariable because it came from the user request for this execution.',
     'If a learned control is absent because it is not applicable to the current entity, skip that step rather than failing or navigating away.',
     'If a required target is absent and you cannot infer a safe equivalent, return ask_user or abort with a short human explanation.',
     'Never invent selectors or option values that are not visible in pageSnapshot.',

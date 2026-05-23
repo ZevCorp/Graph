@@ -675,7 +675,14 @@
                 .toLowerCase();
         }
 
-        function buildSelectCandidates(step, variables = {}) {
+        function buildSelectCandidates(step, variables = {}, options = {}) {
+            if (options.runtimeStrict) {
+                return [
+                    step.__runtimeSelectedValue,
+                    step.__runtimeSelectedLabel
+                ].map((value) => `${value || ''}`.trim()).filter(Boolean);
+            }
+
             const variableKey = `input_${step.stepOrder}`;
             const variableValue = Object.prototype.hasOwnProperty.call(variables, variableKey)
                 ? variables[variableKey]
@@ -909,12 +916,20 @@
             return null;
         }
 
-        async function applySelectStep(element, step, variables = {}) {
-            const candidates = buildSelectCandidates(step, variables);
+        async function applySelectStep(element, step, variables = {}, options = {}) {
+            const candidates = buildSelectCandidates(step, variables, options);
             const meaningfulCandidates = candidates.filter((candidate) => !isPlaceholderSelectValue(candidate));
             emitExtensionLog('info', 'Applying select step.', buildStepDiagnostics(step, {
                 candidates
             }));
+
+            if (meaningfulCandidates.length === 0 && options.runtimeStrict) {
+                emitExtensionLog('error', 'Runtime strict select step has no runtime-selected value.', buildStepDiagnostics(step, {
+                    failureKind: 'runtime_strict_select_value_missing',
+                    candidates
+                }));
+                throw new Error(`La inteligencia de ejecucion no eligio una opcion valida para ${describeStep(step)}.`);
+            }
 
             if (meaningfulCandidates.length === 0) {
                 const currentSnapshot = getSelectedOptionSnapshot(element);
@@ -1044,7 +1059,9 @@
                 'url',
                 'actionType',
                 'controlType',
-                'explanation'
+                'explanation',
+                '__runtimeSelectedValue',
+                '__runtimeSelectedLabel'
             ];
             return allowed.reduce((output, key) => {
                 if (Object.prototype.hasOwnProperty.call(patch, key)) {
@@ -1084,9 +1101,16 @@
                 if (index < 0) {
                     return;
                 }
+                const sanitizedPatch = sanitizeStepPatch(patch);
+                if (sanitizedPatch.selectedValue && !sanitizedPatch.__runtimeSelectedValue) {
+                    sanitizedPatch.__runtimeSelectedValue = sanitizedPatch.selectedValue;
+                }
+                if (sanitizedPatch.selectedLabel && !sanitizedPatch.__runtimeSelectedLabel) {
+                    sanitizedPatch.__runtimeSelectedLabel = sanitizedPatch.selectedLabel;
+                }
                 nextPlan.steps[index] = {
                     ...nextPlan.steps[index],
-                    ...sanitizeStepPatch(patch)
+                    ...sanitizedPatch
                 };
             });
 
@@ -1115,17 +1139,21 @@
         }
 
         function scheduleRuntimeIntelligence(plan = {}, stepIndex = 0, reason = '', details = {}) {
-            return {
-                ...plan,
-                runtimeIntelligence: {
-                    ...(plan.runtimeIntelligence || {}),
-                    pending: {
+            const nextRuntimeIntelligence = {
+                ...(plan.runtimeIntelligence || {}),
+                pending: {
                         stepIndex,
                         reason,
-                        details,
-                        scheduledAt: Date.now()
-                    }
+                    details,
+                    scheduledAt: Date.now()
                 }
+            };
+            if (reason === 'after_transversal_click') {
+                nextRuntimeIntelligence.strictAfterTransversal = true;
+            }
+            return {
+                ...plan,
+                runtimeIntelligence: nextRuntimeIntelligence
             };
         }
 
@@ -1305,6 +1333,15 @@
                     }
 
                     if (step.actionType === 'navigation') {
+                        if (currentPlan.runtimeIntelligence?.strictAfterTransversal) {
+                            currentPlan = {
+                                ...currentPlan,
+                                runtimeIntelligence: {
+                                    ...(currentPlan.runtimeIntelligence || {}),
+                                    strictAfterTransversal: false
+                                }
+                            };
+                        }
                         const targetUrl = normalizeExecutionUrl(step.url);
                         notifyAutomationStep(step, `Abriendo ${step.label || targetUrl}.`, {
                             selector: 'body',
@@ -1421,7 +1458,19 @@
                         currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
                     } else if (step.actionType === 'select') {
                         notifyAutomationStep(step, `Estoy eligiendo una opcion en ${step.label || step.selector || 'este selector'}.`);
-                        await applySelectStep(element, step, currentPlan.variables || {});
+                        const runtimeStrict = Boolean(currentPlan.runtimeIntelligence?.strictAfterTransversal);
+                        if (runtimeStrict && !step.__runtimeSelectedValue && !step.__runtimeSelectedLabel) {
+                            const runtimeResult = await requestAndApplyRuntimeIntelligence(currentPlan, stepIndex, 'runtime_strict_select', trigger, {
+                                failureKind: 'runtime_strict_select_value_missing'
+                            });
+                            currentPlan = updateExecutionProgress(runtimeResult.plan, stepIndex);
+                            if (runtimeResult.decision?.action === 'ask_user' || runtimeResult.decision?.action === 'abort') {
+                                throw buildRuntimeAbortError(runtimeResult.decision);
+                            }
+                            stepIndex -= 1;
+                            continue;
+                        }
+                        await applySelectStep(element, step, currentPlan.variables || {}, { runtimeStrict });
                         currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
                     } else {
                         currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
