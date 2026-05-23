@@ -1114,6 +1114,38 @@
             return error;
         }
 
+        function scheduleRuntimeIntelligence(plan = {}, stepIndex = 0, reason = '', details = {}) {
+            return {
+                ...plan,
+                runtimeIntelligence: {
+                    ...(plan.runtimeIntelligence || {}),
+                    pending: {
+                        stepIndex,
+                        reason,
+                        details,
+                        scheduledAt: Date.now()
+                    }
+                }
+            };
+        }
+
+        function clearPendingRuntimeIntelligence(plan = {}) {
+            const runtimeIntelligence = { ...(plan.runtimeIntelligence || {}) };
+            delete runtimeIntelligence.pending;
+            return {
+                ...plan,
+                runtimeIntelligence
+            };
+        }
+
+        function getPendingRuntimeIntelligence(plan = {}, stepIndex = 0) {
+            const pending = plan.runtimeIntelligence?.pending || null;
+            if (!pending || !Number.isFinite(Number(pending.stepIndex))) {
+                return null;
+            }
+            return Number(pending.stepIndex) === stepIndex ? pending : null;
+        }
+
         async function requestAndApplyRuntimeIntelligence(plan = {}, stepIndex = 0, reason = '', trigger = 'panel', failure = null) {
             if (!requestRuntimeIntelligence || !plan?.workflowId) {
                 return { plan, decision: { action: 'continue', reason: 'runtime intelligence unavailable' } };
@@ -1221,6 +1253,31 @@
 
                 for (let stepIndex = currentPlan.nextStepIndex; stepIndex < currentPlan.steps.length; stepIndex += 1) {
                     throwIfExecutionCancelled();
+                    const pendingRuntime = getPendingRuntimeIntelligence(currentPlan, stepIndex);
+                    if (pendingRuntime) {
+                        const pendingStep = currentPlan.steps[stepIndex] || null;
+                        const runtimeResult = await requestAndApplyRuntimeIntelligence(
+                            clearPendingRuntimeIntelligence(currentPlan),
+                            stepIndex,
+                            pendingRuntime.reason || 'runtime_pending',
+                            trigger,
+                            pendingRuntime.details || null
+                        );
+                        currentPlan = updateExecutionProgress(runtimeResult.plan, stepIndex);
+                        if (runtimeResult.decision?.action === 'ask_user' || runtimeResult.decision?.action === 'abort') {
+                            throw buildRuntimeAbortError(runtimeResult.decision);
+                        }
+                        emitExtensionLog('info', 'Resolved pending runtime execution intelligence before step.', buildStepDiagnostics(pendingStep, {
+                            workflowId: currentPlan.workflowId,
+                            trigger,
+                            stepIndex,
+                            resolution: 'pending_runtime_intelligence_resolved',
+                            reason: pendingRuntime.reason || ''
+                        }));
+                        stepIndex -= 1;
+                        continue;
+                    }
+
                     const step = currentPlan.steps[stepIndex];
                     const nextStep = currentPlan.steps[stepIndex + 1] || null;
                     const expectedUrl = step.url ? normalizeExecutionUrl(step.url) : '';
@@ -1323,7 +1380,13 @@
                             throw new Error(`El elemento ${describeStep(step)} sigue deshabilitado.`);
                         }
 
-                        currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
+                        const progressedPlan = transversalTarget
+                            ? scheduleRuntimeIntelligence(currentPlan, stepIndex + 1, 'after_transversal_click', {
+                                clickedStepOrder: Number.isFinite(step.stepOrder) ? step.stepOrder : null,
+                                transversalTarget
+                            })
+                            : currentPlan;
+                        currentPlan = updateExecutionProgress(progressedPlan, stepIndex + 1);
                         element.click();
                         emitExtensionLog('info', 'Applied click step.', buildStepDiagnostics(step, {
                             workflowId: currentPlan.workflowId,
@@ -1351,18 +1414,6 @@
                                     progressedUrl: postClickProgress.currentUrl || ''
                                 })
                             );
-
-                            if (transversalTarget) {
-                                const runtimeResult = await requestAndApplyRuntimeIntelligence(currentPlan, stepIndex + 1, 'after_transversal_click', trigger, {
-                                    clickedStepOrder: Number.isFinite(step.stepOrder) ? step.stepOrder : null,
-                                    transversalTarget,
-                                    postClickProgress
-                                });
-                                currentPlan = updateExecutionProgress(runtimeResult.plan, currentPlan.nextStepIndex);
-                                if (runtimeResult.decision?.action === 'ask_user' || runtimeResult.decision?.action === 'abort') {
-                                    throw buildRuntimeAbortError(runtimeResult.decision);
-                                }
-                            }
                         }
                     } else if (step.actionType === 'input') {
                         notifyAutomationStep(step, `Estoy completando ${step.label || step.selector || 'este campo'}.`);
