@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Miracle | AI Agent for Clinical Operations</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap');
+
         :root {
             --bg: #f5f5f2;
             --bg-strong: #ebe9e2;
@@ -120,41 +122,16 @@
         }
 
         .brand {
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
             text-decoration: none;
         }
 
-        .brand-mark {
-            width: 40px;
-            height: 40px;
-            border-radius: 12px;
-            background:
-                linear-gradient(135deg, rgba(15, 111, 255, 0.18), rgba(15, 111, 255, 0.02)),
-                #fff;
-            border: 1px solid rgba(15, 111, 255, 0.18);
-            display: grid;
-            place-items: center;
-            box-shadow: 0 12px 24px rgba(15, 111, 255, 0.12);
-            color: var(--accent);
+        .brand-wordmark {
+            display: inline-block;
+            font-family: "Montserrat", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: clamp(1.5rem, 2vw, 1.9rem);
             font-weight: 700;
-            letter-spacing: 0.02em;
-        }
-
-        .brand-copy strong,
-        .brand-copy span {
-            display: block;
-        }
-
-        .brand-copy strong {
-            font-size: 1rem;
-            letter-spacing: -0.02em;
-        }
-
-        .brand-copy span {
-            font-size: 0.78rem;
-            color: var(--muted);
+            letter-spacing: -0.06em;
+            color: var(--ink);
         }
 
         .top-nav {
@@ -1295,11 +1272,7 @@
         <header class="site-header">
             <div class="header-inner">
                 <a class="brand" href="#top" aria-label="Miracle home">
-                    <span class="brand-mark">M</span>
-                    <span class="brand-copy">
-                        <strong>Miracle</strong>
-                        <span>Agente de IA para operaciones clinicas</span>
-                    </span>
+                    <span class="brand-wordmark">Miracle</span>
                 </a>
 
                 <nav class="top-nav" aria-label="Primary">
@@ -1307,7 +1280,7 @@
                     <a href="#demo">Demo</a>
                     <a href="#trust">Por que Miracle</a>
                     <button id="clear-emr" type="button">Reiniciar demo</button>
-                    <a class="nav-cta" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Agendar demo por WhatsApp</a>
+                    <a class="nav-cta" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Agendar visita</a>
                 </nav>
             </div>
         </header>
@@ -1608,13 +1581,13 @@
                     </div>
 
                     <div class="section-head" style="margin: 0 auto 26px; text-align: center;">
-                        <h2 style="font-size: clamp(2.1rem, 4vw, 3.3rem);">Agenda una demo y te mostramos a Miracle operando un flujo medico en vivo.</h2>
-                        <p>La forma mas clara de entender el producto es verlo funcionando sobre un caso real. Si hay interes, la siguiente conversacion deberia ser una demo en vivo.</p>
+                        <h2 style="font-size: clamp(2.1rem, 4vw, 3.3rem);">Agenda una visita y probemos Miracle sobre tu sistema.</h2>
+                        <p>La mejor demo es verlo funcionando dentro del flujo real de tu hospital.</p>
                     </div>
 
                     <div class="contact-panel centered">
-                        <h3>Hablar con Miracle</h3>
-                        <p>Escribenos por WhatsApp y coordinamos una demo enfocada en el workflow, el software actual y las fricciones operativas donde un agente de IA puede generar mas valor desde el inicio.</p>
+                        <h3>Agendar visita</h3>
+                        <p>Escribenos por WhatsApp para coordinar una prueba real en tu hospital.</p>
 
                         <div class="contact-list">
                             <div class="contact-card">
@@ -1622,17 +1595,17 @@
                                 <span>+57 317 255 0953</span>
                             </div>
                             <div class="contact-card">
-                                <strong>Ideal para</strong>
-                                <span>Demos ejecutivas, evaluacion de pilotos, conversaciones de adopcion institucional y revision comercial.</span>
+                                <strong>Objetivo</strong>
+                                <span>Ver a Miracle operando sobre tu workflow y tu software actual.</span>
                             </div>
                             <div class="contact-card">
-                                <strong>Enfoque</strong>
-                                <span>Miracle se presenta como una capa operativa de IA para clinicos, no solo como generador de notas.</span>
+                                <strong>Siguiente paso</strong>
+                                <span>Coordinar una visita para una prueba real en sitio.</span>
                             </div>
                         </div>
 
                         <div class="whatsapp-cta">
-                            <a href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Agendar demo por WhatsApp</a>
+                            <a href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Agendar visita por WhatsApp</a>
                         </div>
                     </div>
                 </div>
