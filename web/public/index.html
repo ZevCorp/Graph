@@ -1,288 +1,1132 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Graph EMR Trainer</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miracle | AI Agent for Clinical Operations</title>
     <style>
         :root {
-            --bg: #eef3f7;
-            --surface: #ffffff;
-            --surface-2: #f7fafc;
-            --line: #d7e0e8;
-            --line-2: #c8d3dd;
-            --ink: #1d2a33;
-            --muted: #637381;
-            --primary: #0f5f8c;
-            --primary-soft: #e8f1f7;
-            --success: #1b6b4b;
-            --danger: #a33b3b;
-            --shadow: 0 20px 48px rgba(16, 31, 44, 0.08);
+            --bg: #f5f5f2;
+            --bg-strong: #ebe9e2;
+            --surface: rgba(255, 255, 255, 0.82);
+            --surface-strong: #ffffff;
+            --surface-dark: #151818;
+            --line: rgba(18, 28, 37, 0.11);
+            --line-strong: rgba(18, 28, 37, 0.18);
+            --ink: #111418;
+            --muted: #5d6672;
+            --muted-strong: #424a54;
+            --accent: #0f6fff;
+            --accent-soft: rgba(15, 111, 255, 0.12);
+            --success: #13795b;
+            --hero-glow: rgba(15, 111, 255, 0.16);
+            --shadow-xl: 0 32px 90px rgba(17, 20, 24, 0.12);
+            --shadow-lg: 0 20px 54px rgba(17, 20, 24, 0.1);
+            --shadow-md: 0 12px 28px rgba(17, 20, 24, 0.08);
+            --radius-xl: 32px;
+            --radius-lg: 24px;
+            --radius-md: 18px;
+            --radius-sm: 14px;
+            --content-width: 1200px;
         }
-        * { box-sizing: border-box; }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             margin: 0;
-            font-family: "Inter", "Segoe UI", sans-serif;
             color: var(--ink);
+            font-family: "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
             background:
-                linear-gradient(180deg, rgba(15,95,140,0.06), transparent 220px),
-                linear-gradient(180deg, #f4f7fa 0%, #edf2f6 100%);
+                radial-gradient(circle at top left, rgba(15, 111, 255, 0.08), transparent 28%),
+                radial-gradient(circle at top right, rgba(17, 20, 24, 0.06), transparent 24%),
+                linear-gradient(180deg, #faf9f6 0%, #f1efe9 100%);
         }
-        .shell {
-            max-width: 1320px;
+
+        a {
+            color: inherit;
+        }
+
+        button,
+        input,
+        textarea,
+        select {
+            font: inherit;
+        }
+
+        .page-shell {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .page-shell::before,
+        .page-shell::after {
+            content: "";
+            position: fixed;
+            inset: auto;
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(24px);
+        }
+
+        .page-shell::before {
+            top: 70px;
+            left: -120px;
+            width: 320px;
+            height: 320px;
+            background: var(--hero-glow);
+            border-radius: 999px;
+        }
+
+        .page-shell::after {
+            right: -130px;
+            top: 420px;
+            width: 300px;
+            height: 300px;
+            background: rgba(29, 99, 209, 0.1);
+            border-radius: 999px;
+        }
+
+        .site-header {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            backdrop-filter: blur(18px);
+            background: rgba(245, 245, 242, 0.78);
+            border-bottom: 1px solid rgba(17, 20, 24, 0.06);
+        }
+
+        .header-inner,
+        .hero,
+        .section-inner,
+        .footer-inner {
+            width: min(calc(100% - 32px), var(--content-width));
             margin: 0 auto;
-            padding: 24px 24px 190px;
+            position: relative;
+            z-index: 1;
         }
-        .card, .console {
-            background: var(--surface);
-            border: 1px solid var(--line);
-            box-shadow: var(--shadow);
-        }
-        .nav {
+
+        .header-inner {
             display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 18px 0;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .brand-mark {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background:
+                linear-gradient(135deg, rgba(15, 111, 255, 0.18), rgba(15, 111, 255, 0.02)),
+                #fff;
+            border: 1px solid rgba(15, 111, 255, 0.18);
+            display: grid;
+            place-items: center;
+            box-shadow: 0 12px 24px rgba(15, 111, 255, 0.12);
+            color: var(--accent);
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-copy strong,
+        .brand-copy span {
+            display: block;
+        }
+
+        .brand-copy strong {
+            font-size: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-copy span {
+            font-size: 0.78rem;
+            color: var(--muted);
+        }
+
+        .top-nav {
+            display: flex;
+            align-items: center;
             gap: 10px;
             flex-wrap: wrap;
-            margin-bottom: 18px;
+            justify-content: flex-end;
         }
-        .nav a, .nav button {
+
+        .top-nav a,
+        .top-nav button {
             text-decoration: none;
-            color: var(--primary);
-            font-weight: 600;
-            background: var(--surface);
-            border: 1px solid var(--line);
+            border: 1px solid transparent;
             border-radius: 999px;
             padding: 10px 14px;
-        }
-        .nav button {
-            font: inherit;
+            font-size: 0.92rem;
+            color: var(--muted-strong);
+            background: transparent;
             cursor: pointer;
+            transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
         }
-        .layout {
+
+        .top-nav a:hover,
+        .top-nav button:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.72);
+            border-color: rgba(17, 20, 24, 0.08);
+            color: var(--ink);
+        }
+
+        .top-nav .nav-cta {
+            background: var(--ink);
+            color: #fff;
+            border-color: var(--ink);
+            box-shadow: 0 10px 20px rgba(17, 20, 24, 0.12);
+        }
+
+        .top-nav .nav-cta:hover {
+            background: #000;
+            color: #fff;
+            border-color: #000;
+        }
+
+        .hero {
             display: grid;
-            grid-template-columns: 1.25fr 0.75fr;
-            gap: 18px;
+            grid-template-columns: minmax(0, 1.02fr) minmax(420px, 0.98fr);
+            gap: 44px;
+            align-items: center;
+            padding: 78px 0 42px;
         }
-        .card {
+
+        .hero-copy {
+            max-width: 660px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: 0 10px 24px rgba(17, 20, 24, 0.04);
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--muted-strong);
+        }
+
+        .eyebrow::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #2d8cff, #69a9ff);
+            box-shadow: 0 0 0 6px rgba(15, 111, 255, 0.09);
+        }
+
+        .hero h1 {
+            margin: 22px 0 18px;
+            font-size: clamp(3rem, 6vw, 5.4rem);
+            line-height: 0.95;
+            letter-spacing: -0.065em;
+            max-width: 760px;
+        }
+
+        .hero-lead {
+            margin: 0;
+            font-size: 1.16rem;
+            line-height: 1.72;
+            color: var(--muted-strong);
+            max-width: 610px;
+        }
+
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-top: 28px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 52px;
+            padding: 0 22px;
+            border-radius: 999px;
+            text-decoration: none;
+            border: 1px solid transparent;
+            transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--ink);
+            color: #fff;
+            box-shadow: 0 16px 32px rgba(17, 20, 24, 0.16);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.8);
+            color: var(--ink);
+            border-color: rgba(17, 20, 24, 0.12);
+        }
+
+        .hero-proof {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 34px;
+        }
+
+        .proof-card {
+            padding: 18px 18px 20px;
             border-radius: 22px;
-            padding: 22px;
+            background: rgba(255, 255, 255, 0.76);
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: 0 18px 34px rgba(17, 20, 24, 0.04);
         }
-        .card h3 {
-            margin: 0 0 8px;
-            font-size: 22px;
+
+        .proof-card strong,
+        .proof-card span {
+            display: block;
         }
-        .card p {
+
+        .proof-card strong {
+            font-size: 1.6rem;
+            letter-spacing: -0.05em;
+        }
+
+        .proof-card span {
+            margin-top: 8px;
             color: var(--muted);
-            line-height: 1.5;
+            line-height: 1.45;
+            font-size: 0.95rem;
         }
-        .section-label {
+
+        .hero-panel {
+            position: relative;
+        }
+
+        .hero-stack {
+            position: relative;
+            padding: 24px;
+            border-radius: 36px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.52));
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .hero-stack::before {
+            content: "";
+            position: absolute;
+            inset: 18px;
+            border-radius: 28px;
+            background: linear-gradient(135deg, rgba(15, 111, 255, 0.12), rgba(255, 255, 255, 0));
+            pointer-events: none;
+        }
+
+        .preview-orbit {
+            position: absolute;
+            inset: auto auto 22px -18px;
+            width: 170px;
+            padding: 14px;
+            border-radius: 22px;
+            background: rgba(17, 20, 24, 0.92);
+            color: #fff;
+            box-shadow: 0 20px 44px rgba(17, 20, 24, 0.22);
+        }
+
+        .preview-orbit strong,
+        .preview-orbit span {
+            display: block;
+        }
+
+        .preview-orbit strong {
+            font-size: 0.88rem;
+            letter-spacing: 0.02em;
+        }
+
+        .preview-orbit span {
+            margin-top: 8px;
+            color: rgba(255, 255, 255, 0.72);
+            line-height: 1.45;
+            font-size: 0.82rem;
+        }
+
+        .preview-orbit::before {
+            content: "● LIVE";
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: var(--primary-soft);
-            color: var(--primary);
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            margin-bottom: 14px;
+            margin-bottom: 8px;
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            color: #89b4ff;
         }
+
+        .section {
+            padding: 44px 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .signal-band {
+            margin: 6px 0 2px;
+        }
+
+        .signal-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr 0.85fr;
+            gap: 16px;
+        }
+
+        .signal-card {
+            padding: 22px 24px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.74);
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: var(--shadow-md);
+        }
+
+        .signal-card strong,
+        .signal-card span {
+            display: block;
+        }
+
+        .signal-card strong {
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+
+        .signal-card span {
+            margin-top: 10px;
+            color: var(--ink);
+            line-height: 1.55;
+            font-size: 1rem;
+        }
+
+        .section-head {
+            max-width: 760px;
+            margin-bottom: 28px;
+        }
+
+        .section-kicker {
+            display: inline-block;
+            margin-bottom: 14px;
+            color: var(--accent);
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .section-head h2 {
+            margin: 0;
+            font-size: clamp(2rem, 4vw, 3.6rem);
+            line-height: 1.02;
+            letter-spacing: -0.055em;
+        }
+
+        .section-head p {
+            margin: 16px 0 0;
+            color: var(--muted-strong);
+            line-height: 1.72;
+            font-size: 1.06rem;
+        }
+
+        .showcase-card {
+            padding: 18px;
+            border-radius: 34px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.64));
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .app-window {
+            overflow: hidden;
+            border-radius: 28px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .window-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 20px;
+            background: linear-gradient(180deg, #f7f7f5, #f1f0eb);
+            border-bottom: 1px solid rgba(17, 20, 24, 0.08);
+        }
+
+        .window-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .window-dots {
+            display: flex;
+            gap: 8px;
+        }
+
+        .window-dots span {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            display: block;
+        }
+
+        .window-dots span:nth-child(1) { background: #ff6157; }
+        .window-dots span:nth-child(2) { background: #ffbd2f; }
+        .window-dots span:nth-child(3) { background: #28c840; }
+
+        .window-meta strong,
+        .window-meta span {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .window-meta strong {
+            font-size: 0.95rem;
+        }
+
+        .window-meta span {
+            margin-top: 3px;
+            color: var(--muted);
+            font-size: 0.8rem;
+        }
+
+        .window-right {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--muted);
+            font-size: 0.83rem;
+        }
+
+        .window-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(15, 111, 255, 0.08);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .window-badge::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: currentColor;
+            box-shadow: 0 0 0 5px rgba(15, 111, 255, 0.1);
+        }
+
+        .window-body {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+            min-height: 640px;
+        }
+
+        .workspace {
+            padding: 28px;
+            background:
+                linear-gradient(180deg, rgba(252, 252, 251, 0.98), rgba(247, 246, 243, 0.98));
+        }
+
+        .workspace-shell {
+            padding: 26px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: 0 22px 46px rgba(17, 20, 24, 0.06);
+        }
+
+        .workspace-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+
+        .workspace-header h3 {
+            margin: 8px 0 0;
+            font-size: clamp(1.8rem, 3vw, 2.5rem);
+            letter-spacing: -0.05em;
+        }
+
+        .workspace-header p {
+            margin: 10px 0 0;
+            max-width: 620px;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+        .micro-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(17, 20, 24, 0.05);
+            color: var(--muted-strong);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .workspace-summary {
+            min-width: 180px;
+            padding: 16px;
+            border-radius: 18px;
+            background: linear-gradient(180deg, rgba(15, 111, 255, 0.08), rgba(15, 111, 255, 0.02));
+            border: 1px solid rgba(15, 111, 255, 0.16);
+        }
+
+        .workspace-summary strong,
+        .workspace-summary span {
+            display: block;
+        }
+
+        .workspace-summary strong {
+            font-size: 0.95rem;
+        }
+
+        .workspace-summary span {
+            margin-top: 7px;
+            color: var(--muted);
+            line-height: 1.45;
+            font-size: 0.84rem;
+        }
+
         .field-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
+            gap: 16px;
         }
-        .field-span { grid-column: 1 / -1; }
-        label {
+
+        .field-span {
+            grid-column: 1 / -1;
+        }
+
+        .input-group label {
             display: block;
-            font-size: 12px;
+            margin-bottom: 8px;
             color: var(--muted);
-            margin-bottom: 6px;
-            font-weight: 600;
-            text-transform: uppercase;
+            font-size: 0.82rem;
+            font-weight: 700;
             letter-spacing: 0.03em;
+            text-transform: uppercase;
         }
-        input, textarea, select {
+
+        input,
+        textarea,
+        select {
             width: 100%;
-            border: 1px solid var(--line-2);
-            border-radius: 12px;
-            padding: 12px 13px;
-            font: inherit;
+            border: 1px solid rgba(17, 20, 24, 0.12);
+            border-radius: 16px;
+            padding: 14px 16px;
             color: var(--ink);
+            background: rgba(255, 255, 255, 0.96);
+            transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: rgba(15, 111, 255, 0.58);
+            box-shadow: 0 0 0 4px rgba(15, 111, 255, 0.12);
             background: #fff;
         }
-        textarea { resize: vertical; min-height: 98px; }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .subsection-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 28px 0 16px;
+        }
+
+        .subsection-title::before {
+            content: "";
+            width: 18px;
+            height: 1px;
+            background: rgba(17, 20, 24, 0.18);
+        }
+
+        .subsection-title span {
+            color: var(--muted-strong);
+            font-size: 0.92rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
         .metric-grid {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 12px;
-            margin-top: 10px;
+            gap: 16px;
         }
+
         .actions {
             display: flex;
-            gap: 10px;
             flex-wrap: wrap;
-            margin-top: 18px;
+            gap: 12px;
+            align-items: center;
+            margin-top: 24px;
         }
-        button {
-            border: none;
-            border-radius: 12px;
-            padding: 11px 16px;
-            font: inherit;
-            font-weight: 600;
+
+        .actions button,
+        .toolbar-button {
+            min-height: 48px;
+            padding: 0 18px;
+            border-radius: 999px;
+            border: 1px solid transparent;
             cursor: pointer;
+            transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
         }
-        .btn-primary {
-            background: var(--primary);
-            color: white;
+
+        .actions button:hover,
+        .toolbar-button:hover {
+            transform: translateY(-1px);
         }
-        .btn-secondary {
-            background: var(--primary-soft);
-            color: var(--primary);
+
+        .btn-primary-action {
+            background: var(--ink);
+            color: #fff;
+            box-shadow: 0 14px 28px rgba(17, 20, 24, 0.16);
         }
+
+        .btn-secondary-action {
+            background: rgba(15, 111, 255, 0.08);
+            color: var(--accent);
+            border-color: rgba(15, 111, 255, 0.16);
+        }
+
+        .btn-ghost-action {
+            background: rgba(17, 20, 24, 0.04);
+            color: var(--muted-strong);
+            border-color: rgba(17, 20, 24, 0.1);
+        }
+
         .feedback {
             min-height: 24px;
-            margin-top: 12px;
+            margin-top: 14px;
             color: var(--success);
             font-weight: 600;
         }
-        .activity {
-            margin-top: 18px;
+
+        .workspace-footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            align-items: flex-start;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(17, 20, 24, 0.08);
         }
-        .activity ol {
+
+        .workspace-footer p {
             margin: 0;
-            padding-left: 20px;
+            max-width: 580px;
             color: var(--muted);
-            line-height: 1.5;
+            line-height: 1.6;
+            font-size: 0.94rem;
         }
-        .console {
-            position: fixed;
-            left: 50%;
-            bottom: 18px;
-            transform: translateX(-50%);
-            width: auto;
-            min-width: 124px;
-            padding: 10px 12px;
-            z-index: 50;
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(18px);
+
+        .workspace-footer .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(19, 121, 91, 0.08);
+            color: var(--success);
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .workspace-footer .status-pill::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: currentColor;
+        }
+
+        .side-panel {
+            padding: 24px;
+            background:
+                linear-gradient(180deg, rgba(17, 20, 24, 0.98), rgba(22, 26, 31, 0.94));
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .side-block {
+            padding: 18px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        }
+
+        .side-block h4 {
+            margin: 0 0 10px;
+            font-size: 1.02rem;
+            letter-spacing: -0.02em;
+        }
+
+        .side-block p,
+        .side-block li {
+            margin: 0;
+            color: rgba(255, 255, 255, 0.72);
+            line-height: 1.6;
+            font-size: 0.92rem;
+        }
+
+        .side-block ul {
+            margin: 0;
+            padding-left: 18px;
             display: grid;
             gap: 10px;
-            justify-items: center;
+        }
+
+        .assistant-card {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .assistant-card::before {
+            content: "";
+            position: absolute;
+            inset: -20% auto auto -10%;
+            width: 180px;
+            height: 180px;
             border-radius: 999px;
-            transition: width 180ms ease, border-radius 180ms ease, padding 180ms ease;
+            background: rgba(15, 111, 255, 0.18);
+            filter: blur(18px);
+            pointer-events: none;
         }
-        .console.compact-open {
-            border-radius: 24px;
-            width: min(560px, calc(100vw - 24px));
+
+        .assistant-card > * {
+            position: relative;
         }
-        .console-toolbar {
-            display: flex;
+
+        .assistant-badge {
+            display: inline-flex;
             align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-        .console button.icon-btn {
-            width: 46px;
-            height: 46px;
+            gap: 8px;
+            padding: 8px 12px;
             border-radius: 999px;
+            background: rgba(137, 180, 255, 0.16);
+            color: #c6ddff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .assistant-badge::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #6ca8ff;
+            box-shadow: 0 0 0 6px rgba(108, 168, 255, 0.12);
+        }
+
+        .assistant-card h3 {
+            margin: 16px 0 10px;
+            font-size: 1.42rem;
+            line-height: 1.08;
+            letter-spacing: -0.04em;
+        }
+
+        .assistant-card p {
+            margin: 0;
+            max-width: 320px;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.7;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .info-card {
+            padding: 26px;
+            border-radius: 28px;
+            background: rgba(255, 255, 255, 0.75);
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: var(--shadow-md);
+        }
+
+        .info-card h3 {
+            margin: 0 0 10px;
+            font-size: 1.28rem;
+            letter-spacing: -0.04em;
+        }
+
+        .info-card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.72;
+        }
+
+        .feature-rail {
+            display: grid;
+            grid-template-columns: 1.12fr 0.88fr;
+            gap: 20px;
+        }
+
+        .feature-panel,
+        .contact-panel {
+            padding: 30px;
+            border-radius: 30px;
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .feature-panel {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.66));
+        }
+
+        .feature-panel h3,
+        .contact-panel h3 {
+            margin: 0 0 14px;
+            font-size: 2rem;
+            line-height: 1.04;
+            letter-spacing: -0.05em;
+        }
+
+        .feature-panel p,
+        .contact-panel p {
+            margin: 0;
+            color: var(--muted-strong);
+            line-height: 1.72;
+        }
+
+        .feature-list {
+            margin: 22px 0 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 14px;
+        }
+
+        .feature-list li {
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: rgba(17, 20, 24, 0.035);
+            display: grid;
+            gap: 4px;
+        }
+
+        .feature-list strong {
+            font-size: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .feature-list span {
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .contact-panel {
+            background:
+                radial-gradient(circle at top right, rgba(15, 111, 255, 0.14), transparent 30%),
+                linear-gradient(180deg, #171a1f 0%, #101317 100%);
+            color: #fff;
+        }
+
+        .contact-panel p {
+            color: rgba(255, 255, 255, 0.76);
+        }
+
+        .contact-list {
+            display: grid;
+            gap: 14px;
+            margin: 22px 0 0;
+        }
+
+        .contact-card {
+            padding: 18px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .contact-card strong,
+        .contact-card span {
+            display: block;
+        }
+
+        .contact-card strong {
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: rgba(255, 255, 255, 0.62);
+        }
+
+        .contact-card span {
+            margin-top: 8px;
+            font-size: 1.08rem;
+            color: #fff;
+            line-height: 1.5;
+        }
+
+        .whatsapp-cta {
+            margin-top: 24px;
+        }
+
+        .whatsapp-cta a {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 0;
-            flex: 0 0 auto;
+            min-height: 54px;
+            padding: 0 22px;
+            border-radius: 999px;
+            background: #fff;
+            color: #111418;
+            text-decoration: none;
+            font-weight: 700;
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
         }
-        .console button.icon-btn svg {
-            width: 20px;
-            height: 20px;
-        }
-        #btn-record-toggle[data-recording="true"] {
-            background: var(--success) !important;
-            color: white;
-        }
-        #btn-record-toggle[data-recording="false"] {
-            background: var(--primary);
-            color: white;
-        }
-        #agent-send {
-            background: var(--primary-soft);
-            color: var(--primary);
-        }
-        #btn-stethoscope {
-            background: #f1f5f8;
-            color: var(--muted);
-        }
-        .console-chat {
-            display: none;
-            width: 100%;
-        }
-        .console-chat.open {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 240px;
-        }
-        .console-chat-log {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            overflow-y: auto;
-            padding: 4px 2px 2px;
-            max-height: 172px;
-        }
-        .chat-bubble {
-            max-width: min(100%, 460px);
-            padding: 10px 12px;
-            border-radius: 16px;
-            font-size: 0.94rem;
-            line-height: 1.45;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        .chat-bubble.user {
-            align-self: flex-end;
-            background: var(--primary);
-            color: #fff;
-            border-bottom-right-radius: 6px;
-        }
-        .chat-bubble.assistant {
-            align-self: flex-start;
-            background: #f1f5f8;
-            color: var(--text);
-            border-bottom-left-radius: 6px;
-        }
-        .chat-bubble .chat-meta {
-            display: block;
-            margin-top: 6px;
-            font-size: 0.78rem;
-            color: rgba(0, 0, 0, 0.55);
-        }
-        .chat-bubble.user .chat-meta {
-            color: rgba(255, 255, 255, 0.8);
-        }
-        .console-chat textarea {
-            min-height: 52px;
-            height: 52px;
-            resize: none;
-            border-radius: 16px;
-            padding: 12px 14px;
-            width: min(520px, calc(100vw - 52px));
-        }
+
         .actions-strip {
-            margin-top: 18px;
+            margin-top: 26px;
         }
-        .actions-strip .card {
-            padding: 16px 18px;
+
+        .actions-card {
+            padding: 22px 24px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            box-shadow: var(--shadow-md);
         }
+
+        .actions-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .actions-card-head h3 {
+            margin: 0 0 6px;
+            font-size: 1.24rem;
+            letter-spacing: -0.04em;
+        }
+
+        .actions-card-head p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.58;
+        }
+
         .actions-strip ol {
             display: flex;
-            gap: 18px;
+            gap: 14px;
             overflow-x: auto;
-            white-space: nowrap;
-            padding: 0 0 4px 18px;
+            padding: 0;
+            margin: 0;
+            list-style: none;
+            scrollbar-width: thin;
         }
+
         .actions-strip li {
-            min-width: max-content;
+            min-width: 240px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(17, 20, 24, 0.04);
+            color: var(--muted-strong);
+            line-height: 1.55;
         }
+
+        .footer {
+            padding: 38px 0 120px;
+        }
+
+        .footer-inner {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            align-items: flex-end;
+            padding-top: 28px;
+            border-top: 1px solid rgba(17, 20, 24, 0.08);
+        }
+
+        .footer-copy strong,
+        .footer-copy span {
+            display: block;
+        }
+
+        .footer-copy strong {
+            font-size: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .footer-copy span {
+            margin-top: 6px;
+            color: var(--muted);
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            text-decoration: none;
+            color: var(--muted-strong);
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(17, 20, 24, 0.08);
+        }
+
         .sr-only {
             position: absolute;
             width: 1px;
@@ -294,131 +1138,523 @@
             white-space: nowrap;
             border: 0;
         }
-        @media (max-width: 1040px) {
-            .layout {
-                grid-template-columns: 1fr;
+
+        @keyframes heroEnter {
+            from {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
             }
         }
-        @media (max-width: 760px) {
-            .field-grid, .metric-grid {
+
+        .hero-copy,
+        .hero-panel,
+        .section-head,
+        .info-card,
+        .showcase-card,
+        .feature-panel,
+        .contact-panel {
+            animation: heroEnter 700ms ease both;
+        }
+
+        .hero-panel { animation-delay: 90ms; }
+        .info-card:nth-child(2) { animation-delay: 70ms; }
+        .info-card:nth-child(3) { animation-delay: 140ms; }
+
+        @media (max-width: 1140px) {
+            .hero,
+            .feature-rail,
+            .window-body {
                 grid-template-columns: 1fr;
             }
-            .hero h2 {
-                font-size: 28px;
+
+            .signal-grid {
+                grid-template-columns: 1fr;
             }
-            .topbar {
+
+            .hero {
+                gap: 28px;
+            }
+
+            .hero-panel {
+                max-width: 760px;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .side-panel {
+                border-top: 1px solid rgba(255, 255, 255, 0.08);
+            }
+        }
+
+        @media (max-width: 860px) {
+            .header-inner,
+            .workspace-header,
+            .workspace-footer,
+            .actions-card-head,
+            .footer-inner {
                 flex-direction: column;
                 align-items: flex-start;
+            }
+
+            .hero-proof,
+            .metric-grid,
+            .field-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .workspace {
+                padding: 18px;
+            }
+
+            .workspace-shell {
+                padding: 20px;
+            }
+
+            .top-nav {
+                justify-content: flex-start;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .header-inner,
+            .hero,
+            .section-inner,
+            .footer-inner {
+                width: min(calc(100% - 20px), var(--content-width));
+            }
+
+            .hero {
+                padding-top: 52px;
+            }
+
+            .hero h1 {
+                font-size: clamp(2.5rem, 13vw, 3.8rem);
+            }
+
+            .showcase-card,
+            .app-window {
+                border-radius: 24px;
+            }
+
+            .window-topbar,
+            .workspace,
+            .side-panel {
+                padding: 16px;
+            }
+
+            .workspace-shell,
+            .info-card,
+            .feature-panel,
+            .contact-panel,
+            .actions-card {
+                padding: 18px;
+            }
+
+            .hero-actions,
+            .actions {
+                width: 100%;
+            }
+
+            .btn,
+            .actions button,
+            .toolbar-button,
+            .whatsapp-cta a {
+                width: 100%;
+            }
+
+            .preview-orbit {
+                position: static;
+                width: 100%;
+                margin-top: 16px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="shell">
-        <nav class="nav">
-            <a href="index.html">Patient Intake</a>
-            <a href="page1.html">Anamnesis</a>
-            <a href="page2.html">Diagnosis & Rx</a>
-            <a href="/examples/car-demo">Car Demo</a>
-            <a href="visualize.html">Workflow Graph</a>
-            <button id="clear-emr" type="button">Clear EMR</button>
-        </nav>
+    <div class="page-shell">
+        <header class="site-header">
+            <div class="header-inner">
+                <a class="brand" href="#top" aria-label="Miracle home">
+                    <span class="brand-mark">M</span>
+                    <span class="brand-copy">
+                        <strong>Miracle</strong>
+                        <span>AI agent for clinical operations</span>
+                    </span>
+                </a>
 
-        <section class="layout">
-            <article class="card">
-                <div class="section-label">Module 1</div>
-                <h3>Patient Registration and Triage</h3>
-                <p>Capture demographics, payer data, complaint narrative and first vitals before handing the chart to the clinician.</p>
-
-                <div class="field-grid">
-                    <div>
-                        <label for="intake-patient-id">Medical record number</label>
-                        <input data-testid="intake-patient-id" id="intake-patient-id" placeholder="MRN-2026-00124">
-                    </div>
-                    <div>
-                        <label for="intake-document-type">Document type</label>
-                        <select data-testid="intake-document-type" id="intake-document-type">
-                            <option value="">Select</option>
-                            <option value="cc">Citizenship ID</option>
-                            <option value="passport">Passport</option>
-                            <option value="ti">Minor ID</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="intake-first-name">First name</label>
-                        <input data-testid="intake-first-name" id="intake-first-name" placeholder="Valentina">
-                    </div>
-                    <div>
-                        <label for="intake-last-name">Last name</label>
-                        <input data-testid="intake-last-name" id="intake-last-name" placeholder="Gomez Ruiz">
-                    </div>
-                    <div>
-                        <label for="intake-dob">Date of birth</label>
-                        <input data-testid="intake-dob" id="intake-dob" type="date">
-                    </div>
-                    <div>
-                        <label for="intake-sex">Biological sex</label>
-                        <select data-testid="intake-sex" id="intake-sex">
-                            <option value="">Select</option>
-                            <option value="female">Female</option>
-                            <option value="male">Male</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="intake-phone">Mobile phone</label>
-                        <input data-testid="intake-phone" id="intake-phone" placeholder="+57 300 555 1134">
-                    </div>
-                    <div>
-                        <label for="intake-insurance">Insurer / payer</label>
-                        <input data-testid="intake-insurance" id="intake-insurance" placeholder="Sura EPS">
-                    </div>
-                    <div class="field-span">
-                        <label for="intake-chief-complaint">Chief complaint</label>
-                        <textarea data-testid="intake-chief-complaint" id="intake-chief-complaint" rows="4" placeholder="Patient reports 3 days of fever, sore throat and fatigue."></textarea>
-                    </div>
-                </div>
-
-                <h3 style="margin-top:22px; font-size:18px;">Initial vitals</h3>
-                <div class="metric-grid">
-                    <div>
-                        <label for="triage-temperature">Temperature</label>
-                        <input data-testid="triage-temperature" id="triage-temperature" placeholder="38.2">
-                    </div>
-                    <div>
-                        <label for="triage-heart-rate">Heart rate</label>
-                        <input data-testid="triage-heart-rate" id="triage-heart-rate" placeholder="96">
-                    </div>
-                    <div>
-                        <label for="triage-blood-pressure">Blood pressure</label>
-                        <input data-testid="triage-blood-pressure" id="triage-blood-pressure" placeholder="118/74">
-                    </div>
-                    <div>
-                        <label for="triage-oxygen">SpO2</label>
-                        <input data-testid="triage-oxygen" id="triage-oxygen" placeholder="98">
-                    </div>
-                </div>
-
-                <div class="actions">
-                    <button class="btn-primary" data-testid="intake-save-patient" id="intake-save-patient" type="button">Save Registration</button>
-                    <button class="btn-secondary" data-testid="intake-open-chart" id="intake-open-chart" type="button">Open Clinical Chart</button>
-                </div>
-                <div class="feedback" data-testid="intake-feedback" id="intake-feedback"></div>
-            </article>
-
-            <aside class="card">
-                <div class="section-label">Operational note</div>
-                <h3>Encounter readiness</h3>
-                <p>Complete demographic identity, coverage data, patient-reported complaint and initial vital signs before opening the clinical chart.</p>
-            </aside>
-        </section>
-
-        <section class="actions-strip">
-            <div class="card activity">
-                <div class="section-label">Recent actions</div>
-                <ol id="activity-log"></ol>
+                <nav class="top-nav" aria-label="Primary">
+                    <a href="#product">Product</a>
+                    <a href="#demo">Demo</a>
+                    <a href="#trust">Why Miracle</a>
+                    <button id="clear-emr" type="button">Reset Demo</button>
+                    <a class="nav-cta" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Book a WhatsApp demo</a>
+                </nav>
             </div>
-        </section>
+        </header>
+
+        <main id="top">
+            <section class="hero">
+                <div class="hero-copy">
+                    <div class="eyebrow">Operational AI for frontline care teams</div>
+                    <h1>Miracle gives clinicians an AI agent that can operate the computer for them.</h1>
+                    <p class="hero-lead">
+                        Miracle sits inside the clinical workflow, understands the screen in front of the physician, and executes repetitive EMR actions with precision. The result is a calmer clinical experience, better operational consistency, and more time focused on the patient.
+                    </p>
+
+                    <div class="hero-actions">
+                        <a class="btn btn-primary" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Request a private walkthrough</a>
+                        <a class="btn btn-secondary" href="#demo">See the product demo</a>
+                    </div>
+
+                    <div class="hero-proof" aria-label="Miracle value points">
+                        <div class="proof-card">
+                            <strong>Screen-aware</strong>
+                            <span>Miracle understands the page, the controls, and the next action needed for the task.</span>
+                        </div>
+                        <div class="proof-card">
+                            <strong>Operational</strong>
+                            <span>It does not stop at suggestions. It can help complete work across the actual workflow.</span>
+                        </div>
+                        <div class="proof-card">
+                            <strong>Clinical-fit</strong>
+                            <span>Designed for environments where trust, accuracy, and clarity matter to every stakeholder.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-panel">
+                    <div class="hero-stack">
+                        <div class="app-window">
+                            <div class="window-topbar">
+                                <div class="window-left">
+                                    <div class="window-dots" aria-hidden="true">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                    <div class="window-meta">
+                                        <strong>Miracle Clinical Workspace</strong>
+                                        <span>AI-assisted intake, charting, and workflow execution</span>
+                                    </div>
+                                </div>
+                                <div class="window-right">
+                                    <span class="window-badge">Assistant active</span>
+                                </div>
+                            </div>
+                            <div class="side-block assistant-card" style="margin: 18px;">
+                                <span class="assistant-badge">Miracle Agent</span>
+                                <h3>“I can complete the chart while the physician stays in control.”</h3>
+                                <p>Miracle is built to work like a trusted operating layer across medical software, not just another chatbot floating on top of it.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="preview-orbit">
+                        <strong>Designed for enterprise trust</strong>
+                        <span>Clean interaction patterns, controlled execution, and a product language that feels credible in front of hospital leadership.</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section signal-band" aria-label="Buyer signals">
+                <div class="section-inner">
+                    <div class="signal-grid">
+                        <div class="signal-card">
+                            <strong>Designed for healthcare leadership</strong>
+                            <span>Miracle is positioned to be discussed with operators, founders, medical directors, and software partners in the same meeting.</span>
+                        </div>
+                        <div class="signal-card">
+                            <strong>Execution model</strong>
+                            <span>An AI agent that helps operate existing clinical software instead of replacing it.</span>
+                        </div>
+                        <div class="signal-card">
+                            <strong>Commercial entry point</strong>
+                            <span>Start with high-friction workflows where administrative time is visible and measurable.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="product">
+                <div class="section-inner">
+                    <div class="section-head">
+                        <span class="section-kicker">What Miracle is</span>
+                        <h2>A startup product with the composure that large healthcare organizations expect.</h2>
+                        <p>
+                            Miracle is an AI agent that helps clinicians operate software faster and with less administrative friction. It observes the working context, understands the workflow, and helps execute charting tasks directly on the screen. The value proposition is concrete: fewer repetitive clicks, cleaner handoffs, and more clinical attention where it matters most.
+                        </p>
+                    </div>
+
+                    <div class="info-grid">
+                        <article class="info-card">
+                            <h3>Works inside the workflow</h3>
+                            <p>Miracle is designed to act where the clinical team already works, instead of asking the team to leave their software and adapt to a separate process.</p>
+                        </article>
+                        <article class="info-card">
+                            <h3>Built for precision and calm</h3>
+                            <p>The experience is intentionally restrained, legible, and execution-oriented. Every surface is designed to feel trustworthy in front of operational and medical leadership.</p>
+                        </article>
+                        <article class="info-card">
+                            <h3>Demonstrates real operational leverage</h3>
+                            <p>From intake to follow-up actions, Miracle shows how an AI agent can reduce repetitive navigation and turn complex digital workflows into guided execution.</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="demo">
+                <div class="section-inner">
+                    <div class="section-head">
+                        <span class="section-kicker">Interactive product demo</span>
+                        <h2>A medical intake example, presented as a real desktop application.</h2>
+                        <p>
+                            The form below keeps the exact functional fields from the current EMR intake demo, now reframed inside a polished clinical workspace. It demonstrates how Miracle can be presented as a serious operational product rather than a fragile concept demo.
+                        </p>
+                    </div>
+
+                    <div class="showcase-card">
+                        <div class="app-window">
+                            <div class="window-topbar">
+                                <div class="window-left">
+                                    <div class="window-dots" aria-hidden="true">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                    <div class="window-meta">
+                                        <strong>Miracle Intake Workspace</strong>
+                                        <span>Patient registration and triage assistant</span>
+                                    </div>
+                                </div>
+                                <div class="window-right">
+                                    <span class="window-badge">Ready to assist</span>
+                                </div>
+                            </div>
+
+                            <div class="window-body">
+                                <div class="workspace">
+                                    <div class="workspace-shell">
+                                        <div class="workspace-header">
+                                            <div>
+                                                <span class="micro-tag">Module 1 · Intake</span>
+                                                <h3>Patient registration and triage</h3>
+                                                <p>Capture demographics, insurance information, presenting complaint, and first vitals before the patient is handed off to the clinician.</p>
+                                            </div>
+                                            <div class="workspace-summary">
+                                                <strong>Miracle support layer</strong>
+                                                <span>Guide data capture, reduce navigation load, and help the team progress through intake with fewer manual steps.</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="field-grid">
+                                            <div class="input-group">
+                                                <label for="intake-patient-id">Medical record number</label>
+                                                <input data-testid="intake-patient-id" id="intake-patient-id" placeholder="MRN-2026-00124">
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="intake-document-type">Document type</label>
+                                                <select data-testid="intake-document-type" id="intake-document-type">
+                                                    <option value="">Select</option>
+                                                    <option value="cc">Citizenship ID</option>
+                                                    <option value="passport">Passport</option>
+                                                    <option value="ti">Minor ID</option>
+                                                </select>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="intake-first-name">First name</label>
+                                                <input data-testid="intake-first-name" id="intake-first-name" placeholder="Valentina">
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="intake-last-name">Last name</label>
+                                                <input data-testid="intake-last-name" id="intake-last-name" placeholder="Gomez Ruiz">
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="intake-dob">Date of birth</label>
+                                                <input data-testid="intake-dob" id="intake-dob" type="date">
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="intake-sex">Biological sex</label>
+                                                <select data-testid="intake-sex" id="intake-sex">
+                                                    <option value="">Select</option>
+                                                    <option value="female">Female</option>
+                                                    <option value="male">Male</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="intake-phone">Mobile phone</label>
+                                                <input data-testid="intake-phone" id="intake-phone" placeholder="+57 300 555 1134">
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="intake-insurance">Insurer / payer</label>
+                                                <input data-testid="intake-insurance" id="intake-insurance" placeholder="Sura EPS">
+                                            </div>
+                                            <div class="input-group field-span">
+                                                <label for="intake-chief-complaint">Chief complaint</label>
+                                                <textarea data-testid="intake-chief-complaint" id="intake-chief-complaint" rows="4" placeholder="Patient reports 3 days of fever, sore throat and fatigue."></textarea>
+                                            </div>
+                                        </div>
+
+                                        <div class="subsection-title">
+                                            <span>Initial vitals</span>
+                                        </div>
+
+                                        <div class="metric-grid">
+                                            <div class="input-group">
+                                                <label for="triage-temperature">Temperature</label>
+                                                <input data-testid="triage-temperature" id="triage-temperature" placeholder="38.2">
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="triage-heart-rate">Heart rate</label>
+                                                <input data-testid="triage-heart-rate" id="triage-heart-rate" placeholder="96">
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="triage-blood-pressure">Blood pressure</label>
+                                                <input data-testid="triage-blood-pressure" id="triage-blood-pressure" placeholder="118/74">
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="triage-oxygen">SpO2</label>
+                                                <input data-testid="triage-oxygen" id="triage-oxygen" placeholder="98">
+                                            </div>
+                                        </div>
+
+                                        <div class="actions">
+                                            <button class="btn-primary-action" data-testid="intake-save-patient" id="intake-save-patient" type="button">Save registration</button>
+                                            <button class="btn-secondary-action" data-testid="intake-open-chart" id="intake-open-chart" type="button">Open clinical chart</button>
+                                            <a class="toolbar-button btn-ghost-action" href="page1.html">Continue to anamnesis</a>
+                                        </div>
+
+                                        <div class="feedback" data-testid="intake-feedback" id="intake-feedback"></div>
+
+                                        <div class="workspace-footer">
+                                            <p>This workspace is intentionally functional. It gives a buyer a concrete way to understand how Miracle can sit above a real workflow and make routine digital work easier to complete.</p>
+                                            <span class="status-pill">Interactive sample workflow</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <aside class="side-panel">
+                                    <div class="side-block assistant-card">
+                                        <span class="assistant-badge">Miracle in action</span>
+                                        <h3>From screen context to safe operational help.</h3>
+                                        <p>Miracle can understand what stage of the workflow the user is in and support the next action with the right tone, structure, and level of automation.</p>
+                                    </div>
+
+                                    <div class="side-block">
+                                        <h4>Why this matters</h4>
+                                        <ul>
+                                            <li>Reduces navigation overhead during routine charting.</li>
+                                            <li>Helps standardize intake workflows across teams.</li>
+                                            <li>Creates a clearer path from data capture to clinician action.</li>
+                                        </ul>
+                                    </div>
+
+                                    <div class="side-block">
+                                        <h4>For enterprise buyers</h4>
+                                        <p>Miracle is presented with a product language that feels appropriate for health systems, digital health operators, and clinical software partners evaluating strategic AI adoption.</p>
+                                    </div>
+
+                                    <div class="side-block">
+                                        <h4>What comes next</h4>
+                                        <p>After intake, the same agent layer can continue into anamnesis, assessment, diagnosis, and downstream administrative actions.</p>
+                                    </div>
+                                </aside>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="actions-strip">
+                        <div class="actions-card">
+                            <div class="actions-card-head">
+                                <div>
+                                    <h3>Operational workflow memory</h3>
+                                    <p>Miracle can learn structured clinical flows, preserve them, and help teams reuse proven interaction patterns over time.</p>
+                                </div>
+                                <a class="btn btn-secondary" href="visualize.html">View workflow model</a>
+                            </div>
+                            <ol id="activity-log"></ol>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="trust">
+                <div class="section-inner">
+                    <div class="section-head">
+                        <span class="section-kicker">Why Miracle</span>
+                        <h2>An AI interface that looks credible in the boardroom and useful on the clinical floor.</h2>
+                        <p>
+                            Miracle is not trying to look loud or futuristic for its own sake. The product is designed to feel premium, controlled, and institution-ready while still carrying the momentum of a serious startup. That balance matters when the audience includes both physicians and executives.
+                        </p>
+                    </div>
+
+                    <div class="feature-rail">
+                        <article class="feature-panel">
+                            <h3>Designed to earn trust quickly.</h3>
+                            <p>Miracle combines a modern product sensibility with disciplined interface decisions. The result is a system that feels calm, operational, and mature enough to be discussed with healthcare leadership.</p>
+                            <ul class="feature-list">
+                                <li>
+                                    <strong>Executive-ready product story</strong>
+                                    <span>Miracle is easy to explain: an AI agent that can operate software for clinicians, starting with the workflows that consume the most time.</span>
+                                </li>
+                                <li>
+                                    <strong>Clear operational footprint</strong>
+                                    <span>The product value is visible at the workflow level, not hidden behind abstract claims about “AI transformation.”</span>
+                                </li>
+                                <li>
+                                    <strong>Expandable across the care journey</strong>
+                                    <span>What starts at intake can extend to chart review, clinical documentation, order entry support, and patient communication workflows.</span>
+                                </li>
+                            </ul>
+                        </article>
+
+                        <aside class="contact-panel">
+                            <h3>Contact Miracle</h3>
+                            <p>If you want to evaluate Miracle for a clinic, hospital, or healthcare operator, the fastest next step is a focused conversation around the workflow, the current software environment, and the operational bottlenecks worth addressing first.</p>
+
+                            <div class="contact-list">
+                                <div class="contact-card">
+                                    <strong>WhatsApp</strong>
+                                    <span>+57 317 255 0953</span>
+                                </div>
+                                <div class="contact-card">
+                                    <strong>Best for</strong>
+                                    <span>Live demos, pilot discussions, design partner conversations, and workflow evaluation.</span>
+                                </div>
+                                <div class="contact-card">
+                                    <strong>Positioning</strong>
+                                    <span>Miracle is presented as an AI operating layer for clinicians, not just a clinical note generator.</span>
+                                </div>
+                            </div>
+
+                            <div class="whatsapp-cta">
+                                <a href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Open WhatsApp and schedule a demo</a>
+                            </div>
+                        </aside>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div class="footer-inner">
+                <div class="footer-copy">
+                    <strong>Miracle</strong>
+                    <span>AI agent for clinical operations and medical software execution.</span>
+                </div>
+                <div class="footer-links">
+                    <a href="#top">Back to top</a>
+                    <a href="#demo">Product demo</a>
+                    <a href="#trust">Why Miracle</a>
+                    <a href="https://wa.me/573172550953" target="_blank" rel="noreferrer">WhatsApp</a>
+                </div>
+            </div>
+        </footer>
     </div>
 
     <script src="page-state.js"></script>
