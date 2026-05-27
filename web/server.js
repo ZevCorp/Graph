@@ -89,7 +89,16 @@ app.get('/examples/medical-demo', (req, res) => {
   res.redirect('/index.html');
 });
 
-app.use(express.static('web/public'));
+app.use(express.static('web/public', {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.js') || filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
+    }
+  }
+}));
 app.use('/rentacar/assets', express.static(path.join(process.cwd(), 'web/public', 'rentacar', 'assets')));
 app.get('/rentacar/assets/home/wallpaper-home.png', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'wallpaper home.png'));

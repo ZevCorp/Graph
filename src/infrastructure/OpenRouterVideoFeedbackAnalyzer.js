@@ -115,7 +115,7 @@ class OpenRouterVideoFeedbackAnalyzer {
             },
             {
               type: 'video_url',
-              videoUrl: {
+              video_url: {
                 url: videoDataUrl
               }
             }
@@ -157,7 +157,7 @@ class OpenRouterVideoFeedbackAnalyzer {
             },
             {
               type: 'video_url',
-              videoUrl: {
+              video_url: {
                 url: videoDataUrl
               }
             }
