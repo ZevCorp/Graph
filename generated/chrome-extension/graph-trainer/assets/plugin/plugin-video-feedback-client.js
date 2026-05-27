@@ -7,7 +7,6 @@
     function create(deps = {}) {
         const getOptions = typeof deps.getOptions === 'function' ? deps.getOptions : () => ({});
         const getPluginHost = typeof deps.getPluginHost === 'function' ? deps.getPluginHost : () => null;
-        const runtime = typeof deps.runtime === 'function' ? deps.runtime : () => null;
         const requireApiClient = typeof deps.requireApiClient === 'function' ? deps.requireApiClient : () => null;
         const getPageContext = typeof deps.getPageContext === 'function' ? deps.getPageContext : () => ({});
         const appendAgentMessage = typeof deps.appendAgentMessage === 'function' ? deps.appendAgentMessage : () => {};
@@ -114,10 +113,38 @@
             return candidates.find((candidate) => window.MediaRecorder?.isTypeSupported?.(candidate)) || '';
         }
 
-        function blobToDataUrl(blob) {
+        function normalizeVideoMimeType(value) {
+            const raw = `${value || ''}`.trim().toLowerCase();
+            if (raw.startsWith('video/mp4')) {
+                return 'video/mp4';
+            }
+            if (raw.startsWith('video/webm')) {
+                return 'video/webm';
+            }
+            if (raw.startsWith('video/quicktime') || raw.startsWith('video/mov')) {
+                return 'video/quicktime';
+            }
+            if (raw.startsWith('video/mpeg')) {
+                return 'video/mpeg';
+            }
+            return 'video/webm';
+        }
+
+        function blobToDataUrl(blob, mimeType) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onloadend = () => resolve(`${reader.result || ''}`);
+                reader.onloadend = () => {
+                    const result = `${reader.result || ''}`;
+                    const base64Marker = ';base64,';
+                    const markerIndex = result.indexOf(base64Marker);
+                    const commaIndex = markerIndex >= 0 ? markerIndex + base64Marker.length - 1 : result.lastIndexOf(',');
+                    const base64 = commaIndex >= 0 ? result.slice(commaIndex + 1) : '';
+                    if (!base64) {
+                        reject(new Error('No pude codificar el video grabado.'));
+                        return;
+                    }
+                    resolve(`data:${normalizeVideoMimeType(mimeType)};base64,${base64}`);
+                };
                 reader.onerror = () => reject(new Error('No pude leer el video grabado.'));
                 reader.readAsDataURL(blob);
             });
@@ -195,7 +222,6 @@
             });
 
             recorder.start(1000);
-            runtime()?.speak?.('Graba el cambio que quieres construir y senalalo con el cursor.', { mode: 'recording' });
             appendAgentMessage('assistant', 'Grabacion de feedback iniciada. Cuando termines, toca de nuevo el boton de video.', null, false);
             updateVoiceStatus('Grabando feedback en video...');
             setButtonState('recording', { elapsedLabel: '00:00' });
@@ -230,8 +256,9 @@
                 await stopped;
 
                 const durationMs = Math.max(0, Date.now() - state.startedAt);
-                const blob = new Blob(state.chunks, { type: state.mimeType || 'video/webm' });
-                const mimeType = state.mimeType || blob.type || 'video/webm';
+                const rawMimeType = state.mimeType || 'video/webm';
+                const mimeType = normalizeVideoMimeType(rawMimeType);
+                const blob = new Blob(state.chunks, { type: mimeType });
                 resetRecordingState();
 
                 if (!blob.size) {
@@ -249,7 +276,7 @@
                 updateVoiceStatus('Subiendo video para generar prompts...');
 
                 try {
-                    const videoDataUrl = await blobToDataUrl(blob);
+                    const videoDataUrl = await blobToDataUrl(blob, mimeType);
                     const response = await requireApiClient().analyzeVideoFeedback({
                         videoDataUrl,
                         mimeType,
@@ -264,7 +291,6 @@
 
                     setButtonState('ready');
                     updateVoiceStatus('Prompts listos.');
-                    runtime()?.speak?.('Ya quedaron listos los prompts para construir esos cambios.', { mode: 'idle' });
                     openResultPage(resultId);
                 } finally {
                     state.uploading = false;

@@ -26,9 +26,10 @@ class OpenRouterVideoFeedbackAnalyzer {
       throw new Error('A valid video data URL is required.');
     }
 
+    const normalizedVideo = this.normalizeVideoDataUrl(videoDataUrl, mimeType);
     const requestBody = this.buildPrimaryRequestBody({
-      videoDataUrl,
-      mimeType,
+      videoDataUrl: normalizedVideo.videoDataUrl,
+      mimeType: normalizedVideo.mimeType,
       pageContext,
       durationMs
     });
@@ -48,8 +49,8 @@ class OpenRouterVideoFeedbackAnalyzer {
       }
 
       data = await this.postChatCompletions(this.buildRetryRequestBody({
-        videoDataUrl,
-        mimeType,
+        videoDataUrl: normalizedVideo.videoDataUrl,
+        mimeType: normalizedVideo.mimeType,
         pageContext,
         durationMs
       }));
@@ -71,9 +72,6 @@ class OpenRouterVideoFeedbackAnalyzer {
         only: ['google-vertex'],
         allow_fallbacks: false
       },
-      plugins: [
-        { id: 'response-healing' }
-      ],
       stream: false,
       messages: [
         {
@@ -97,6 +95,12 @@ class OpenRouterVideoFeedbackAnalyzer {
           role: 'user',
           content: [
             {
+              type: 'video_url',
+              video_url: {
+                url: videoDataUrl
+              }
+            },
+            {
               type: 'text',
               text: [
                 'Analyze this screen recording and generate JSON.',
@@ -112,19 +116,10 @@ class OpenRouterVideoFeedbackAnalyzer {
                 '- ask Codex to preserve the rest of the page and existing behavior unless the request requires otherwise',
                 'For futureIdeas, keep them concise and separate.'
               ].join('\n')
-            },
-            {
-              type: 'video_url',
-              video_url: {
-                url: videoDataUrl
-              }
             }
           ]
         }
-      ],
-      response_format: {
-        type: 'json_object'
-      }
+      ]
     };
   }
 
@@ -145,6 +140,12 @@ class OpenRouterVideoFeedbackAnalyzer {
           role: 'user',
           content: [
             {
+              type: 'video_url',
+              video_url: {
+                url: videoDataUrl
+              }
+            },
+            {
               type: 'text',
               text: [
                 'Return a JSON object with keys actionablePrompts and futureIdeas.',
@@ -154,12 +155,6 @@ class OpenRouterVideoFeedbackAnalyzer {
                 `Mime type: ${mimeType || 'unknown'}.`,
                 `Duration ms: ${Number.isFinite(durationMs) ? durationMs : 0}.`
               ].join('\n')
-            },
-            {
-              type: 'video_url',
-              video_url: {
-                url: videoDataUrl
-              }
             }
           ]
         }
@@ -179,6 +174,68 @@ class OpenRouterVideoFeedbackAnalyzer {
       sourcePathname,
       sourceTitle
     });
+  }
+
+  normalizeVideoDataUrl(videoDataUrl, mimeType) {
+    const commaIndex = this.findDataUrlPayloadSeparator(videoDataUrl);
+    if (commaIndex < 0) {
+      throw new Error('Video data URL is missing base64 payload.');
+    }
+
+    const header = videoDataUrl.slice(0, commaIndex);
+    const payload = videoDataUrl.slice(commaIndex + 1).trim();
+    if (!payload) {
+      throw new Error('Video data URL is empty.');
+    }
+
+    const headerMimeType = header.replace(/^data:/i, '').split(';')[0];
+    const normalizedMimeType = this.normalizeMimeType(mimeType || headerMimeType);
+
+    return {
+      mimeType: normalizedMimeType,
+      videoDataUrl: `data:${normalizedMimeType};base64,${payload}`
+    };
+  }
+
+  findDataUrlPayloadSeparator(dataUrl) {
+    const base64Marker = ';base64,';
+    const markerIndex = dataUrl.indexOf(base64Marker);
+    if (markerIndex >= 0) {
+      return markerIndex + base64Marker.length - 1;
+    }
+    return dataUrl.lastIndexOf(',');
+  }
+
+  normalizeMimeType(value) {
+    const raw = `${value || ''}`.trim().toLowerCase();
+    if (raw.startsWith('video/mp4')) {
+      return 'video/mp4';
+    }
+    if (raw.startsWith('video/webm')) {
+      return 'video/webm';
+    }
+    if (raw.startsWith('video/quicktime') || raw.startsWith('video/mov')) {
+      return 'video/quicktime';
+    }
+    if (raw.startsWith('video/mpeg')) {
+      return 'video/mpeg';
+    }
+    if (raw.startsWith('video/avi')) {
+      return 'video/avi';
+    }
+    if (raw.startsWith('video/x-flv')) {
+      return 'video/x-flv';
+    }
+    if (raw.startsWith('video/mpg')) {
+      return 'video/mpg';
+    }
+    if (raw.startsWith('video/wmv')) {
+      return 'video/wmv';
+    }
+    if (raw.startsWith('video/3gpp')) {
+      return 'video/3gpp';
+    }
+    return 'video/webm';
   }
 
   async postChatCompletions(payload) {

@@ -20,7 +20,17 @@ function registerVideoFeedbackRoutes(app, deps = {}) {
         return res.status(400).json({ error: 'videoDataUrl is required.' });
       }
 
-      console.log('[VideoFeedback] Starting video analysis request');
+      const base64Marker = ';base64,';
+      const markerIndex = videoDataUrl.indexOf(base64Marker);
+      const commaIndex = markerIndex >= 0 ? markerIndex + base64Marker.length - 1 : videoDataUrl.lastIndexOf(',');
+      const dataUrlHeader = commaIndex >= 0 ? videoDataUrl.slice(0, Math.min(commaIndex, 80)) : '';
+      const base64Length = commaIndex >= 0 ? videoDataUrl.length - commaIndex - 1 : 0;
+      console.log('[VideoFeedback] Starting video analysis request', {
+        mimeType,
+        durationMs,
+        dataUrlHeader,
+        approxBytes: Math.round((base64Length * 3) / 4)
+      });
       const result = await generateVideoFeedbackPrompts.execute({
         videoDataUrl,
         mimeType,
