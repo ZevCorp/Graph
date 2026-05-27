@@ -195,7 +195,6 @@
             });
 
             recorder.start(1000);
-            runtime()?.speak?.('Graba el cambio que quieres construir y senalalo con el cursor.', { mode: 'recording' });
             appendAgentMessage('assistant', 'Grabacion de feedback iniciada. Cuando termines, toca de nuevo el boton de video.', null, false);
             updateVoiceStatus('Grabando feedback en video...');
             setButtonState('recording', { elapsedLabel: '00:00' });
@@ -264,7 +263,6 @@
 
                     setButtonState('ready');
                     updateVoiceStatus('Prompts listos.');
-                    runtime()?.speak?.('Ya quedaron listos los prompts para construir esos cambios.', { mode: 'idle' });
                     openResultPage(resultId);
                 } finally {
                     state.uploading = false;
