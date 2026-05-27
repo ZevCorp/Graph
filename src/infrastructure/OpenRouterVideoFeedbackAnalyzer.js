@@ -68,7 +68,7 @@ class OpenRouterVideoFeedbackAnalyzer {
       model: this.model,
       provider: {
         order: ['google-vertex'],
-        allowFallbacks: false
+        allow_fallbacks: false
       },
       messages: [
         {
