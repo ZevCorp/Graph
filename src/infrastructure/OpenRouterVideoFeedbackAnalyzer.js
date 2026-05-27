@@ -4,44 +4,6 @@ const DEFAULT_MODEL = 'google/gemini-3.5-flash';
 const DEFAULT_REFERER = 'http://localhost:3000';
 const DEFAULT_TITLE = 'Graph Video Feedback Prompts';
 
-const RESPONSE_SCHEMA = {
-  name: 'video_feedback_prompt_result',
-  strict: true,
-  schema: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['actionablePrompts', 'futureIdeas'],
-    properties: {
-      actionablePrompts: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['title', 'prompt', 'userIntentSummary', 'pageLocationHint'],
-          properties: {
-            title: { type: 'string' },
-            prompt: { type: 'string' },
-            userIntentSummary: { type: 'string' },
-            pageLocationHint: { type: 'string' }
-          }
-        }
-      },
-      futureIdeas: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['idea', 'context'],
-          properties: {
-            idea: { type: 'string' },
-            context: { type: 'string' }
-          }
-        }
-      }
-    }
-  }
-};
-
 class OpenRouterVideoFeedbackAnalyzer {
   constructor(options = {}) {
     this.apiKey = `${options.apiKey || process.env.OPENROUTER_API_KEY || ''}`.trim();
@@ -64,46 +26,80 @@ class OpenRouterVideoFeedbackAnalyzer {
       throw new Error('A valid video data URL is required.');
     }
 
-    const requestBody = {
+    const requestBody = this.buildPrimaryRequestBody({
+      videoDataUrl,
+      mimeType,
+      pageContext,
+      durationMs
+    });
+
+    let data;
+    try {
+      data = await this.postChatCompletions(requestBody);
+    } catch (error) {
+      const message = `${error.message || ''}`;
+      const invalidArgument =
+        message.includes('INVALID_ARGUMENT')
+        || message.includes('invalid argument')
+        || message.includes('Provider returned error');
+
+      if (!invalidArgument) {
+        throw error;
+      }
+
+      data = await this.postChatCompletions(this.buildRetryRequestBody({
+        videoDataUrl,
+        mimeType,
+        pageContext,
+        durationMs
+      }));
+    }
+
+    const content = data?.choices?.[0]?.message?.content?.trim() || '';
+    const parsed = this.parseJsonObject(content);
+
+    return {
+      actionablePrompts: Array.isArray(parsed.actionablePrompts) ? parsed.actionablePrompts : [],
+      futureIdeas: Array.isArray(parsed.futureIdeas) ? parsed.futureIdeas : []
+    };
+  }
+
+  buildPrimaryRequestBody({ videoDataUrl, mimeType, pageContext, durationMs }) {
+    return {
       model: this.model,
       provider: {
-        order: ['google-vertex'],
+        only: ['google-vertex'],
         allow_fallbacks: false
       },
+      plugins: [
+        { id: 'response-healing' }
+      ],
       messages: [
         {
           role: 'system',
           content: [
-            {
-              type: 'text',
-              text: [
-                'You analyze short screen-recording videos where a person narrates requested software changes while moving the mouse cursor over a webpage or web app.',
-                'Your job is to convert that narrated feedback into implementation-ready Codex prompts.',
-                'Prioritize explicit user requests. Use the cursor position, visible labels, section names, and spoken references to infer exactly what UI area the person means.',
-                'If the speaker references visible text, preserve that text inside the result whenever possible so the engineer can quickly locate the target.',
-                'Each actionable change must become its own standalone prompt for Codex.',
-                'Each prompt must be optimized for a coding agent working inside an existing repository. It should ask for a concrete implementation, preserve surrounding behavior, and avoid broad rewrites.',
-                'Treat this as software development feedback only.',
-                'If a request is ambiguous, aspirational, or clearly about a future capability rather than a concrete change to implement now, place it in futureIdeas instead of actionablePrompts.',
-                'Do not output markdown. Return only JSON that matches the requested schema.'
-              ].join(' ')
-            }
-          ]
+            'You analyze short screen-recording videos where a person narrates requested software changes while moving the mouse cursor over a webpage or web app.',
+            'Your job is to convert that narrated feedback into implementation-ready Codex prompts.',
+            'Prioritize explicit user requests. Use the cursor position, visible labels, section names, and spoken references to infer exactly what UI area the person means.',
+            'If the speaker references visible text, preserve that text inside the result whenever possible so the engineer can quickly locate the target.',
+            'Each actionable change must become its own standalone prompt for Codex.',
+            'Each prompt must be optimized for a coding agent working inside an existing repository. It should ask for a concrete implementation, preserve surrounding behavior, and avoid broad rewrites.',
+            'Treat this as software development feedback only.',
+            'If a request is ambiguous, aspirational, or clearly about a future capability rather than a concrete change to implement now, place it in futureIdeas instead of actionablePrompts.',
+            'Return a JSON object with exactly these top-level keys: actionablePrompts, futureIdeas.',
+            'Each actionablePrompts item must contain: title, prompt, userIntentSummary, pageLocationHint.',
+            'Each futureIdeas item must contain: idea, context.',
+            'Do not output markdown fences.'
+          ].join(' ')
         },
         {
           role: 'user',
           content: [
             {
-              type: 'video_url',
-              video_url: {
-                url: videoDataUrl
-              }
-            },
-            {
               type: 'text',
               text: [
                 'Analyze this screen recording and generate JSON.',
-                `Page context: ${JSON.stringify(pageContext || {})}.`,
+                `Page context: ${this.serializePageContext(pageContext)}.`,
                 `Recorded video mime type: ${mimeType || 'unknown'}.`,
                 `Approximate duration in milliseconds: ${Number.isFinite(durationMs) ? durationMs : 0}.`,
                 'For each actionable prompt:',
@@ -115,39 +111,72 @@ class OpenRouterVideoFeedbackAnalyzer {
                 '- ask Codex to preserve the rest of the page and existing behavior unless the request requires otherwise',
                 'For futureIdeas, keep them concise and separate.'
               ].join('\n')
+            },
+            {
+              type: 'video_url',
+              video_url: {
+                url: videoDataUrl
+              }
             }
           ]
         }
       ],
       response_format: {
-        type: 'json_schema',
-        json_schema: RESPONSE_SCHEMA
+        type: 'json_object'
       }
     };
+  }
 
-    const data = await this.postChatCompletions(requestBody).catch(async (error) => {
-      const message = `${error.message || ''}`;
-      const structuredOutputUnsupported =
-        message.includes('response_format')
-        || message.includes('json_schema')
-        || message.includes('structured');
-
-      if (!structuredOutputUnsupported) {
-        throw error;
-      }
-
-      return this.postChatCompletions({
-        ...requestBody,
-        response_format: { type: 'json_object' }
-      });
-    });
-    const content = data?.choices?.[0]?.message?.content?.trim() || '';
-    const parsed = this.parseJsonObject(content);
-
+  buildRetryRequestBody({ videoDataUrl, mimeType, pageContext, durationMs }) {
     return {
-      actionablePrompts: Array.isArray(parsed.actionablePrompts) ? parsed.actionablePrompts : [],
-      futureIdeas: Array.isArray(parsed.futureIdeas) ? parsed.futureIdeas : []
+      model: this.model,
+      provider: {
+        only: ['google-vertex'],
+        allow_fallbacks: false
+      },
+      messages: [
+        {
+          role: 'system',
+          content: 'Return valid JSON only. Extract explicit software change requests from the video into actionablePrompts and ambiguous future-facing requests into futureIdeas.'
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: [
+                'Return a JSON object with keys actionablePrompts and futureIdeas.',
+                'actionablePrompts items: title, prompt, userIntentSummary, pageLocationHint.',
+                'futureIdeas items: idea, context.',
+                `Context: ${this.serializePageContext(pageContext)}.`,
+                `Mime type: ${mimeType || 'unknown'}.`,
+                `Duration ms: ${Number.isFinite(durationMs) ? durationMs : 0}.`
+              ].join('\n')
+            },
+            {
+              type: 'video_url',
+              video_url: {
+                url: videoDataUrl
+              }
+            }
+          ]
+        }
+      ]
     };
+  }
+
+  serializePageContext(pageContext) {
+    const sourcePathname = `${pageContext?.sourcePathname || ''}`.trim();
+    const sourceTitle = `${pageContext?.sourceTitle || ''}`.trim();
+    const appId = `${pageContext?.appId || ''}`.trim();
+    const sourceOrigin = `${pageContext?.sourceOrigin || ''}`.trim();
+
+    return JSON.stringify({
+      appId,
+      sourceOrigin,
+      sourcePathname,
+      sourceTitle
+    });
   }
 
   async postChatCompletions(payload) {
