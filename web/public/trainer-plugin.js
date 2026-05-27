@@ -415,6 +415,14 @@
         return client;
     }
 
+    function maybeBindVideoFeedbackButton() {
+        try {
+            requireVideoFeedbackClient().bindButton();
+        } catch (error) {
+            console.warn('[TrainerPlugin] Video feedback client unavailable:', error.message || error);
+        }
+    }
+
     function getSurfaceAdapter() {
         return options?.adapter || window.GraphPluginAdapters?.resolve?.(options) || null;
     }
@@ -558,6 +566,9 @@
             .console button.video-feedback-btn[data-state="ready"] {
                 background: #ffffff;
                 color: #111111;
+            }
+            .console button.miracle-mic-btn {
+                display: none !important;
             }
             .video-feedback-label {
                 font-size: 12px;
@@ -1158,7 +1169,9 @@
                 </div>
             </div>
             <div class="console-toolbar">
-                <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
+                <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L15.06 11.69l-2.75-2.75L4 17.25Zm13.81-8.31a.996.996 0 0 0 0-1.41l-1.34-1.34a.996.996 0 1 0-1.41 0l-1.13 1.13 2.75 2.75 1.13-1.13Z" fill="currentColor"/></svg>
+                </button>
                 <button class="icon-btn video-feedback-btn" id="btn-video-feedback-toggle" type="button" title="Grabar feedback en video" aria-label="Grabar feedback en video" aria-pressed="false" data-state="idle">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3v-.73l2.2 1.58A1 1 0 0 0 21 14V10a1 1 0 0 0-1.8-.58L17 11V10a3 3 0 0 0-3-3H8Z" fill="currentColor"/></svg>
                     <span class="video-feedback-label">Video</span>
@@ -3272,7 +3285,7 @@
             ensureStyles();
             ensureConsole();
             requireVoiceClient().restoreStoredPhoneSession();
-            requireVideoFeedbackClient().bindButton();
+            maybeBindVideoFeedbackButton();
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
             if (!runtimeTouchBound) {
                 runtime()?.subscribe?.('touched', () => {
