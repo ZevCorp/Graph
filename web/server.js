@@ -21,13 +21,17 @@ const ConversationInsights = require('../src/application/use-cases/ConversationI
 const SurfaceProfileService = require('../src/application/use-cases/SurfaceProfileService');
 const LearningSessionService = require('../src/application/use-cases/LearningSessionService');
 const ExecutionIntelligenceService = require('../src/application/use-cases/ExecutionIntelligenceService');
+const GenerateVideoFeedbackPrompts = require('../src/application/use-cases/GenerateVideoFeedbackPrompts');
 const registerLearningRoutes = require('./api/registerLearningRoutes');
 const registerWorkflowRoutes = require('./api/registerWorkflowRoutes');
 const registerContextRoutes = require('./api/registerContextRoutes');
 const registerExecutionIntelligenceRoutes = require('./api/registerExecutionIntelligenceRoutes');
 const registerVoiceRoutes = require('./api/registerVoiceRoutes');
+const registerVideoFeedbackRoutes = require('./api/registerVideoFeedbackRoutes');
 
 const GetGraphVisualization = require('../src/application/use-cases/GetGraphVisualization');
+const OpenRouterVideoFeedbackAnalyzer = require('../src/infrastructure/OpenRouterVideoFeedbackAnalyzer');
+const InMemoryVideoFeedbackPromptStore = require('../src/infrastructure/InMemoryVideoFeedbackPromptStore');
 
 require('dotenv').config();
 
@@ -58,8 +62,14 @@ const surfaceProfileService = new SurfaceProfileService(repository, llmProvider)
 const learningSessionService = new LearningSessionService(workflowLearner);
 const getGraphVisualization = new GetGraphVisualization(repository);
 const executionIntelligenceService = new ExecutionIntelligenceService(llmProvider);
+const videoFeedbackAnalyzer = new OpenRouterVideoFeedbackAnalyzer();
+const videoFeedbackPromptStore = new InMemoryVideoFeedbackPromptStore();
+const generateVideoFeedbackPrompts = new GenerateVideoFeedbackPrompts(
+  videoFeedbackAnalyzer,
+  videoFeedbackPromptStore
+);
 
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '35mb' }));
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -120,6 +130,7 @@ function injectTrainerShell(html, options = {}) {
 <script src="/plugin/plugin-learning-bridge.js"></script>
 <script src="/plugin/plugin-learning-client.js"></script>
 <script src="/plugin/plugin-voice-client.js"></script>
+<script src="/plugin/plugin-video-feedback-client.js"></script>
 <script src="/plugin/plugin-trainer-shell.js"></script>
 <script src="/plugin/plugin-surface-profile-client.js"></script>
 <script src="/plugin/plugin-execution-client.js"></script>
@@ -589,6 +600,7 @@ registerVoiceRoutes(app, {
   agentChat,
   catalogService
 });
+registerVideoFeedbackRoutes(app, { generateVideoFeedbackPrompts });
 
 app.post('/api/agent/chat', async (req, res) => {
   try {

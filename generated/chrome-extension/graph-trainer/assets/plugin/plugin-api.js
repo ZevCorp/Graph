@@ -141,6 +141,13 @@
                     body: JSON.stringify(payload || {})
                 }, fetchImpl);
             },
+            analyzeVideoFeedback(payload) {
+                return createJsonRequest(baseUrl, '/api/video-feedback/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload || {})
+                }, fetchImpl);
+            },
             createPhoneSession(payload) {
                 return createJsonRequest(baseUrl, '/api/voice/phone-session', {
                     method: 'POST',

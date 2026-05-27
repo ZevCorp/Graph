@@ -30,6 +30,7 @@
     let surfaceProfileHydration = null;
     let workflowPanelEntries = [];
     let voiceLifecycleBound = false;
+    let videoFeedbackClientInstance = null;
     const voiceState = {
         active: false,
         mode: null,
@@ -388,6 +389,32 @@
         return shell;
     }
 
+    function videoFeedbackClient() {
+        if (videoFeedbackClientInstance) {
+            return videoFeedbackClientInstance;
+        }
+
+        videoFeedbackClientInstance = window.GraphPluginVideoFeedbackClient?.create?.({
+            getOptions: () => options,
+            getPluginHost: pluginHost,
+            runtime,
+            requireApiClient,
+            getPageContext,
+            appendAgentMessage,
+            updateVoiceStatus,
+            isWorkflowRecording: () => window.WorkflowRecorder.isRecording()
+        }) || null;
+        return videoFeedbackClientInstance;
+    }
+
+    function requireVideoFeedbackClient() {
+        const client = videoFeedbackClient();
+        if (!client) {
+            throw new Error('No hay cliente de video feedback configurado para este plugin.');
+        }
+        return client;
+    }
+
     function getSurfaceAdapter() {
         return options?.adapter || window.GraphPluginAdapters?.resolve?.(options) || null;
     }
@@ -509,6 +536,49 @@
             .console button.icon-btn svg {
                 width: 20px;
                 height: 20px;
+            }
+            .console button.video-feedback-btn {
+                position: relative;
+                gap: 4px;
+                width: auto;
+                min-width: 60px;
+                padding: 0 12px;
+                background: #111111;
+                color: #ffffff;
+                box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+            }
+            .console button.video-feedback-btn[data-state="recording"] {
+                background: #f97316;
+                color: #ffffff;
+            }
+            .console button.video-feedback-btn[data-state="uploading"] {
+                background: #1d4ed8;
+                color: #ffffff;
+            }
+            .console button.video-feedback-btn[data-state="ready"] {
+                background: #ffffff;
+                color: #111111;
+            }
+            .video-feedback-label {
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+            .video-feedback-stop-timer {
+                position: absolute;
+                top: -8px;
+                right: -2px;
+                min-width: 42px;
+                padding: 2px 6px;
+                border-radius: 999px;
+                background: #050505;
+                color: #ffffff;
+                font-size: 10px;
+                font-weight: 700;
+                line-height: 1.2;
+                text-align: center;
+                box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
             }
             .console button.execution-stop-btn {
                 background: #c62828;
@@ -1089,6 +1159,14 @@
             </div>
             <div class="console-toolbar">
                 <button class="icon-btn" id="btn-record-toggle" type="button" title="Start recording" aria-label="Toggle recording" aria-pressed="false" data-recording="false"></button>
+                <button class="icon-btn video-feedback-btn" id="btn-video-feedback-toggle" type="button" title="Grabar feedback en video" aria-label="Grabar feedback en video" aria-pressed="false" data-state="idle">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3v-.73l2.2 1.58A1 1 0 0 0 21 14V10a1 1 0 0 0-1.8-.58L17 11V10a3 3 0 0 0-3-3H8Z" fill="currentColor"/></svg>
+                    <span class="video-feedback-label">Video</span>
+                    <span class="video-feedback-stop-timer" id="video-feedback-stop-timer" hidden>00:00</span>
+                </button>
+                <button class="icon-btn miracle-mic-btn" id="btn-miracle-mic-toggle" type="button" title="Activar dictado con Miracle" aria-label="Activar dictado con Miracle" aria-pressed="false" aria-hidden="true" data-active="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.08A7 7 0 0 1 5 12a1 1 0 1 1 2 0 5 5 0 1 0 10 0Z" fill="currentColor"/></svg>
+                </button>
                 <button class="icon-btn execution-stop-btn" id="btn-stop-execution" type="button" title="Detener automatizacion" aria-label="Detener automatizacion" hidden>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" fill="currentColor"/></svg>
                 </button>
@@ -3190,9 +3268,11 @@
     window.TrainerPlugin = {
         mount(config = {}) {
             options = buildMountOptions(config);
+            videoFeedbackClientInstance = null;
             ensureStyles();
             ensureConsole();
             requireVoiceClient().restoreStoredPhoneSession();
+            requireVideoFeedbackClient().bindButton();
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
             if (!runtimeTouchBound) {
                 runtime()?.subscribe?.('touched', () => {
