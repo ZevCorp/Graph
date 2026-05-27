@@ -74,6 +74,7 @@ class OpenRouterVideoFeedbackAnalyzer {
       plugins: [
         { id: 'response-healing' }
       ],
+      stream: false,
       messages: [
         {
           role: 'system',
@@ -114,7 +115,7 @@ class OpenRouterVideoFeedbackAnalyzer {
             },
             {
               type: 'video_url',
-              video_url: {
+              videoUrl: {
                 url: videoDataUrl
               }
             }
@@ -134,6 +135,7 @@ class OpenRouterVideoFeedbackAnalyzer {
         only: ['google-vertex'],
         allow_fallbacks: false
       },
+      stream: false,
       messages: [
         {
           role: 'system',
@@ -155,7 +157,7 @@ class OpenRouterVideoFeedbackAnalyzer {
             },
             {
               type: 'video_url',
-              video_url: {
+              videoUrl: {
                 url: videoDataUrl
               }
             }
