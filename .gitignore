@@ -10,6 +10,9 @@ coverage/
 build/
 dist/
 out/
+generated/chrome-extension/
+generated/pitch-personalities/
+scratch/
 
 # Misc
 .DS_Store
@@ -37,3 +40,5 @@ yarn-error.log*
 # Local downloaded page artifacts
 /Servicio a domicilio o recoge en una de nuestras tiendas.html
 /Servicio a domicilio o recoge en una de nuestras tiendas_files/
+/Demo de carros/
+/wallpaper home.png

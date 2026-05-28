@@ -1,13 +1,13 @@
 # CLI Commands - Graph Navigator
 
-Guía rápida para usar Graph desde sus demos actuales.
+Guia rapida para usar Graph desde sus demos actuales.
 
-Graph ya no está pensado solo para la demo médica. Hoy el sistema tiene:
+Graph ya no esta pensado solo para la demo medica. Hoy el sistema tiene:
 
-- un core de aprendizaje y ejecución de workflows
-- una capa de plugin/widget para páginas web
-- separación de workflows por contexto de página
-- personalidad del asistente configurable por página
+- un core de aprendizaje y ejecucion de workflows
+- una capa de plugin/widget para paginas web
+- separacion de workflows por contexto de pagina
+- personalidad del asistente configurable por pagina
 
 ## 1. Iniciar el servidor
 
@@ -17,30 +17,29 @@ node web/server.js
 
 ## 2. Abrir una superficie de aprendizaje
 
-Puedes abrir cualquiera de estas páginas:
+Puedes abrir cualquiera de estas paginas:
 
 - `http://localhost:3000/`
 - `http://localhost:3000/page1.html`
 - `http://localhost:3000/page2.html`
-- `http://localhost:3000/examples/car-demo`
 
 ## 3. Grabar un workflow
 
-1. Abre la página donde quieres enseñar el flujo.
+1. Abre la pagina donde quieres ensenar el flujo.
 2. Usa el widget flotante del trainer.
-3. Pulsa el botón de grabación.
-4. Interactúa con la página:
+3. Pulsa el boton de grabacion.
+4. Interactua con la pagina:
    - clicks
    - inputs
    - textareas
    - selects
-   - navegación
-5. Detén la grabación.
+   - navegacion
+5. Deten la grabacion.
 
 Resultado:
 
 - los pasos se guardan en Neo4j
-- el workflow queda asociado al contexto de la página
+- el workflow queda asociado al contexto de la pagina
 - `WORKFLOWS.md` se regenera
 
 ## 4. Consultar workflows desde la CLI
@@ -65,16 +64,16 @@ run wf_123 --input_2=test@example.com --input_3="Acme Inc"
 Notas:
 
 - `input_<stepOrder>` corresponde a variables inferidas desde pasos `input` o `select`
-- si no envías una variable, se usa el valor grabado o el valor elegido por el sistema cuando aplica
+- si no envias una variable, se usa el valor grabado o el valor elegido por el sistema cuando aplica
 
 ## 6. Ejecutar con lenguaje natural
 
-Desde el widget de chat del trainer, el usuario puede escribir una petición en lenguaje natural.
+Desde el widget de chat del trainer, el usuario puede escribir una peticion en lenguaje natural.
 
-El sistema intentará:
+El sistema intentara:
 
-1. filtrar workflows por el contexto actual de la página
-2. elegir el mejor workflow para esa página
+1. filtrar workflows por el contexto actual de la pagina
+2. elegir el mejor workflow para esa pagina
 3. completar variables faltantes
 4. ejecutar el workflow
 
@@ -82,13 +81,12 @@ El sistema intentará:
 
 Hoy el sistema ya soporta dos ideas importantes:
 
-- contexto de página
-  - los workflows aprendidos en medicina no deben mezclarse con carros
+- contexto de pagina
+  - los workflows aprendidos en una superficie no deben mezclarse con otra
 - personalidad del asistente
-  - la demo médica usa un tono más neutral y clínico
-  - la demo de carros usa un tono más cercano y comercial
+  - la demo medica usa un tono mas neutral y clinico
 
-## 8. Comandos técnicos
+## 8. Comandos tecnicos
 
 - `list`: muestra workflows disponibles
 - `run <workflowId> --input_<stepOrder>=value`: ejecuta un workflow exacto
@@ -106,7 +104,7 @@ Hoy el sistema ya soporta dos ideas importantes:
 - `NEO4J_PASSWORD`
 - `WEB_PORT`
 
-## 10. Documentación relacionada
+## 10. Documentacion relacionada
 
 - [README.md](C:/Users/User/Desktop/Graph/README.md)
 - [ARCHITECTURE.md](C:/Users/User/Desktop/Graph/ARCHITECTURE.md)

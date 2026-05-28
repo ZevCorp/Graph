@@ -1,8 +1,7 @@
 const EXECUTE_WORKFLOW_FUNCTION_NAME = 'execute_workflow_on_page';
 
 function isDemoAutopilotContext(context = {}) {
-  return `${context.demoMode || ''}`.trim().toLowerCase() === 'autopilot'
-    || `${context.appId || ''}`.trim().toLowerCase() === 'car-demo';
+  return `${context.demoMode || ''}`.trim().toLowerCase() === 'autopilot';
 }
 
 function summarizeWorkflowVariable(variable = {}) {

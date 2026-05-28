@@ -4,6 +4,8 @@ Graph is a workflow learning and replay engine for web applications.
 
 It watches a user interact with a page, stores the workflow as structured steps, and later lets an assistant choose and execute the right workflow with Playwright.
 
+The real product is the reusable browser runtime plus the Chrome extension host that can attach to arbitrary pages. The medical demo is the current validation surface, not the product boundary.
+
 The long-term direction is not a single demo app. The product direction is a reusable plugin-style system that can be mounted on different surfaces:
 
 - static HTML pages
@@ -12,7 +14,7 @@ The long-term direction is not a single demo app. The product direction is a reu
 - Shopify sites
 - Electron apps
 
-The medical demo and the car-rental demo are currently proving grounds for the learning loop.
+The medical demo is the current proving ground for the learning loop.
 
 ## Core Idea
 
@@ -44,7 +46,6 @@ The codebase is moving toward three layers:
 
 3. Demo and integration surfaces
    - medical demo
-   - car-rental demo
    - future plugin entrypoints for external pages/apps
 
 For a deeper explanation, see [ARCHITECTURE.md](C:/Users/User/Desktop/Graph/ARCHITECTURE.md).
@@ -55,7 +56,6 @@ For a deeper explanation, see [ARCHITECTURE.md](C:/Users/User/Desktop/Graph/ARCH
   - Express server
   - serves demo pages
   - exposes workflow and agent APIs
-  - injects the trainer into the car demo
 
 - [web/public/recorder.js](C:/Users/User/Desktop/Graph/web/public/recorder.js)
   - generic DOM action recorder
@@ -74,6 +74,14 @@ For a deeper explanation, see [ARCHITECTURE.md](C:/Users/User/Desktop/Graph/ARCH
 
 - [web/public/page-state.js](C:/Users/User/Desktop/Graph/web/public/page-state.js)
   - generic page form-state persistence
+
+- [chrome-extension-src/graph-trainer](C:/Users/User/Desktop/Graph/chrome-extension-src/graph-trainer)
+  - Chrome-specific host wrapper
+  - injects the shared runtime into arbitrary pages
+
+- [scripts/build-chrome-extension.js](C:/Users/User/Desktop/Graph/scripts/build-chrome-extension.js)
+  - local packaging script for the Chrome extension
+  - writes ignored build output into `generated/chrome-extension/`
 
 - [src/application/use-cases/AgentChat.js](C:/Users/User/Desktop/Graph/src/application/use-cases/AgentChat.js)
   - workflow selection
@@ -103,22 +111,7 @@ Characteristics:
 - uses `appId: medical-demo`
 - mounts the generic trainer plugin
 - uses a neutral, professional assistant profile
-
-### Car Demo
-
-Entry URL:
-
-- `http://localhost:3000/examples/car-demo`
-
-Source HTML:
-
-- [Demo de carros/Alquiler de Carros en Medellín _ Rent a Car Medellín 24h.html](<C:/Users/User/Desktop/Graph/Demo de carros/Alquiler de Carros en Medellín _ Rent a Car Medellín 24h.html>)
-
-Characteristics:
-
-- uses `appId: car-demo`
-- trainer is injected at runtime from the server
-- assistant profile is configured as a close, sincere, human car-rental advisor
+- serves as the current validation surface for the shared runtime
 
 ## Context-Aware Workflows
 
@@ -131,18 +124,24 @@ Each learned workflow can store page/application context such as:
 - `sourcePathname`
 - `sourceTitle`
 
-This lets the assistant avoid using a medical workflow while chatting from the car-rental page.
+This lets the assistant avoid using a workflow from the wrong page surface.
 
 ## Assistant Personality
 
 Assistant personality is part of the page plugin configuration.
 
-Today the differentiator is the page where the plugin runs:
+Today the medical demo uses a clinical, concise profile. This is passed through the page plugin into the agent selection prompt.
 
-- medical pages use a clinical, concise profile
-- car pages use a closer, sales-oriented profile
+## Product Boundary
 
-This is passed through the page plugin into the agent selection prompt.
+When working in this repo, the product should be understood in this order:
+
+1. shared learning and execution core in `src/`
+2. shared browser runtime in `web/public/` and `web/public/plugin/`
+3. Chrome extension host in `chrome-extension-src/graph-trainer/`
+4. local demo surfaces used to validate the shared runtime
+
+That means the medical pages are examples of the runtime in action, not the long-term shape of Graph itself.
 
 ## Running the Repo
 
@@ -151,6 +150,8 @@ This is passed through the page plugin into the agent selection prompt.
 ```bash
 npm ci
 ```
+
+On this Windows setup, prefer `npm.cmd` for npm scripts when PowerShell blocks `npm.ps1`.
 
 2. Start the web server:
 
@@ -163,7 +164,26 @@ node web/server.js
 - `http://localhost:3000/`
 - `http://localhost:3000/page1.html`
 - `http://localhost:3000/page2.html`
-- `http://localhost:3000/examples/car-demo`
+
+## Building the Chrome Extension
+
+1. Generate the unpacked Chrome extension locally:
+
+```bash
+npm.cmd run build:chrome-extension
+```
+
+2. Load the unpacked folder in Chrome:
+
+- `chrome://extensions`
+- enable Developer mode
+- click `Load unpacked`
+- select `C:\Users\User\Desktop\Graph\generated\chrome-extension\graph-trainer`
+
+Notes:
+
+- `generated/chrome-extension/` is local build output and is intentionally ignored by Git.
+- rebuilding the extension refreshes the packaged runtime after changes in `web/public/` or `chrome-extension-src/graph-trainer/`.
 
 ## Environment Variables
 

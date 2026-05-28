@@ -580,7 +580,7 @@ Primary responsibility:
 Current surfaces:
 
 - medical demo pages
-- injected car-rental demo
+- demo pages served by the local web runtime
 - Chrome extension build output
 
 ### Chrome Extension
@@ -595,7 +595,9 @@ Build script:
 
 Built output:
 
-- [generated/chrome-extension/graph-trainer](C:/Users/User/Desktop/Graph/generated/chrome-extension/graph-trainer)
+- generated locally at `generated/chrome-extension/graph-trainer`
+- not treated as source of truth in the repo
+- intentionally ignored by Git as disposable build output
 
 The extension injects:
 
@@ -605,6 +607,12 @@ The extension injects:
 - trainer plugin bootstrap
 
 into arbitrary pages.
+
+Architecturally, the important boundary is:
+
+- shared runtime logic lives in `web/public/` and `web/public/plugin/`
+- Chrome-specific host packaging lives in `chrome-extension-src/graph-trainer/`
+- `generated/chrome-extension/` is only the local build artifact produced from those sources
 
 ## Runtime Flow
 
