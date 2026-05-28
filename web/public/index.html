@@ -5,26 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Miracle | AI Agent for Clinical Operations</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
         :root {
-            --bg: #f5f5f2;
-            --bg-strong: #ebe9e2;
-            --surface: rgba(255, 255, 255, 0.82);
+            --bg: #f8fafc;
+            --bg-strong: #dceffd;
+            --surface: rgba(248, 250, 252, 0.78);
             --surface-strong: #ffffff;
-            --surface-dark: #151818;
-            --line: rgba(18, 28, 37, 0.11);
-            --line-strong: rgba(18, 28, 37, 0.18);
-            --ink: #111418;
-            --muted: #5d6672;
-            --muted-strong: #424a54;
-            --accent: #0f6fff;
-            --accent-soft: rgba(15, 111, 255, 0.12);
+            --surface-dark: #0f172a;
+            --line: rgba(15, 23, 42, 0.1);
+            --line-strong: rgba(15, 23, 42, 0.18);
+            --ink: #0f172a;
+            --muted: #64748b;
+            --muted-strong: #334155;
+            --accent: #2f8cff;
+            --accent-soft: rgba(220, 239, 253, 0.74);
+            --mint: #b7f0d8;
             --success: #13795b;
-            --hero-glow: rgba(15, 111, 255, 0.16);
-            --shadow-xl: 0 32px 90px rgba(17, 20, 24, 0.12);
-            --shadow-lg: 0 20px 54px rgba(17, 20, 24, 0.1);
-            --shadow-md: 0 12px 28px rgba(17, 20, 24, 0.08);
+            --left-blue-alpha: 0.78;
+            --right-mist-alpha: 0.62;
+            --bg-y: 12%;
+            --shadow-xl: 0 32px 90px rgba(15, 23, 42, 0.12);
+            --shadow-lg: 0 20px 54px rgba(15, 23, 42, 0.1);
+            --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.08);
             --radius-xl: 32px;
             --radius-lg: 24px;
             --radius-md: 18px;
@@ -43,11 +46,12 @@
         body {
             margin: 0;
             color: var(--ink);
-            font-family: "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-family: "Inter", "Sohne", "Söhne", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
             background:
-                radial-gradient(circle at top left, rgba(15, 111, 255, 0.08), transparent 28%),
-                radial-gradient(circle at top right, rgba(17, 20, 24, 0.06), transparent 24%),
-                linear-gradient(180deg, #faf9f6 0%, #f1efe9 100%);
+                radial-gradient(ellipse at 0% var(--bg-y), rgb(220 239 253 / var(--left-blue-alpha)), transparent 42%),
+                radial-gradient(ellipse at 100% calc(var(--bg-y) + 10%), rgb(203 213 225 / var(--right-mist-alpha)), transparent 40%),
+                linear-gradient(115deg, #dceffd 0%, #f8fafc 38%, #f8fafc 62%, #e8edf3 100%);
+            background-attachment: fixed;
         }
 
         a {
@@ -70,28 +74,24 @@
         .page-shell::after {
             content: "";
             position: fixed;
-            inset: auto;
+            inset: 0;
             pointer-events: none;
             z-index: 0;
-            filter: blur(24px);
         }
 
         .page-shell::before {
-            top: 70px;
-            left: -120px;
-            width: 320px;
-            height: 320px;
-            background: var(--hero-glow);
-            border-radius: 999px;
+            background:
+                linear-gradient(90deg, rgb(220 239 253 / 0.5), transparent 38%),
+                linear-gradient(270deg, rgb(203 213 225 / 0.34), transparent 36%);
         }
 
         .page-shell::after {
-            right: -130px;
-            top: 420px;
-            width: 300px;
-            height: 300px;
-            background: rgba(29, 99, 209, 0.1);
-            border-radius: 999px;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.36) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.28) 1px, transparent 1px);
+            background-size: 72px 72px;
+            opacity: 0.2;
+            mask-image: linear-gradient(180deg, black 0%, transparent 62%);
         }
 
         .site-header {
@@ -99,8 +99,8 @@
             top: 0;
             z-index: 30;
             backdrop-filter: blur(18px);
-            background: rgba(245, 245, 242, 0.78);
-            border-bottom: 1px solid rgba(17, 20, 24, 0.06);
+            background: rgba(248, 250, 252, 0.74);
+            border-bottom: 1px solid rgba(15, 23, 42, 0.06);
         }
 
         .header-inner,
@@ -124,14 +124,28 @@
         .brand {
             text-decoration: none;
             flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-mark {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            background:
+                radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.96), transparent 18%),
+                radial-gradient(circle at 38% 36%, #dceffd 0 22%, #7fb6e6 48%, #0f5f9f 100%);
+            box-shadow: inset -6px -8px 14px rgba(15, 23, 42, 0.22), 0 8px 20px rgba(47, 140, 255, 0.18);
         }
 
         .brand-wordmark {
             display: inline-block;
-            font-family: "Montserrat", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
-            font-size: clamp(1.5rem, 2vw, 1.9rem);
-            font-weight: 700;
-            letter-spacing: -0.06em;
+            font-family: "Sohne", "Söhne", "Inter", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: clamp(1.3rem, 1.7vw, 1.7rem);
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
             color: var(--ink);
         }
 
@@ -180,14 +194,15 @@
 
         .hero {
             display: grid;
-            grid-template-columns: minmax(0, 1.02fr) minmax(420px, 0.98fr);
-            gap: 44px;
+            grid-template-columns: minmax(0, 1fr) minmax(420px, 1fr);
+            gap: 52px;
             align-items: center;
-            padding: 78px 0 42px;
+            min-height: calc(100svh - 74px);
+            padding: 62px 0 34px;
         }
 
         .hero-copy {
-            max-width: 660px;
+            max-width: 620px;
         }
 
         .eyebrow {
@@ -196,14 +211,14 @@
             gap: 10px;
             padding: 8px 12px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(17, 20, 24, 0.08);
-            box-shadow: 0 10px 24px rgba(17, 20, 24, 0.04);
+            background: rgba(248, 250, 252, 0.78);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
             font-size: 0.78rem;
             font-weight: 600;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
-            color: var(--muted-strong);
+            color: #1d4f86;
         }
 
         .eyebrow::before {
@@ -211,24 +226,26 @@
             width: 8px;
             height: 8px;
             border-radius: 999px;
-            background: linear-gradient(135deg, #2d8cff, #69a9ff);
-            box-shadow: 0 0 0 6px rgba(15, 111, 255, 0.09);
+            background: linear-gradient(135deg, #2f8cff, #b7f0d8);
+            box-shadow: 0 0 0 6px rgba(220, 239, 253, 0.9);
         }
 
         .hero h1 {
             margin: 22px 0 18px;
-            font-size: clamp(3rem, 6vw, 5.4rem);
-            line-height: 0.95;
-            letter-spacing: -0.065em;
-            max-width: 760px;
+            font-family: "Sohne", "Söhne", "Inter", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: clamp(3rem, 5.7vw, 5.2rem);
+            line-height: 0.94;
+            letter-spacing: -0.055em;
+            color: #0f172a;
+            max-width: 680px;
         }
 
         .hero-lead {
             margin: 0;
-            font-size: 1.16rem;
-            line-height: 1.72;
+            font-size: 1.12rem;
+            line-height: 1.68;
             color: var(--muted-strong);
-            max-width: 610px;
+            max-width: 570px;
         }
 
         .hero-actions {
@@ -248,6 +265,7 @@
             border-radius: 999px;
             text-decoration: none;
             border: 1px solid transparent;
+            font-weight: 650;
             transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
         }
 
@@ -258,13 +276,13 @@
         .btn-primary {
             background: var(--ink);
             color: #fff;
-            box-shadow: 0 16px 32px rgba(17, 20, 24, 0.16);
+            box-shadow: 0 16px 32px rgba(15, 23, 42, 0.18);
         }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(248, 250, 252, 0.82);
             color: var(--ink);
-            border-color: rgba(17, 20, 24, 0.12);
+            border-color: rgba(15, 23, 42, 0.12);
         }
 
         .hero-proof {
@@ -277,9 +295,9 @@
         .proof-card {
             padding: 18px 18px 20px;
             border-radius: 22px;
-            background: rgba(255, 255, 255, 0.76);
-            border: 1px solid rgba(17, 20, 24, 0.08);
-            box-shadow: 0 18px 34px rgba(17, 20, 24, 0.04);
+            background: rgba(248, 250, 252, 0.76);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.04);
         }
 
         .proof-card strong,
@@ -303,14 +321,31 @@
             position: relative;
         }
 
+        .hero-panel::before {
+            content: "";
+            position: absolute;
+            top: -42px;
+            right: 24px;
+            width: clamp(92px, 12vw, 152px);
+            aspect-ratio: 1;
+            border-radius: 999px;
+            background:
+                radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.96), transparent 15%),
+                radial-gradient(circle at 38% 34%, #f8fafc 0 14%, #dceffd 33%, #79b4e7 58%, #0f5f9f 100%);
+            box-shadow: inset -18px -22px 34px rgba(15, 23, 42, 0.2), 0 30px 70px rgba(47, 140, 255, 0.22);
+            z-index: 2;
+            pointer-events: none;
+        }
+
         .hero-stack {
             position: relative;
             padding: 24px;
             border-radius: 36px;
             background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.52));
-            border: 1px solid rgba(17, 20, 24, 0.08);
+                linear-gradient(180deg, rgba(248, 250, 252, 0.88), rgba(248, 250, 252, 0.58));
+            border: 1px solid rgba(15, 23, 42, 0.08);
             box-shadow: var(--shadow-xl);
+            backdrop-filter: blur(18px);
         }
 
         .hero-stack::before {
@@ -318,8 +353,13 @@
             position: absolute;
             inset: 18px;
             border-radius: 28px;
-            background: linear-gradient(135deg, rgba(15, 111, 255, 0.12), rgba(255, 255, 255, 0));
+            background: linear-gradient(135deg, rgba(220, 239, 253, 0.42), rgba(255, 255, 255, 0));
             pointer-events: none;
+        }
+
+        .hero-stack > * {
+            position: relative;
+            z-index: 1;
         }
 
         .preview-orbit {
@@ -328,9 +368,9 @@
             width: 170px;
             padding: 14px;
             border-radius: 22px;
-            background: rgba(17, 20, 24, 0.92);
+            background: rgba(15, 23, 42, 0.94);
             color: #fff;
-            box-shadow: 0 20px 44px rgba(17, 20, 24, 0.22);
+            box-shadow: 0 20px 44px rgba(15, 23, 42, 0.22);
         }
 
         .preview-orbit strong,
@@ -358,7 +398,11 @@
             margin-bottom: 8px;
             font-size: 0.7rem;
             letter-spacing: 0.08em;
-            color: #89b4ff;
+            color: #dceffd;
+        }
+
+        .preview-orbit::before {
+            content: "LIVE";
         }
 
         .section {
@@ -898,6 +942,10 @@
             gap: 20px;
         }
 
+        .section-offset {
+            margin-top: 34px;
+        }
+
         .feature-panel,
         .contact-panel {
             padding: 30px;
@@ -953,13 +1001,23 @@
 
         .contact-panel {
             background:
-                radial-gradient(circle at top right, rgba(15, 111, 255, 0.14), transparent 30%),
-                linear-gradient(180deg, #171a1f 0%, #101317 100%);
+                radial-gradient(circle at top right, rgba(220, 239, 253, 0.16), transparent 30%),
+                linear-gradient(180deg, #0f172a 0%, #111827 100%);
             color: #fff;
+        }
+
+        .contact-panel .section-kicker {
+            color: #dceffd;
         }
 
         .contact-panel p {
             color: rgba(255, 255, 255, 0.76);
+        }
+
+        .impact-panel {
+            background:
+                radial-gradient(circle at top right, rgba(183, 240, 216, 0.18), transparent 30%),
+                linear-gradient(180deg, #0f172a 0%, #142033 100%);
         }
 
         .contact-panel.centered {
@@ -1018,6 +1076,63 @@
             font-weight: 700;
             box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
             font-size: 1rem;
+        }
+
+        .profile-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 34px;
+        }
+
+        .profile-card {
+            padding: 24px;
+            border-radius: 26px;
+            background: rgba(248, 250, 252, 0.78);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: var(--shadow-md);
+        }
+
+        .profile-card span {
+            display: block;
+            color: #1d4f86;
+            font-size: 0.78rem;
+            font-weight: 750;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .profile-card h3 {
+            margin: 14px 0 10px;
+            font-size: 1.28rem;
+            line-height: 1.08;
+            letter-spacing: -0.04em;
+        }
+
+        .profile-card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.62;
+        }
+
+        .cta-actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+        }
+
+        .btn-on-light {
+            background: #ffffff;
+            color: #0f172a;
+            box-shadow: 0 18px 34px rgba(0, 0, 0, 0.18);
+        }
+
+        .btn-on-dark {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.18);
         }
 
         .actions-strip {
@@ -1144,13 +1259,31 @@
         .info-card,
         .showcase-card,
         .feature-panel,
-        .contact-panel {
+        .contact-panel,
+        .profile-card {
             animation: heroEnter 700ms ease both;
         }
 
         .hero-panel { animation-delay: 90ms; }
         .info-card:nth-child(2) { animation-delay: 70ms; }
         .info-card:nth-child(3) { animation-delay: 140ms; }
+
+        @media (prefers-reduced-motion: reduce) {
+            html {
+                scroll-behavior: auto;
+            }
+
+            .hero-copy,
+            .hero-panel,
+            .section-head,
+            .info-card,
+            .showcase-card,
+            .feature-panel,
+            .contact-panel,
+            .profile-card {
+                animation: none;
+            }
+        }
 
         @media (max-width: 1140px) {
             .hero,
@@ -1161,6 +1294,10 @@
 
             .signal-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .profile-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
             .hero {
@@ -1217,7 +1354,8 @@
 
             .hero-proof,
             .metric-grid,
-            .field-grid {
+            .field-grid,
+            .profile-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -1262,12 +1400,18 @@
             }
 
             .hero {
-                padding-top: 52px;
+                min-height: auto;
+                padding-top: 42px;
             }
 
             .hero h1 {
-                font-size: clamp(2.5rem, 13vw, 3.8rem);
-                line-height: 0.98;
+                font-size: clamp(2.55rem, 11.5vw, 3.18rem);
+                line-height: 0.94;
+            }
+
+            .hero-lead {
+                font-size: 1rem;
+                line-height: 1.62;
             }
 
             .showcase-card,
@@ -1283,17 +1427,40 @@
 
             .workspace-shell,
             .info-card,
+            .profile-card,
             .feature-panel,
             .contact-panel,
             .actions-card {
                 padding: 18px;
             }
 
+            .top-nav {
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                overflow: visible;
+                justify-content: stretch;
+                padding-bottom: 4px;
+                scrollbar-width: auto;
+            }
+
+            .top-nav::-webkit-scrollbar {
+                display: initial;
+            }
+
             .top-nav a,
             .top-nav button {
                 width: 100%;
+                min-width: 0;
+                flex: 1 1 auto;
                 justify-content: center;
                 text-align: center;
+                padding: 9px 12px;
+                white-space: normal;
+            }
+
+            .top-nav .nav-cta {
+                grid-column: 1 / -1;
             }
 
             .hero-actions,
@@ -1304,7 +1471,8 @@
             .btn,
             .actions button,
             .toolbar-button,
-            .whatsapp-cta a {
+            .whatsapp-cta a,
+            .cta-actions a {
                 width: 100%;
             }
 
@@ -1312,6 +1480,20 @@
                 position: static;
                 width: 100%;
                 margin-top: 16px;
+            }
+
+            .hero-panel::before {
+                top: -24px;
+                right: 18px;
+                width: 88px;
+            }
+
+            #graph-assistant-bubble {
+                display: none !important;
+            }
+
+            #graph-assistant-shell {
+                --graph-assistant-glass-size: 104px !important;
             }
 
             .proof-card strong {
@@ -1364,6 +1546,7 @@
 
             .workspace-shell,
             .info-card,
+            .profile-card,
             .feature-panel,
             .contact-panel,
             .actions-card {
@@ -1397,15 +1580,16 @@
         <header class="site-header">
             <div class="header-inner">
                 <a class="brand" href="#top" aria-label="Miracle home">
+                    <span class="brand-mark" aria-hidden="true"></span>
                     <span class="brand-wordmark">Miracle</span>
                 </a>
 
                 <nav class="top-nav" aria-label="Primary">
-                    <a href="#product">Producto</a>
+                    <a href="#product">Cómo funciona</a>
                     <a href="#demo">Demo</a>
-                    <a href="#trust">Por que Miracle</a>
+                    <a href="#trust">Por qué Miracle</a>
                     <button id="clear-emr" type="button">Reiniciar demo</button>
-                    <a class="nav-cta" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Agendar visita</a>
+                    <a class="nav-cta" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar diagnóstico</a>
                 </nav>
             </div>
         </header>
@@ -1414,28 +1598,28 @@
             <section class="hero">
                 <div class="hero-copy">
                     <div class="eyebrow">IA operativa para equipos de salud</div>
-                    <h1>Miracle le da al médico un agente de inteligencia artificial que puede operar el computador por él.</h1>
+                    <h1>Automatiza tareas clínicas sin cambiar tu sistema actual.</h1>
                     <p class="hero-lead">
-                        Miracle se integra al flujo clínico, entiende lo que hay en pantalla y ejecuta tareas repetitivas del software médico con precisión. El resultado es menos fricción operativa, más consistencia en el trabajo y más tiempo para enfocarse en el paciente.
+                        Miracle ayuda a equipos de salud a completar procesos administrativos y clínicos sobre sus flujos existentes, con inteligencia artificial, control humano y trazabilidad.
                     </p>
 
                     <div class="hero-actions">
-                        <a class="btn btn-primary" href="#demo">Verlo en accion</a>
-                        <a class="btn btn-secondary" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar demo privada</a>
+                        <a class="btn btn-primary" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Agendar demo con mi flujo clínico</a>
+                        <a class="btn btn-secondary" href="#product">Conocer cómo funciona</a>
                     </div>
 
                     <div class="hero-proof" aria-label="Miracle value points">
                         <div class="proof-card">
-                            <strong>Entiende la pantalla</strong>
-                            <span>Miracle reconoce la interfaz, los controles y el siguiente paso necesario para completar la tarea.</span>
+                            <strong>Sobre tu sistema</strong>
+                            <span>Se integra como una capa operativa sobre el software que la institución ya usa.</span>
                         </div>
                         <div class="proof-card">
-                            <strong>Ejecuta trabajo real</strong>
-                            <span>No se queda en sugerencias. Puede ayudar a completar trabajo directamente sobre el flujo operativo.</span>
+                            <strong>Con control humano</strong>
+                            <span>Ayuda a ejecutar pasos repetitivos sin reemplazar el criterio médico ni la supervisión del equipo.</span>
                         </div>
                         <div class="proof-card">
-                            <strong>Hecho para salud</strong>
-                            <span>Diseñado para entornos donde la confianza, la claridad y la precisión importan para todos los involucrados.</span>
+                            <strong>Con trazabilidad</strong>
+                            <span>Diseñado para flujos donde privacidad, precisión y responsabilidad operativa importan.</span>
                         </div>
                     </div>
                 </div>
@@ -1461,14 +1645,14 @@
                             </div>
                             <div class="side-block assistant-card" style="margin: 18px;">
                                 <span class="assistant-badge">Agente Miracle</span>
-                                <h3>"Puedo completar el flujo mientras el médico mantiene el control."</h3>
-                                <p>Miracle está construido para funcionar como una capa operativa confiable sobre el software médico, no como otro chatbot flotando encima.</p>
+                                <h3>"Puedo asistir el flujo, pedir confirmación y registrar la acción."</h3>
+                                <p>Miracle está construido para operar tareas repetitivas con supervisión humana, no para tomar decisiones clínicas autónomas.</p>
                             </div>
                         </div>
                     </div>
                     <div class="preview-orbit">
-                        <strong>Diseñado para inspirar confianza</strong>
-                        <span>Interacciones limpias, ejecución controlada y un lenguaje de producto que se siente creíble frente a liderazgo hospitalario.</span>
+                        <strong>Automatización supervisada</strong>
+                        <span>Flujos guiados, confirmaciones humanas y registro de acciones para equipos clínicos y administrativos.</span>
                     </div>
                 </div>
             </section>
@@ -1477,16 +1661,16 @@
                 <div class="section-inner">
                     <div class="signal-grid">
                         <div class="signal-card">
-                            <strong>Pensado para liderazgo en salud</strong>
-                            <span>Miracle está posicionado para ser evaluado por operadores, directores médicos, liderazgo institucional y aliados de software en la misma conversación.</span>
+                            <strong>Para clínicas y hospitales</strong>
+                            <span>Diseñado para equipos que ya tienen sistemas clínicos y necesitan reducir carga operativa sin migraciones grandes.</span>
                         </div>
                         <div class="signal-card">
-                            <strong>Modelo de ejecución</strong>
-                            <span>Un agente de IA que ayuda a operar el software clínico existente, en lugar de reemplazarlo.</span>
+                            <strong>Capa operativa</strong>
+                            <span>Miracle acompaña procesos existentes y ayuda a completar pasos repetitivos con supervisión del usuario.</span>
                         </div>
                         <div class="signal-card">
-                            <strong>Punto de entrada comercial</strong>
-                            <span>Empezar por flujos de alta fricción, donde el tiempo administrativo es visible y medible.</span>
+                            <strong>Entrada gradual</strong>
+                            <span>Empieza por un flujo de alta fricción, valida el impacto y expande solo donde tenga sentido operativo.</span>
                         </div>
                     </div>
                 </div>
@@ -1495,26 +1679,68 @@
             <section class="section" id="product">
                 <div class="section-inner">
                     <div class="section-head">
-                        <span class="section-kicker">Qué es Miracle</span>
-                        <h2>Un producto de IA con ambición de plataforma, presentado con la seriedad que esperan las organizaciones de salud.</h2>
+                        <span class="section-kicker">El problema</span>
+                        <h2>Demasiado tiempo clínico se pierde navegando pantallas y repitiendo información.</h2>
                         <p>
-                            Miracle es un agente de IA que ayuda a los clínicos a operar software más rápido y con menos fricción administrativa. Observa el contexto de trabajo, entiende el flujo y ayuda a ejecutar tareas directamente en pantalla. La propuesta de valor es concreta: menos clics repetitivos, handoffs más limpios y más atención clínica donde realmente importa.
+                            En muchos equipos de salud, médicos, auxiliares y personal administrativo dedican una parte importante del día a buscar campos, copiar datos, avanzar formularios y coordinar tareas entre sistemas. Ese trabajo es necesario, pero consume atención que podría usarse mejor en el paciente y en decisiones operativas.
                         </p>
                     </div>
 
                     <div class="info-grid">
                         <article class="info-card">
-                            <h3>Trabaja dentro del flujo</h3>
-                            <p>Miracle actúa donde el equipo clínico ya trabaja, en lugar de obligarlo a salir de su software y adaptarse a un proceso aparte.</p>
+                            <h3>Navegación repetitiva</h3>
+                            <p>Los equipos saltan entre pantallas, formularios y pasos administrativos para completar procesos que se repiten todos los días.</p>
                         </article>
                         <article class="info-card">
-                            <h3>Diseñado para precisión y calma</h3>
-                            <p>La experiencia es deliberadamente sobria, legible y orientada a ejecución. Cada superficie está pensada para verse confiable frente a liderazgo médico, operativo y tecnológico.</p>
+                            <h3>Variabilidad del registro</h3>
+                            <p>Cuando cada persona completa el flujo de forma distinta, aparecen omisiones, retrabajo y más dificultad para dar seguimiento.</p>
                         </article>
                         <article class="info-card">
-                            <h3>Demuestra palanca operativa real</h3>
-                            <p>Desde intake hasta acciones posteriores, Miracle muestra cómo un agente de IA puede reducir navegación repetitiva y convertir flujos complejos en ejecución guiada.</p>
+                            <h3>Menos foco en el paciente</h3>
+                            <p>La carga administrativa fragmenta la atención y hace más difícil mantener una experiencia clínica fluida.</p>
                         </article>
+                    </div>
+
+                    <div class="feature-rail section-offset">
+                        <div class="feature-panel">
+                            <span class="section-kicker">La solución</span>
+                            <h3>Una capa inteligente sobre los sistemas que ya existen.</h3>
+                            <p>Miracle no obliga a reemplazar el software clínico actual. Se ubica sobre los flujos existentes para asistir tareas repetitivas, guiar pasos, preparar información y ayudar al equipo a avanzar con menos fricción.</p>
+                            <ul class="feature-list">
+                                <li>
+                                    <strong>Ejecuta tareas repetitivas</strong>
+                                    <span>Ayuda con pasos administrativos y clínicos operativos que consumen tiempo y atención.</span>
+                                </li>
+                                <li>
+                                    <strong>Apoya distintos roles</strong>
+                                    <span>Puede asistir a médicos, auxiliares, operaciones y equipos administrativos según el flujo.</span>
+                                </li>
+                                <li>
+                                    <strong>Mantiene supervisión humana</strong>
+                                    <span>El usuario conserva el control y puede confirmar acciones críticas antes de ejecutarlas.</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="contact-panel impact-panel">
+                            <span class="section-kicker">Impacto esperado</span>
+                            <h3>Impacto operativo desde el primer flujo.</h3>
+                            <p>En pilotos, Miracle debe evaluarse por reducción de pasos manuales, consistencia del proceso y tiempo recuperado para tareas de mayor valor.</p>
+                            <div class="contact-list">
+                                <div class="contact-card">
+                                    <strong>Menos fricción</strong>
+                                    <span>Menos navegación manual entre pantallas y formularios.</span>
+                                </div>
+                                <div class="contact-card">
+                                    <strong>Más consistencia</strong>
+                                    <span>Registros más completos y flujos clínicos mejor estandarizados.</span>
+                                </div>
+                                <div class="contact-card">
+                                    <strong>Mejor uso del tiempo</strong>
+                                    <span>Más atención disponible para el paciente y para coordinación operativa.</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -1698,24 +1924,108 @@
             <section class="section" id="trust">
                 <div class="section-inner">
                     <div class="section-head">
-                        <span class="section-kicker">Por qué Miracle</span>
-                        <h2>Una interfaz de IA que se ve creíble frente a directivos y útil frente al equipo clínico.</h2>
+                        <span class="section-kicker">Casos de uso</span>
+                        <h2>Empieza por tareas repetitivas donde el impacto operativo sea visible.</h2>
                         <p>
-                            Miracle no intenta verse futurista por capricho. El producto está diseñado para sentirse premium, controlado y listo para instituciones. Ese equilibrio importa cuando la audiencia incluye médicos, directivos, operaciones y tecnología.
+                            Miracle funciona mejor cuando se aplica a flujos frecuentes, con pasos claros y carga manual alta. La adopción puede comenzar en un proceso específico antes de expandirse a otras áreas.
                         </p>
                     </div>
 
-                    <div class="section-head" style="margin: 0 auto 26px; text-align: center;">
-                        <h2 style="font-size: clamp(2.1rem, 4vw, 3.3rem);">Agenda una visita y probemos Miracle sobre tu sistema.</h2>
-                        <p>La mejor demo es verlo funcionando dentro del flujo real de tu hospital.</p>
+                    <div class="info-grid">
+                        <article class="info-card">
+                            <h3>Intake y registro</h3>
+                            <p>Asistencia para completar datos del paciente, validar campos requeridos y preparar el siguiente paso del flujo.</p>
+                        </article>
+                        <article class="info-card">
+                            <h3>Seguimiento administrativo</h3>
+                            <p>Apoyo en tareas repetitivas posteriores a la atención, coordinación interna y actualización de información operativa.</p>
+                        </article>
+                        <article class="info-card">
+                            <h3>Flujos clínicos guiados</h3>
+                            <p>Ayuda para avanzar procesos estructurados con mayor consistencia, manteniendo revisión humana en puntos sensibles.</p>
+                        </article>
+                    </div>
+
+                    <div class="feature-rail section-offset trust-rail">
+                        <div class="contact-panel">
+                            <span class="section-kicker">Seguridad y control</span>
+                            <h3>La IA acompaña el proceso. No reemplaza el criterio médico.</h3>
+                            <p>Miracle está pensado para entornos donde privacidad, precisión y responsabilidad importan. Las acciones sensibles pueden requerir confirmación humana y los permisos pueden adaptarse por rol.</p>
+                            <div class="contact-list">
+                                <div class="contact-card">
+                                    <strong>Decisión clínica</strong>
+                                    <span>El criterio profesional permanece en el equipo de salud.</span>
+                                </div>
+                                <div class="contact-card">
+                                    <strong>Confirmación</strong>
+                                    <span>Las acciones sensibles pueden pausarse para revisión humana.</span>
+                                </div>
+                                <div class="contact-card">
+                                    <strong>Responsabilidad</strong>
+                                    <span>La automatización se aplica al flujo operativo, no al juicio médico autónomo.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="feature-panel">
+                            <h3>Confianza institucional desde el diseño</h3>
+                            <ul class="feature-list">
+                                <li>
+                                    <strong>Control humano</strong>
+                                    <span>El usuario puede revisar, confirmar o detener acciones antes de que avancen en el sistema.</span>
+                                </li>
+                                <li>
+                                    <strong>Trazabilidad operativa</strong>
+                                    <span>Las acciones sugeridas o ejecutadas pueden registrarse para seguimiento y auditoría del flujo.</span>
+                                </li>
+                                <li>
+                                    <strong>Permisos por rol</strong>
+                                    <span>La automatización puede ajustarse al nivel de acceso de médicos, auxiliares, operaciones o administración.</span>
+                                </li>
+                                <li>
+                                    <strong>Sin decisiones clínicas autónomas</strong>
+                                    <span>Miracle asiste la operación del flujo; no sustituye diagnóstico, tratamiento ni responsabilidad profesional.</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="section-head section-offset">
+                        <span class="section-kicker">Beneficios por perfil</span>
+                        <h2>Valor claro para quienes usan, operan y aprueban la tecnología.</h2>
+                    </div>
+
+                    <div class="profile-grid">
+                        <article class="profile-card">
+                            <span>Para médicos</span>
+                            <h3>Menos carga administrativa.</h3>
+                            <p>Menos navegación entre sistemas y más foco en la atención del paciente.</p>
+                        </article>
+                        <article class="profile-card">
+                            <span>Para operaciones</span>
+                            <h3>Procesos más estandarizados.</h3>
+                            <p>Menor variabilidad entre equipos y mejor seguimiento de tareas repetitivas.</p>
+                        </article>
+                        <article class="profile-card">
+                            <span>Para tecnología</span>
+                            <h3>Una capa sobre sistemas existentes.</h3>
+                            <p>Adopción gradual de IA sin reemplazar de entrada el software clínico actual.</p>
+                        </article>
+                        <article class="profile-card">
+                            <span>Para dirección</span>
+                            <h3>Eficiencia operativa medible.</h3>
+                            <p>Mejor uso del tiempo del equipo y una ruta prudente para incorporar automatización.</p>
+                        </article>
                     </div>
 
                     <div class="contact-panel centered">
-                        <h3>Agendar visita</h3>
-                        <p>Escríbenos por WhatsApp para coordinar una prueba real en tu hospital.</p>
+                        <span class="section-kicker">Siguiente paso</span>
+                        <h3>Solicita un diagnóstico operativo gratuito.</h3>
+                        <p>Analizamos un flujo repetitivo de tu institución y te mostramos dónde Miracle puede reducir carga administrativa, pasos manuales y fricción operativa.</p>
 
-                        <div class="whatsapp-cta">
-                            <a href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Agendar visita por WhatsApp</a>
+                        <div class="cta-actions">
+                            <a class="btn btn-primary btn-on-light" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar diagnóstico operativo gratuito</a>
+                            <a class="btn btn-secondary btn-on-dark" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Hablar por WhatsApp</a>
                         </div>
                     </div>
                 </div>
@@ -1731,7 +2041,7 @@
                 <div class="footer-links">
                     <a href="#top">Volver arriba</a>
                     <a href="#demo">Ver demo</a>
-                    <a href="#trust">Contacto</a>
+                    <a href="#trust">Por qué Miracle</a>
                     <a href="https://wa.me/573172550953" target="_blank" rel="noreferrer">WhatsApp</a>
                 </div>
             </div>
@@ -1755,6 +2065,22 @@
     <script src="plugin/plugin-workflow-overlay-bridge.js"></script>
     <script src="trainer-plugin.js"></script>
     <script>
+        function syncBrandGradient() {
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                return;
+            }
+
+            const scrollable = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
+            const progress = Math.min(window.scrollY / scrollable, 1);
+            document.documentElement.style.setProperty('--left-blue-alpha', (0.78 - progress * 0.18).toFixed(3));
+            document.documentElement.style.setProperty('--right-mist-alpha', (0.62 + progress * 0.12).toFixed(3));
+            document.documentElement.style.setProperty('--bg-y', `${12 + progress * 22}%`);
+        }
+
+        window.addEventListener('scroll', syncBrandGradient, { passive: true });
+        window.addEventListener('resize', syncBrandGradient);
+        syncBrandGradient();
+
         function hasValue(id) {
             return document.getElementById(id).value.trim() !== '';
         }
