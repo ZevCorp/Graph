@@ -1565,7 +1565,10 @@
             let inflight = false;
             let stopped = false;
             let needsAnotherPass = false;
-            const debounceMs = Number.isFinite(sessionDeps.debounceMs) ? sessionDeps.debounceMs : 800;
+            const debounceMs = Number.isFinite(sessionDeps.debounceMs) ? sessionDeps.debounceMs : 350;
+            const interMatchDelayMs = Number.isFinite(sessionDeps.interMatchDelayMs)
+                ? sessionDeps.interMatchDelayMs
+                : Math.max(60, Math.min(stepDelayMs, 120));
 
             function buildFieldsForMatching() {
                 return plan.steps
@@ -1660,55 +1663,70 @@
                         workflowId: plan.workflowId || '',
                         errorMessage: error?.message || 'Unknown error'
                     });
-                } finally {
-                    inflight = false;
                 }
 
-                if (stopped) return;
+                if (stopped) {
+                    inflight = false;
+                    return;
+                }
                 const matches = Array.isArray(result?.matches) ? result.matches : [];
                 let anyApplied = false;
-                for (const match of matches) {
-                    if (stopped) break;
-                    const stepOrder = Number(match?.stepOrder);
-                    if (!Number.isFinite(stepOrder)) continue;
-                    const step = plan.steps.find((candidate) => Number(candidate?.stepOrder) === stepOrder);
-                    if (!step) continue;
+                try {
+                    for (const match of matches) {
+                        if (stopped) break;
+                        const stepOrder = Number(match?.stepOrder);
+                        if (!Number.isFinite(stepOrder)) continue;
+                        const step = plan.steps.find((candidate) => Number(candidate?.stepOrder) === stepOrder);
+                        if (!step) continue;
 
-                    if (fulfilledStepOrders.has(stepOrder) && lastAppliedValue.get(stepOrder) === match.value) {
-                        continue;
+                        if (fulfilledStepOrders.has(stepOrder) && lastAppliedValue.get(stepOrder) === match.value) {
+                            continue;
+                        }
+
+                        let outcome;
+                        try {
+                            outcome = await applyMatchToStep(step, match);
+                        } catch (error) {
+                            outcome = { applied: false, reason: 'apply_threw', error };
+                            emitExtensionLog('warn', 'Dynamic note fill step threw.', {
+                                workflowId: plan.workflowId || '',
+                                stepOrder,
+                                actionType: step.actionType || '',
+                                errorMessage: error?.message || 'Unknown error'
+                            });
+                        }
+                        if (outcome.applied) {
+                            anyApplied = true;
+                            fulfilledStepOrders.add(stepOrder);
+                            lastAppliedValue.set(stepOrder, match.value);
+                            sessionDeps.onFieldFilled?.({
+                                stepOrder,
+                                value: match.value,
+                                evidence: match.evidence || '',
+                                actionType: step.actionType || ''
+                            });
+                            emitExtensionLog('info', 'Dynamic note fill applied step.', {
+                                workflowId: plan.workflowId || '',
+                                stepOrder,
+                                actionType: step.actionType || '',
+                                evidence: match.evidence || ''
+                            });
+                            await waitMs(interMatchDelayMs);
+                        } else {
+                            emitExtensionLog('info', 'Dynamic note fill could not apply step yet.', {
+                                workflowId: plan.workflowId || '',
+                                stepOrder,
+                                actionType: step.actionType || '',
+                                reason: outcome.reason || ''
+                            });
+                        }
                     }
-
-                    const outcome = await applyMatchToStep(step, match);
-                    if (outcome.applied) {
-                        anyApplied = true;
-                        fulfilledStepOrders.add(stepOrder);
-                        lastAppliedValue.set(stepOrder, match.value);
-                        sessionDeps.onFieldFilled?.({
-                            stepOrder,
-                            value: match.value,
-                            evidence: match.evidence || '',
-                            actionType: step.actionType || ''
-                        });
-                        emitExtensionLog('info', 'Dynamic note fill applied step.', {
-                            workflowId: plan.workflowId || '',
-                            stepOrder,
-                            actionType: step.actionType || '',
-                            evidence: match.evidence || ''
-                        });
-                        await waitMs(stepDelayMs);
-                    } else {
-                        emitExtensionLog('info', 'Dynamic note fill could not apply step yet.', {
-                            workflowId: plan.workflowId || '',
-                            stepOrder,
-                            actionType: step.actionType || '',
-                            reason: outcome.reason || ''
-                        });
+                } finally {
+                    if (anyApplied) {
+                        runtime()?.speak?.('Listo, sigo escuchando.', { mode: 'idle' });
                     }
-                }
-
-                if (anyApplied) {
-                    runtime()?.speak?.('Listo, sigo escuchando.', { mode: 'idle' });
                     runtime()?.clearSpotlight?.();
+                    inflight = false;
                 }
 
                 if (result?.readyToSubmit) {
@@ -1720,7 +1738,9 @@
 
                 if (needsAnotherPass) {
                     needsAnotherPass = false;
-                    window.setTimeout(processPendingNote, 0);
+                    window.setTimeout(() => {
+                        processPendingNote().catch(() => {});
+                    }, 0);
                 }
             }
 
