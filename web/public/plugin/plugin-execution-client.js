@@ -1562,6 +1562,8 @@
             const lastAppliedValue = new Map();
             let pendingNoteContent = '';
             let debounceTimer = null;
+            let visualHoldTimer = null;
+            let visualHoldToken = 0;
             let inflight = false;
             let stopped = false;
             let needsAnotherPass = false;
@@ -1569,6 +1571,30 @@
             const interMatchDelayMs = Number.isFinite(sessionDeps.interMatchDelayMs)
                 ? sessionDeps.interMatchDelayMs
                 : Math.max(60, Math.min(stepDelayMs, 120));
+            const visualHoldMs = Number.isFinite(sessionDeps.visualHoldMs) ? sessionDeps.visualHoldMs : 5000;
+
+            function cancelVisualHold() {
+                visualHoldToken += 1;
+                if (visualHoldTimer) {
+                    window.clearTimeout(visualHoldTimer);
+                    visualHoldTimer = null;
+                }
+            }
+
+            function scheduleVisualHoldRelease() {
+                cancelVisualHold();
+                if (visualHoldMs <= 0) {
+                    runtime()?.clearSpotlight?.();
+                    return;
+                }
+
+                const token = visualHoldToken;
+                visualHoldTimer = window.setTimeout(() => {
+                    if (stopped || token !== visualHoldToken) return;
+                    visualHoldTimer = null;
+                    runtime()?.clearSpotlight?.();
+                }, visualHoldMs);
+            }
 
             function buildFieldsForMatching() {
                 return plan.steps
@@ -1608,6 +1634,7 @@
                     return { applied: false, reason: 'element_not_found', error };
                 }
 
+                cancelVisualHold();
                 notifyAutomationStep(step, describeMatchAction(step));
 
                 const actionType = `${step.actionType || ''}`;
@@ -1724,8 +1751,8 @@
                 } finally {
                     if (anyApplied) {
                         runtime()?.speak?.('Listo, sigo escuchando.', { mode: 'idle' });
+                        scheduleVisualHoldRelease();
                     }
-                    runtime()?.clearSpotlight?.();
                     inflight = false;
                 }
 
@@ -1762,6 +1789,7 @@
                     window.clearTimeout(debounceTimer);
                     debounceTimer = null;
                 }
+                cancelVisualHold();
                 runtime()?.clearSpotlight?.();
             }
 
