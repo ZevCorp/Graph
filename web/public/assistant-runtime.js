@@ -112,6 +112,139 @@
         element.innerHTML = safeHtml;
     }
 
+    function escapeHtml(value) {
+        return `${value || ''}`
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function renderInlineMarkdown(text) {
+        let out = escapeHtml(text);
+        out = out.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+        out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        out = out.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+        out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+        out = out.replace(/(^|[^_])_([^_\n]+)_(?!_)/g, '$1<em>$2</em>');
+        out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, href) => {
+            const safeHref = href.replace(/"/g, '%22');
+            return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        });
+        return out;
+    }
+
+    function renderMarkdown(text) {
+        const source = `${text || ''}`.replace(/\r\n/g, '\n');
+        if (!source.trim()) {
+            return '';
+        }
+
+        const lines = source.split('\n');
+        const out = [];
+        let paragraph = [];
+        let listType = null;
+        let inCodeBlock = false;
+        let codeBuffer = [];
+
+        const flushParagraph = () => {
+            if (paragraph.length === 0) return;
+            out.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
+            paragraph = [];
+        };
+        const closeList = () => {
+            if (listType) {
+                out.push(`</${listType}>`);
+                listType = null;
+            }
+        };
+        const openList = (type) => {
+            if (listType !== type) {
+                closeList();
+                out.push(`<${type}>`);
+                listType = type;
+            }
+        };
+
+        for (const raw of lines) {
+            if (inCodeBlock) {
+                if (/^```/.test(raw)) {
+                    out.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
+                    codeBuffer = [];
+                    inCodeBlock = false;
+                } else {
+                    codeBuffer.push(raw);
+                }
+                continue;
+            }
+
+            if (/^```/.test(raw)) {
+                flushParagraph();
+                closeList();
+                inCodeBlock = true;
+                continue;
+            }
+
+            const trimmed = raw.trim();
+
+            if (!trimmed) {
+                flushParagraph();
+                closeList();
+                continue;
+            }
+
+            if (/^(-{3,}|_{3,}|\*{3,})$/.test(trimmed)) {
+                flushParagraph();
+                closeList();
+                out.push('<hr>');
+                continue;
+            }
+
+            const heading = trimmed.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+            if (heading) {
+                flushParagraph();
+                closeList();
+                const level = heading[1].length;
+                out.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+                continue;
+            }
+
+            const quote = trimmed.match(/^>\s?(.*)$/);
+            if (quote) {
+                flushParagraph();
+                closeList();
+                out.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
+                continue;
+            }
+
+            const ul = trimmed.match(/^[-*+]\s+(.+)$/);
+            if (ul) {
+                flushParagraph();
+                openList('ul');
+                out.push(`<li>${renderInlineMarkdown(ul[1])}</li>`);
+                continue;
+            }
+
+            const ol = trimmed.match(/^\d+\.\s+(.+)$/);
+            if (ol) {
+                flushParagraph();
+                openList('ol');
+                out.push(`<li>${renderInlineMarkdown(ol[1])}</li>`);
+                continue;
+            }
+
+            closeList();
+            paragraph.push(trimmed);
+        }
+
+        if (inCodeBlock && codeBuffer.length) {
+            out.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
+        }
+        flushParagraph();
+        closeList();
+        return out.join('');
+    }
+
     function quadraticBezier(start, control, end) {
         return `M${start.x},${start.y} Q${control.x},${control.y} ${end.x},${end.y}`;
     }
@@ -514,89 +647,144 @@
                 left: 16px;
                 top: 16px;
                 z-index: calc(var(--graph-assistant-z, 2147483000) + 5);
-                width: min(360px, calc(100vw - 32px));
-                min-height: 280px;
-                max-height: min(70vh, 640px);
+                width: min(380px, calc(100vw - 32px));
+                min-height: 320px;
+                max-height: min(72vh, 680px);
                 display: none;
-                grid-template-rows: auto auto minmax(0, 1fr);
-                gap: 12px;
-                padding: 16px;
                 box-sizing: border-box;
-                border-radius: 22px;
+                border-radius: 20px;
                 background: rgba(252, 254, 255, 0.98);
                 color: #163345;
                 border: 1px solid rgba(15, 95, 140, 0.14);
                 box-shadow: 0 24px 64px rgba(5, 10, 20, 0.24);
+                overflow: hidden;
             }
             .graph-assistant-note-panel[data-visible="true"] {
-                display: grid;
-            }
-            .graph-assistant-note-header {
                 display: flex;
+                flex-direction: column;
+            }
+            .graph-assistant-note-toolbar {
+                position: absolute;
+                top: 10px;
+                right: 12px;
+                z-index: 2;
+                display: inline-flex;
                 align-items: center;
-                justify-content: space-between;
-                gap: 12px;
-            }
-            .graph-assistant-note-title {
-                font: 700 14px/1.2 "Inter", "Segoe UI", sans-serif;
-            }
-            .graph-assistant-note-close {
-                width: 30px;
-                height: 30px;
-                border: none;
-                border-radius: 999px;
-                background: rgba(15, 95, 140, 0.08);
-                color: #0f4f72;
-                cursor: pointer;
-                font-size: 18px;
-                line-height: 1;
-            }
-            .graph-assistant-note-controls {
-                display: grid;
                 gap: 8px;
+                pointer-events: auto;
             }
             .graph-assistant-note-mic {
-                justify-self: start;
                 border: none;
                 border-radius: 999px;
-                padding: 10px 16px;
+                padding: 7px 14px;
                 background: #0f5f8c;
                 color: #ffffff;
-                font: 700 13px/1 "Inter", "Segoe UI", sans-serif;
+                font: 700 12px/1 "Inter", "Segoe UI", sans-serif;
                 cursor: pointer;
+                box-shadow: 0 6px 16px rgba(15, 95, 140, 0.24);
             }
             .graph-assistant-note-mic[data-active="true"] {
                 background: #b53b2c;
+                box-shadow: 0 6px 16px rgba(181, 59, 44, 0.32);
             }
             .graph-assistant-note-mic:disabled {
                 opacity: 0.7;
                 cursor: wait;
             }
-            .graph-assistant-note-status {
-                min-height: 17px;
-                color: rgba(22, 51, 69, 0.78);
-                font: 500 12px/1.35 "Inter", "Segoe UI", sans-serif;
+            .graph-assistant-note-close {
+                width: 28px;
+                height: 28px;
+                border: none;
+                border-radius: 999px;
+                background: rgba(15, 95, 140, 0.1);
+                color: #0f4f72;
+                cursor: pointer;
+                font-size: 18px;
+                line-height: 1;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
             }
             .graph-assistant-note-editor {
+                flex: 1 1 auto;
                 width: 100%;
-                min-height: 220px;
-                height: 100%;
-                resize: none;
+                min-height: 0;
                 box-sizing: border-box;
-                border: none;
-                border-radius: 16px;
-                padding: 14px;
-                background: rgba(255, 255, 255, 0.95);
+                padding: 48px 18px 18px;
+                background: #ffffff;
                 color: #163345;
-                box-shadow:
-                    inset 0 0 0 1px rgba(15, 95, 140, 0.08),
-                    0 10px 30px rgba(15, 95, 140, 0.05);
-                font: 500 13px/1.5 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+                font: 400 14px/1.55 "Inter", "Segoe UI", -apple-system, sans-serif;
                 outline: none;
-                white-space: pre-wrap;
+                overflow-y: auto;
+                overflow-x: hidden;
+                word-wrap: break-word;
             }
-            .graph-assistant-note-editor::placeholder {
-                color: rgba(22, 51, 69, 0.46);
+            .graph-assistant-note-editor:empty::before {
+                content: attr(data-placeholder);
+                color: rgba(22, 51, 69, 0.42);
+                font-style: italic;
+                pointer-events: none;
+            }
+            .graph-assistant-note-editor:focus {
+                box-shadow: inset 0 0 0 2px rgba(15, 95, 140, 0.18);
+            }
+            .graph-assistant-note-editor h1,
+            .graph-assistant-note-editor h2,
+            .graph-assistant-note-editor h3,
+            .graph-assistant-note-editor h4,
+            .graph-assistant-note-editor h5,
+            .graph-assistant-note-editor h6 {
+                margin: 16px 0 8px;
+                line-height: 1.25;
+                font-weight: 700;
+                color: #0f3a55;
+            }
+            .graph-assistant-note-editor h1 { font-size: 20px; border-bottom: 1px solid rgba(15, 95, 140, 0.14); padding-bottom: 4px; }
+            .graph-assistant-note-editor h2 { font-size: 17px; }
+            .graph-assistant-note-editor h3 { font-size: 15px; }
+            .graph-assistant-note-editor h4,
+            .graph-assistant-note-editor h5,
+            .graph-assistant-note-editor h6 { font-size: 14px; }
+            .graph-assistant-note-editor > *:first-child { margin-top: 0; }
+            .graph-assistant-note-editor p { margin: 8px 0; }
+            .graph-assistant-note-editor ul,
+            .graph-assistant-note-editor ol { margin: 8px 0; padding-left: 22px; }
+            .graph-assistant-note-editor li { margin: 3px 0; }
+            .graph-assistant-note-editor li > p { margin: 2px 0; }
+            .graph-assistant-note-editor strong { font-weight: 700; color: #0f3a55; }
+            .graph-assistant-note-editor em { font-style: italic; }
+            .graph-assistant-note-editor code {
+                font: 500 12.5px/1.4 "SFMono-Regular", Consolas, Menlo, monospace;
+                background: rgba(15, 95, 140, 0.08);
+                color: #0f4f72;
+                padding: 1px 5px;
+                border-radius: 4px;
+            }
+            .graph-assistant-note-editor pre {
+                background: rgba(15, 95, 140, 0.06);
+                padding: 10px 12px;
+                border-radius: 8px;
+                overflow-x: auto;
+                margin: 10px 0;
+            }
+            .graph-assistant-note-editor pre code {
+                background: transparent;
+                padding: 0;
+            }
+            .graph-assistant-note-editor blockquote {
+                margin: 10px 0;
+                padding: 4px 0 4px 12px;
+                border-left: 3px solid rgba(15, 95, 140, 0.32);
+                color: rgba(22, 51, 69, 0.78);
+            }
+            .graph-assistant-note-editor a {
+                color: #0f5f8c;
+                text-decoration: underline;
+            }
+            .graph-assistant-note-editor hr {
+                border: 0;
+                border-top: 1px solid rgba(15, 95, 140, 0.14);
+                margin: 14px 0;
             }
             .graph-assistant-avatar {
                 width: var(--graph-assistant-glass-size);
@@ -812,15 +1000,11 @@
             notePanel.className = 'graph-assistant-note-panel';
             notePanel.dataset.visible = 'false';
             setElementHtml(notePanel, `
-                <div class="graph-assistant-note-header">
-                    <div class="graph-assistant-note-title" id="graph-assistant-note-title">Hoja en blanco</div>
+                <div class="graph-assistant-note-toolbar">
+                    <button id="graph-assistant-note-mic" class="graph-assistant-note-mic" type="button" data-active="false">Grabar</button>
                     <button id="graph-assistant-note-close" class="graph-assistant-note-close" type="button" aria-label="Cerrar hoja">×</button>
                 </div>
-                <div class="graph-assistant-note-controls">
-                    <button id="graph-assistant-note-mic" class="graph-assistant-note-mic" type="button" data-active="false">Grabar</button>
-                    <div id="graph-assistant-note-status" class="graph-assistant-note-status">Lista para dictado con Miracle.</div>
-                </div>
-                <textarea id="graph-assistant-note-editor" class="graph-assistant-note-editor" spellcheck="false" readonly placeholder="La hoja flotante mostrara exactamente lo que Miracle devuelva."></textarea>
+                <div id="graph-assistant-note-editor" class="graph-assistant-note-editor" contenteditable="true" spellcheck="false" data-placeholder="Dicta con Miracle o escribe aqui directamente." role="textbox" aria-multiline="true"></div>
             `);
             document.body.appendChild(notePanel);
         }
@@ -846,10 +1030,8 @@
             chatInput: document.getElementById('graph-assistant-chat-input'),
             chatSendButton: document.getElementById('graph-assistant-chat-send'),
             notePanel,
-            notePanelTitle: document.getElementById('graph-assistant-note-title'),
             notePanelClose: document.getElementById('graph-assistant-note-close'),
             notePanelMic: document.getElementById('graph-assistant-note-mic'),
-            notePanelStatus: document.getElementById('graph-assistant-note-status'),
             notePanelEditor: document.getElementById('graph-assistant-note-editor'),
             label: document.getElementById('graph-assistant-label'),
             spotlight
@@ -1535,9 +1717,7 @@
             const {
                 noteButton,
                 notePanel,
-                notePanelTitle,
                 notePanelMic,
-                notePanelStatus,
                 notePanelEditor
             } = ensureElements();
 
@@ -1550,22 +1730,20 @@
             if (notePanel) {
                 notePanel.dataset.visible = state.note.open ? 'true' : 'false';
             }
-            if (notePanelTitle && nextState.title !== undefined) {
-                notePanelTitle.textContent = `${nextState.title || 'Hoja en blanco'}`;
-            }
-            if (notePanelStatus && nextState.status !== undefined) {
-                notePanelStatus.textContent = `${nextState.status || ''}`;
-            }
             if (notePanelEditor && nextState.content !== undefined) {
-                notePanelEditor.value = `${nextState.content || ''}`;
-                notePanelEditor.scrollTop = notePanelEditor.scrollHeight;
+                const isUserEditing = document.activeElement === notePanelEditor;
+                if (!isUserEditing) {
+                    const content = `${nextState.content || ''}`;
+                    setElementHtml(notePanelEditor, content.trim() ? renderMarkdown(content) : '');
+                    notePanelEditor.scrollTop = notePanelEditor.scrollHeight;
+                }
             }
             if (notePanelMic) {
                 const recording = Boolean(nextState.recording);
                 const busy = Boolean(nextState.busy);
                 notePanelMic.dataset.active = recording ? 'true' : 'false';
                 notePanelMic.disabled = busy;
-                notePanelMic.textContent = recording ? 'Detener' : (busy ? 'Procesando...' : 'Grabar');
+                notePanelMic.textContent = recording ? 'Detener' : (busy ? '...' : 'Grabar');
             }
             positionBubbleNearShell();
         },
