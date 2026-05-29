@@ -1555,6 +1555,7 @@
 
         miracleNoteState.noteContent = `${response?.resolved_note_content || ''}`;
         syncMiracleNotePanel(miracleNoteState.noteContent ? 'Miracle organizo la nota.' : 'Segmento enviado a Miracle.');
+        dispatchMiracleNoteToDynamicFill(miracleNoteState.noteContent);
     }
 
     function handleMiracleSocketMessage(event) {
@@ -1676,19 +1677,119 @@
             miracleNoteState.active = false;
             miracleNoteState.busy = false;
             releaseMiracleMicrophone();
+            stopMiracleDynamicFillSession();
             syncMiracleNotePanel(miracleNoteState.noteContent ? 'Dictado detenido.' : 'Lista para dictado con Miracle.');
         }
+    }
+
+    let miracleDynamicFillSession = null;
+    let miracleDynamicFillBootstrapPromise = null;
+    let miracleNoteEditorBound = false;
+
+    async function findWorkflowForCurrentPage() {
+        try {
+            const payload = await requireApiClient().listWorkflows();
+            const filtered = filterWorkflowsForCurrentPage(payload?.workflows || []);
+            if (filtered.length === 0) {
+                return null;
+            }
+            const currentPath = normalizePathname(window.location.pathname);
+            const exactPath = filtered.find((workflow) => {
+                const pathname = normalizePathname(workflow?.sourcePathname || '');
+                return pathname && currentPath && pathname === currentPath;
+            });
+            return exactPath || filtered[0] || null;
+        } catch (error) {
+            emitExtensionLog('warn', 'Could not list workflows for dynamic fill.', {
+                message: error?.message || 'Unknown listWorkflows error'
+            });
+            return null;
+        }
+    }
+
+    async function ensureMiracleDynamicFillSession() {
+        if (miracleDynamicFillSession) {
+            return miracleDynamicFillSession;
+        }
+        if (miracleDynamicFillBootstrapPromise) {
+            return miracleDynamicFillBootstrapPromise;
+        }
+        miracleDynamicFillBootstrapPromise = (async () => {
+            const workflow = await findWorkflowForCurrentPage();
+            if (!workflow?.id) {
+                return null;
+            }
+            let plan = null;
+            try {
+                plan = await fetchExecutionPlan(workflow.id);
+            } catch (error) {
+                emitExtensionLog('warn', 'Could not fetch execution plan for dynamic fill.', {
+                    workflowId: workflow.id,
+                    message: error?.message || 'Unknown plan error'
+                });
+                return null;
+            }
+            if (!plan) {
+                return null;
+            }
+            const session = requireExecutionClient().createDynamicFillSession(plan, {
+                requestNoteFieldMatches: (workflowId, payload) => requireApiClient().requestNoteFieldMatches(workflowId, payload),
+                onFieldFilled: (detail) => {
+                    emitPluginEvent('note.field.filled', detail);
+                },
+                onReadyToSubmit: (detail) => {
+                    emitPluginEvent('note.session.ready_submit', detail);
+                }
+            });
+            miracleDynamicFillSession = session;
+            emitExtensionLog('info', 'Dynamic note fill session started.', {
+                workflowId: workflow.id,
+                stepCount: Array.isArray(plan.steps) ? plan.steps.length : 0
+            });
+            return session;
+        })().finally(() => {
+            miracleDynamicFillBootstrapPromise = null;
+        });
+        return miracleDynamicFillBootstrapPromise;
+    }
+
+    function stopMiracleDynamicFillSession() {
+        if (miracleDynamicFillSession) {
+            miracleDynamicFillSession.stop();
+            miracleDynamicFillSession = null;
+            emitExtensionLog('info', 'Dynamic note fill session stopped.', {});
+        }
+    }
+
+    function dispatchMiracleNoteToDynamicFill(content) {
+        const session = miracleDynamicFillSession;
+        if (!session || session.isStopped?.()) return;
+        const text = `${content || ''}`;
+        if (!text.trim()) return;
+        session.ingestNoteContent(text);
+    }
+
+    function bindMiracleNoteEditorTyping() {
+        if (miracleNoteEditorBound) return;
+        const editor = document.getElementById('graph-assistant-note-editor');
+        if (!editor) return;
+        editor.addEventListener('input', () => {
+            dispatchMiracleNoteToDynamicFill(editor.innerText || '');
+        });
+        miracleNoteEditorBound = true;
     }
 
     async function toggleMiracleNoteDictation() {
         miracleNoteState.visible = true;
         runtime()?.setNotePanelState?.({ visible: true });
+        bindMiracleNoteEditorTyping();
         try {
             if (miracleNoteState.active) {
                 await stopMiracleNoteDictation();
                 return;
             }
             await startMiracleNoteDictation();
+            ensureMiracleDynamicFillSession().catch(() => {});
         } catch (error) {
             miracleNoteState.active = false;
             miracleNoteState.busy = false;
@@ -3525,6 +3626,7 @@
                 recording: false,
                 busy: false
             });
+            bindMiracleNoteEditorTyping();
             if (!runtimeTouchBound) {
                 runtime()?.subscribe?.('touched', () => {
                     const greeting = `${options.assistantRuntime?.idleMessage || 'Puedo ayudarte en esta pagina. Solo dime que necesitas y yo me encargo.'}`.trim();

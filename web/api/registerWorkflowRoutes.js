@@ -3,6 +3,7 @@ const WorkflowBranchLearning = require('../../src/application/use-cases/Workflow
 function registerWorkflowRoutes(app, deps = {}) {
   const catalogService = deps.catalogService;
   const workflowExecutor = deps.workflowExecutor;
+  const noteFieldMatcher = deps.noteFieldMatcher;
 
   if (!app || !catalogService || !workflowExecutor) {
     throw new Error('registerWorkflowRoutes requires app, catalogService, and workflowExecutor');
@@ -94,6 +95,29 @@ function registerWorkflowRoutes(app, deps = {}) {
       if ((err.message || '').includes('not found')) {
         return res.status(404).json({ error: err.message });
       }
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/workflows/:id/note-field-matches', async (req, res) => {
+    try {
+      if (!noteFieldMatcher) {
+        return res.status(503).json({ error: 'Note field matcher not configured' });
+      }
+      const workflowId = `${req.params.id || ''}`.trim();
+      const workflow = await catalogService.getWorkflowById(workflowId);
+      if (!workflow) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+      const result = await noteFieldMatcher.match({
+        noteContent: req.body?.noteContent || '',
+        fields: req.body?.fields || [],
+        alreadyFulfilled: req.body?.alreadyFulfilled || [],
+        pageUrl: req.body?.pageUrl || ''
+      });
+      res.json(result);
+    } catch (err) {
+      console.error(`[Workflows] Note Field Match Error: ${err.message}`);
       res.status(500).json({ error: err.message });
     }
   });

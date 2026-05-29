@@ -116,6 +116,13 @@
                     body: JSON.stringify(payload || {})
                 }, fetchImpl);
             },
+            requestNoteFieldMatches(workflowId, payload) {
+                return createJsonRequest(baseUrl, `/api/workflows/${encodeURIComponent(workflowId)}/note-field-matches`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload || {})
+                }, fetchImpl);
+            },
             recordBranchObservation(workflowId, payload) {
                 return createJsonRequest(baseUrl, `/api/workflows/${encodeURIComponent(workflowId)}/branch-observation`, {
                     method: 'POST',

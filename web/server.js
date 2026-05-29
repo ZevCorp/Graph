@@ -19,6 +19,7 @@ const ConversationInsights = require('../src/application/use-cases/ConversationI
 const SurfaceProfileService = require('../src/application/use-cases/SurfaceProfileService');
 const LearningSessionService = require('../src/application/use-cases/LearningSessionService');
 const ExecutionIntelligenceService = require('../src/application/use-cases/ExecutionIntelligenceService');
+const NoteFieldMatcher = require('../src/application/use-cases/NoteFieldMatcher');
 const registerLearningRoutes = require('./api/registerLearningRoutes');
 const registerWorkflowRoutes = require('./api/registerWorkflowRoutes');
 const registerContextRoutes = require('./api/registerContextRoutes');
@@ -54,6 +55,7 @@ const surfaceProfileService = new SurfaceProfileService(repository, llmProvider)
 const learningSessionService = new LearningSessionService(workflowLearner);
 const getGraphVisualization = new GetGraphVisualization(repository);
 const executionIntelligenceService = new ExecutionIntelligenceService(llmProvider);
+const noteFieldMatcher = new NoteFieldMatcher(llmProvider);
 
 app.use(bodyParser.json());
 
@@ -83,7 +85,7 @@ app.use((req, res, next) => {
 });
 
 registerLearningRoutes(app, { learningSessionService });
-registerWorkflowRoutes(app, { catalogService, workflowExecutor });
+registerWorkflowRoutes(app, { catalogService, workflowExecutor, noteFieldMatcher });
 registerContextRoutes(app, {
   generatePitchArtifacts,
   conversationInsights,
