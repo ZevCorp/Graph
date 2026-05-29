@@ -1583,6 +1583,15 @@
                     }));
             }
 
+            function describeMatchAction(step) {
+                const label = step?.label || step?.selector || 'este campo';
+                const actionType = `${step?.actionType || ''}`;
+                if (actionType === 'input') return `Estoy completando ${label}.`;
+                if (actionType === 'select') return `Estoy eligiendo una opcion en ${label}.`;
+                if (actionType === 'click') return `Estoy interactuando con ${step?.semanticTarget || label}.`;
+                return `Estoy trabajando en ${label}.`;
+            }
+
             async function applyMatchToStep(step, match) {
                 const stepWithUrl = step.url || '';
                 if (stepWithUrl && !urlsMatch(window.location.href, stepWithUrl)) {
@@ -1595,6 +1604,8 @@
                 } catch (error) {
                     return { applied: false, reason: 'element_not_found', error };
                 }
+
+                notifyAutomationStep(step, describeMatchAction(step));
 
                 const actionType = `${step.actionType || ''}`;
                 if (actionType === 'input') {
@@ -1655,6 +1666,7 @@
 
                 if (stopped) return;
                 const matches = Array.isArray(result?.matches) ? result.matches : [];
+                let anyApplied = false;
                 for (const match of matches) {
                     if (stopped) break;
                     const stepOrder = Number(match?.stepOrder);
@@ -1668,6 +1680,7 @@
 
                     const outcome = await applyMatchToStep(step, match);
                     if (outcome.applied) {
+                        anyApplied = true;
                         fulfilledStepOrders.add(stepOrder);
                         lastAppliedValue.set(stepOrder, match.value);
                         sessionDeps.onFieldFilled?.({
@@ -1682,6 +1695,7 @@
                             actionType: step.actionType || '',
                             evidence: match.evidence || ''
                         });
+                        await waitMs(stepDelayMs);
                     } else {
                         emitExtensionLog('info', 'Dynamic note fill could not apply step yet.', {
                             workflowId: plan.workflowId || '',
@@ -1690,6 +1704,11 @@
                             reason: outcome.reason || ''
                         });
                     }
+                }
+
+                if (anyApplied) {
+                    runtime()?.speak?.('Listo, sigo escuchando.', { mode: 'idle' });
+                    runtime()?.clearSpotlight?.();
                 }
 
                 if (result?.readyToSubmit) {
@@ -1723,6 +1742,7 @@
                     window.clearTimeout(debounceTimer);
                     debounceTimer = null;
                 }
+                runtime()?.clearSpotlight?.();
             }
 
             return {
