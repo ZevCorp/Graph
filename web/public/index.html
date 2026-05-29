@@ -575,23 +575,73 @@
         }
 
         .window-body {
-            display: grid;
-            grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+            display: block;
             min-height: 640px;
         }
 
         .workspace {
-            padding: 28px;
+            padding: 32px;
             background:
                 linear-gradient(180deg, rgba(252, 252, 251, 0.98), rgba(247, 246, 243, 0.98));
         }
 
         .workspace-shell {
-            padding: 26px;
+            padding: 28px;
             border-radius: 24px;
             background: rgba(255, 255, 255, 0.95);
             border: 1px solid rgba(17, 20, 24, 0.08);
             box-shadow: 0 22px 46px rgba(17, 20, 24, 0.06);
+        }
+
+        .emr-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid rgba(17, 20, 24, 0.08);
+        }
+
+        .emr-toolbar-copy strong,
+        .emr-toolbar-copy span {
+            display: block;
+        }
+
+        .emr-toolbar-copy strong {
+            font-size: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .emr-toolbar-copy span {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
+        .emr-tabbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .emr-tab {
+            display: inline-flex;
+            align-items: center;
+            min-height: 38px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            background: #fff;
+            color: var(--muted);
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .emr-tab.active {
+            background: rgba(15, 111, 255, 0.1);
+            border-color: rgba(15, 111, 255, 0.18);
+            color: var(--accent);
         }
 
         .workspace-header {
@@ -600,6 +650,10 @@
             justify-content: space-between;
             gap: 18px;
             margin-bottom: 22px;
+        }
+
+        .workspace-header-copy {
+            flex: 1 1 auto;
         }
 
         .workspace-header h3 {
@@ -630,32 +684,214 @@
         }
 
         .workspace-summary {
-            min-width: 180px;
-            padding: 16px;
+            min-width: 280px;
+            padding: 12px;
             border-radius: 18px;
-            background: linear-gradient(180deg, rgba(15, 111, 255, 0.08), rgba(15, 111, 255, 0.02));
-            border: 1px solid rgba(15, 111, 255, 0.16);
+            background: rgba(247, 249, 252, 0.96);
+            border: 1px solid rgba(17, 20, 24, 0.08);
         }
 
-        .workspace-summary strong,
-        .workspace-summary span {
+        .workspace-meta-strip {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .workspace-meta-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 40px;
+            padding: 0 14px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            color: var(--muted-strong);
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .hero-panel .side-block {
+            padding: 18px;
+            border-radius: 22px;
+            background: rgba(17, 20, 24, 0.94);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+            color: #fff;
+        }
+
+        .hero-panel .assistant-card {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-panel .assistant-card::before {
+            content: "";
+            position: absolute;
+            inset: -20% auto auto -10%;
+            width: 180px;
+            height: 180px;
+            border-radius: 999px;
+            background: rgba(15, 111, 255, 0.18);
+            filter: blur(18px);
+            pointer-events: none;
+        }
+
+        .hero-panel .assistant-card > * {
+            position: relative;
+        }
+
+        .hero-panel .assistant-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(137, 180, 255, 0.16);
+            color: #c6ddff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .hero-panel .assistant-badge::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #6ca8ff;
+            box-shadow: 0 0 0 6px rgba(108, 168, 255, 0.12);
+        }
+
+        .hero-panel .assistant-card h3 {
+            margin: 16px 0 10px;
+            font-size: 1.42rem;
+            line-height: 1.08;
+            letter-spacing: -0.04em;
+        }
+
+        .hero-panel .assistant-card p {
+            margin: 0;
+            max-width: 320px;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.7;
+        }
+
+        .patient-banner {
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .patient-banner-main,
+        .patient-banner-aside {
+            border-radius: 20px;
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            background: linear-gradient(180deg, rgba(246, 249, 252, 0.98), rgba(255, 255, 255, 0.98));
+            padding: 18px 20px;
+        }
+
+        .patient-banner-main strong,
+        .patient-banner-main span,
+        .patient-banner-aside strong,
+        .patient-banner-aside span {
             display: block;
         }
 
-        .workspace-summary strong {
-            font-size: 0.95rem;
+        .patient-banner-main strong {
+            font-size: 1rem;
+            letter-spacing: -0.02em;
         }
 
-        .workspace-summary span {
-            margin-top: 7px;
+        .patient-banner-main span,
+        .patient-banner-aside span {
+            margin-top: 6px;
             color: var(--muted);
-            line-height: 1.45;
-            font-size: 0.84rem;
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+
+        .patient-banner-aside {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .patient-banner-stat {
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid rgba(17, 20, 24, 0.06);
+        }
+
+        .patient-banner-stat strong {
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+        }
+
+        .patient-banner-stat span {
+            margin-top: 8px;
+            color: var(--ink);
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .form-section-card {
+            margin-top: 18px;
+            padding: 20px;
+            border-radius: 20px;
+            background: rgba(248, 250, 252, 0.9);
+            border: 1px solid rgba(17, 20, 24, 0.07);
+        }
+
+        .form-section-card:first-of-type {
+            margin-top: 0;
+        }
+
+        .form-section-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .form-section-head h4 {
+            margin: 0;
+            font-size: 1.08rem;
+            letter-spacing: -0.03em;
+        }
+
+        .form-section-head p {
+            margin: 6px 0 0;
+            color: var(--muted);
+            line-height: 1.55;
+            font-size: 0.92rem;
+        }
+
+        .form-section-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 34px;
+            padding: 0 12px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1px solid rgba(17, 20, 24, 0.08);
+            color: var(--muted-strong);
+            font-size: 0.76rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
         }
 
         .field-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 16px;
         }
 
@@ -704,7 +940,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            margin: 28px 0 16px;
+            margin: 0 0 16px;
         }
 
         .subsection-title::before {
@@ -773,141 +1009,6 @@
             margin-top: 14px;
             color: var(--success);
             font-weight: 600;
-        }
-
-        .workspace-footer {
-            display: flex;
-            justify-content: space-between;
-            gap: 18px;
-            align-items: flex-start;
-            margin-top: 22px;
-            padding-top: 18px;
-            border-top: 1px solid rgba(17, 20, 24, 0.08);
-        }
-
-        .workspace-footer p {
-            margin: 0;
-            max-width: 580px;
-            color: var(--muted);
-            line-height: 1.6;
-            font-size: 0.94rem;
-        }
-
-        .workspace-footer .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: rgba(19, 121, 91, 0.08);
-            color: var(--success);
-            font-size: 0.82rem;
-            font-weight: 700;
-        }
-
-        .workspace-footer .status-pill::before {
-            content: "";
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: currentColor;
-        }
-
-        .side-panel {
-            padding: 24px;
-            background:
-                linear-gradient(180deg, rgba(17, 20, 24, 0.98), rgba(22, 26, 31, 0.94));
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-        }
-
-        .side-block {
-            padding: 18px;
-            border-radius: 22px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-        }
-
-        .side-block h4 {
-            margin: 0 0 10px;
-            font-size: 1.02rem;
-            letter-spacing: -0.02em;
-        }
-
-        .side-block p,
-        .side-block li {
-            margin: 0;
-            color: rgba(255, 255, 255, 0.72);
-            line-height: 1.6;
-            font-size: 0.92rem;
-        }
-
-        .side-block ul {
-            margin: 0;
-            padding-left: 18px;
-            display: grid;
-            gap: 10px;
-        }
-
-        .assistant-card {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .assistant-card::before {
-            content: "";
-            position: absolute;
-            inset: -20% auto auto -10%;
-            width: 180px;
-            height: 180px;
-            border-radius: 999px;
-            background: rgba(15, 111, 255, 0.18);
-            filter: blur(18px);
-            pointer-events: none;
-        }
-
-        .assistant-card > * {
-            position: relative;
-        }
-
-        .assistant-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: rgba(137, 180, 255, 0.16);
-            color: #c6ddff;
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-        }
-
-        .assistant-badge::before {
-            content: "";
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: #6ca8ff;
-            box-shadow: 0 0 0 6px rgba(108, 168, 255, 0.12);
-        }
-
-        .assistant-card h3 {
-            margin: 16px 0 10px;
-            font-size: 1.42rem;
-            line-height: 1.08;
-            letter-spacing: -0.04em;
-        }
-
-        .assistant-card p {
-            margin: 0;
-            max-width: 320px;
-            color: rgba(255, 255, 255, 0.8);
-            line-height: 1.7;
         }
 
         .info-grid {
@@ -1312,9 +1413,6 @@
                 grid-template-columns: 1fr;
             }
 
-            .side-panel {
-                border-top: 1px solid rgba(255, 255, 255, 0.08);
-            }
         }
 
         @media (max-width: 980px) {
@@ -1340,12 +1438,17 @@
                 width: 100%;
                 min-width: 0;
             }
+
+            .patient-banner {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 860px) {
             .header-inner,
             .workspace-header,
-            .workspace-footer,
+            .emr-toolbar,
+            .form-section-head,
             .actions-card-head,
             .footer-inner {
                 flex-direction: column;
@@ -1389,6 +1492,10 @@
             .top-nav {
                 justify-content: flex-start;
             }
+
+            .patient-banner-aside {
+                grid-template-columns: 1fr 1fr;
+            }
         }
 
         @media (max-width: 640px) {
@@ -1420,8 +1527,7 @@
             }
 
             .window-topbar,
-            .workspace,
-            .side-panel {
+            .workspace {
                 padding: 16px;
             }
 
@@ -1474,6 +1580,10 @@
             .whatsapp-cta a,
             .cta-actions a {
                 width: 100%;
+            }
+
+            .patient-banner-aside {
+                grid-template-columns: 1fr;
             }
 
             .preview-orbit {
@@ -1539,8 +1649,7 @@
             }
 
             .workspace,
-            .window-topbar,
-            .side-panel {
+            .window-topbar {
                 padding: 14px;
             }
 
@@ -1751,7 +1860,7 @@
                         <span class="section-kicker">Demo interactiva</span>
                         <h2>Mira cómo Miracle puede operar un intake médico real sobre la pantalla.</h2>
                         <p>
-                            El formulario de abajo conserva exactamente los mismos campos funcionales del intake actual del EMR, ahora enmarcados dentro de una experiencia de producto más sólida y presentable para cliente.
+                            El intake conserva los mismos controles funcionales del demo médico, ahora organizados como un workspace clínico más cercano a un EMR real.
                         </p>
                     </div>
 
@@ -1769,97 +1878,147 @@
                                         <span>Asistente para registro y triaje</span>
                                     </div>
                                 </div>
-                                <div class="window-right">
-                                    <span class="window-badge">Listo para asistir</span>
-                                </div>
                             </div>
 
                             <div class="window-body">
                                 <div class="workspace">
                                     <div class="workspace-shell">
+                                        <div class="emr-toolbar">
+                                            <div class="emr-toolbar-copy">
+                                                <strong>Graph EMR Workspace</strong>
+                                                <span>Admisión, verificación de datos y triage inicial en una sola vista.</span>
+                                            </div>
+                                            <div class="emr-tabbar" aria-label="Estado del flujo">
+                                                <span class="emr-tab active">Intake</span>
+                                                <span class="emr-tab">Anamnesis</span>
+                                                <span class="emr-tab">Assessment</span>
+                                                <span class="emr-tab">Plan</span>
+                                            </div>
+                                        </div>
+
                                         <div class="workspace-header">
-                                            <div>
+                                            <div class="workspace-header-copy">
                                                 <span class="micro-tag">Módulo 1 · Intake</span>
                                                 <h3>Registro y triaje del paciente</h3>
-                                                <p>Captura demografía, asegurador, motivo de consulta y signos vitales iniciales antes de entregar el paciente al médico.</p>
+                                                <p>Captura demografía, verificación administrativa y signos vitales iniciales antes de entregar el paciente a consulta.</p>
                                             </div>
                                             <div class="workspace-summary">
-                                                <strong>Capa operativa de Miracle</strong>
-                                                <span>Guía la captura de datos, reduce carga de navegación y ayuda al equipo a avanzar con menos pasos manuales.</span>
+                                                <div class="workspace-meta-strip">
+                                                    <span class="workspace-meta-pill">Recepción activa</span>
+                                                    <span class="workspace-meta-pill">Campos críticos</span>
+                                                    <span class="workspace-meta-pill">Paso 1 de 4</span>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div class="field-grid">
-                                            <div class="input-group">
-                                                <label for="intake-patient-id">Número de historia clínica</label>
-                                                <input data-testid="intake-patient-id" id="intake-patient-id" placeholder="MRN-2026-00124">
+                                        <div class="patient-banner">
+                                            <div class="patient-banner-main">
+                                                <strong>Ingreso del episodio clínico</strong>
+                                                <span>Verifica identidad, pagador y motivo de consulta para dejar la historia lista antes de pasar a anamnesis.</span>
                                             </div>
-                                            <div class="input-group">
-                                                <label for="intake-document-type">Tipo de documento</label>
-                                                <select data-testid="intake-document-type" id="intake-document-type">
-                                                    <option value="">Seleccionar</option>
-                                                    <option value="cc">Cédula</option>
-                                                    <option value="passport">Pasaporte</option>
-                                                    <option value="ti">Tarjeta de identidad</option>
-                                                </select>
-                                            </div>
-                                            <div class="input-group">
-                                                <label for="intake-first-name">Nombre</label>
-                                                <input data-testid="intake-first-name" id="intake-first-name" placeholder="Valentina">
-                                            </div>
-                                            <div class="input-group">
-                                                <label for="intake-last-name">Apellido</label>
-                                                <input data-testid="intake-last-name" id="intake-last-name" placeholder="Gomez Ruiz">
-                                            </div>
-                                            <div class="input-group">
-                                                <label for="intake-dob">Fecha de nacimiento</label>
-                                                <input data-testid="intake-dob" id="intake-dob" type="date">
-                                            </div>
-                                            <div class="input-group">
-                                                <label for="intake-sex">Sexo biológico</label>
-                                                <select data-testid="intake-sex" id="intake-sex">
-                                                    <option value="">Seleccionar</option>
-                                                    <option value="female">Femenino</option>
-                                                    <option value="male">Masculino</option>
-                                                    <option value="other">Otro</option>
-                                                </select>
-                                            </div>
-                                            <div class="input-group">
-                                                <label for="intake-phone">Teléfono móvil</label>
-                                                <input data-testid="intake-phone" id="intake-phone" placeholder="+57 300 555 1134">
-                                            </div>
-                                            <div class="input-group">
-                                                <label for="intake-insurance">Asegurador / pagador</label>
-                                                <input data-testid="intake-insurance" id="intake-insurance" placeholder="Sura EPS">
-                                            </div>
-                                            <div class="input-group field-span">
-                                                <label for="intake-chief-complaint">Motivo de consulta</label>
-                                                <textarea data-testid="intake-chief-complaint" id="intake-chief-complaint" rows="4" placeholder="Paciente refiere 3 días de fiebre, dolor de garganta y fatiga."></textarea>
+                                            <div class="patient-banner-aside">
+                                                <div class="patient-banner-stat">
+                                                    <strong>Estado</strong>
+                                                    <span>En admisión</span>
+                                                </div>
+                                                <div class="patient-banner-stat">
+                                                    <strong>Prioridad</strong>
+                                                    <span>Triage inicial</span>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div class="subsection-title">
-                                            <span>Signos vitales iniciales</span>
-                                        </div>
+                                        <section class="form-section-card" aria-labelledby="demographics-section-title">
+                                            <div class="form-section-head">
+                                                <div>
+                                                    <h4 id="demographics-section-title">Identificación y datos administrativos</h4>
+                                                    <p>Completa el registro básico del paciente y deja la admisión lista para pasar a evaluación clínica.</p>
+                                                </div>
+                                                <span class="form-section-badge">Obligatorio</span>
+                                            </div>
 
-                                        <div class="metric-grid">
-                                            <div class="input-group">
-                                                <label for="triage-temperature">Temperatura</label>
-                                                <input data-testid="triage-temperature" id="triage-temperature" placeholder="38.2">
+                                            <div class="field-grid">
+                                                <div class="input-group">
+                                                    <label for="intake-patient-id">Número de historia clínica</label>
+                                                    <input data-testid="intake-patient-id" id="intake-patient-id" placeholder="MRN-2026-00124">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="intake-document-type">Tipo de documento</label>
+                                                    <select data-testid="intake-document-type" id="intake-document-type">
+                                                        <option value="">Seleccionar</option>
+                                                        <option value="cc">Cédula</option>
+                                                        <option value="passport">Pasaporte</option>
+                                                        <option value="ti">Tarjeta de identidad</option>
+                                                    </select>
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="intake-insurance">Asegurador / pagador</label>
+                                                    <input data-testid="intake-insurance" id="intake-insurance" placeholder="Sura EPS">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="intake-first-name">Nombre</label>
+                                                    <input data-testid="intake-first-name" id="intake-first-name" placeholder="Valentina">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="intake-last-name">Apellido</label>
+                                                    <input data-testid="intake-last-name" id="intake-last-name" placeholder="Gomez Ruiz">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="intake-phone">Teléfono móvil</label>
+                                                    <input data-testid="intake-phone" id="intake-phone" placeholder="+57 300 555 1134">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="intake-dob">Fecha de nacimiento</label>
+                                                    <input data-testid="intake-dob" id="intake-dob" type="date">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="intake-sex">Sexo biológico</label>
+                                                    <select data-testid="intake-sex" id="intake-sex">
+                                                        <option value="">Seleccionar</option>
+                                                        <option value="female">Femenino</option>
+                                                        <option value="male">Masculino</option>
+                                                        <option value="other">Otro</option>
+                                                    </select>
+                                                </div>
+                                                <div class="input-group field-span">
+                                                    <label for="intake-chief-complaint">Motivo de consulta</label>
+                                                    <textarea data-testid="intake-chief-complaint" id="intake-chief-complaint" rows="4" placeholder="Paciente refiere 3 días de fiebre, dolor de garganta y fatiga."></textarea>
+                                                </div>
                                             </div>
-                                            <div class="input-group">
-                                                <label for="triage-heart-rate">Frecuencia cardíaca</label>
-                                                <input data-testid="triage-heart-rate" id="triage-heart-rate" placeholder="96">
+                                        </section>
+
+                                        <section class="form-section-card" aria-labelledby="triage-section-title">
+                                            <div class="form-section-head">
+                                                <div>
+                                                    <h4 id="triage-section-title">Signos vitales iniciales</h4>
+                                                    <p>Registra los valores de triage que habilitan la apertura de la historia clínica para consulta médica.</p>
+                                                </div>
+                                                <span class="form-section-badge">Triage</span>
                                             </div>
-                                            <div class="input-group">
-                                                <label for="triage-blood-pressure">Presión arterial</label>
-                                                <input data-testid="triage-blood-pressure" id="triage-blood-pressure" placeholder="118/74">
+
+                                            <div class="subsection-title">
+                                                <span>Captura clínica inicial</span>
                                             </div>
-                                            <div class="input-group">
-                                                <label for="triage-oxygen">SpO2</label>
-                                                <input data-testid="triage-oxygen" id="triage-oxygen" placeholder="98">
+
+                                            <div class="metric-grid">
+                                                <div class="input-group">
+                                                    <label for="triage-temperature">Temperatura</label>
+                                                    <input data-testid="triage-temperature" id="triage-temperature" placeholder="38.2">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="triage-heart-rate">Frecuencia cardíaca</label>
+                                                    <input data-testid="triage-heart-rate" id="triage-heart-rate" placeholder="96">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="triage-blood-pressure">Presión arterial</label>
+                                                    <input data-testid="triage-blood-pressure" id="triage-blood-pressure" placeholder="118/74">
+                                                </div>
+                                                <div class="input-group">
+                                                    <label for="triage-oxygen">SpO2</label>
+                                                    <input data-testid="triage-oxygen" id="triage-oxygen" placeholder="98">
+                                                </div>
                                             </div>
-                                        </div>
+                                        </section>
 
                                         <div class="actions">
                                             <button class="btn-primary-action" data-testid="intake-save-patient" id="intake-save-patient" type="button">Guardar registro</button>
@@ -1868,40 +2027,8 @@
                                         </div>
 
                                         <div class="feedback" data-testid="intake-feedback" id="intake-feedback"></div>
-
-                                        <div class="workspace-footer">
-                                            <p>Este workspace es funcional a propósito. Le permite a un comprador institucional entender de forma concreta cómo Miracle puede ubicarse sobre un flujo real y facilitar el trabajo digital rutinario.</p>
-                                            <span class="status-pill">Workflow interactivo</span>
-                                        </div>
                                     </div>
                                 </div>
-
-                                <aside class="side-panel">
-                                    <div class="side-block assistant-card">
-                                        <span class="assistant-badge">Miracle en acción</span>
-                                        <h3>Del contexto de la pantalla a ayuda operativa segura.</h3>
-                                        <p>Miracle puede entender en qué etapa del flujo está el usuario y apoyar la siguiente acción con el tono, la estructura y el nivel correcto de automatización.</p>
-                                    </div>
-
-                                    <div class="side-block">
-                                        <h4>Por qué esto importa</h4>
-                                        <ul>
-                                            <li>Reduce carga de navegación durante el registro clínico rutinario.</li>
-                                            <li>Ayuda a estandarizar flujos de intake entre equipos.</li>
-                                            <li>Crea un camino más claro desde la captura hasta la acción clínica.</li>
-                                        </ul>
-                                    </div>
-
-                                    <div class="side-block">
-                                        <h4>Para compradores institucionales</h4>
-                                        <p>Miracle se presenta con un lenguaje de producto apropiado para sistemas de salud, operadores de salud digital y aliados de software evaluando adopción estratégica de IA.</p>
-                                    </div>
-
-                                    <div class="side-block">
-                                        <h4>Lo que sigue</h4>
-                                        <p>Después del intake, la misma capa de agente puede continuar hacia anamnesis, assessment, diagnóstico y acciones administrativas posteriores.</p>
-                                    </div>
-                                </aside>
                             </div>
                         </div>
                     </div>
