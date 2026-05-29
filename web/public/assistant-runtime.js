@@ -36,6 +36,9 @@
         chat: {
             open: false
         },
+        note: {
+            open: false
+        },
         face: {
             mode: 'idle',
             blinkFactor: 1,
@@ -473,6 +476,128 @@
                 opacity: 0.55;
                 cursor: wait;
             }
+            .graph-assistant-note-toggle {
+                position: fixed;
+                width: 42px;
+                height: 42px;
+                border: none;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.98);
+                color: #102033;
+                box-shadow:
+                    0 18px 36px rgba(4, 10, 20, 0.32),
+                    0 0 0 1px rgba(255, 255, 255, 0.78);
+                z-index: calc(var(--graph-assistant-z, 2147483000) + 3);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                pointer-events: auto;
+                transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+            }
+            .graph-assistant-note-toggle:hover {
+                transform: translateY(-1px);
+                box-shadow:
+                    0 22px 42px rgba(4, 10, 20, 0.38),
+                    0 0 0 1px rgba(255, 255, 255, 0.88);
+            }
+            .graph-assistant-note-toggle[data-active="true"] {
+                background: #0f5f8c;
+                color: #ffffff;
+            }
+            .graph-assistant-note-toggle svg {
+                width: 18px;
+                height: 18px;
+            }
+            .graph-assistant-note-panel {
+                position: fixed;
+                left: 16px;
+                top: 16px;
+                z-index: calc(var(--graph-assistant-z, 2147483000) + 5);
+                width: min(360px, calc(100vw - 32px));
+                min-height: 280px;
+                max-height: min(70vh, 640px);
+                display: none;
+                grid-template-rows: auto auto minmax(0, 1fr);
+                gap: 12px;
+                padding: 16px;
+                box-sizing: border-box;
+                border-radius: 22px;
+                background: rgba(252, 254, 255, 0.98);
+                color: #163345;
+                border: 1px solid rgba(15, 95, 140, 0.14);
+                box-shadow: 0 24px 64px rgba(5, 10, 20, 0.24);
+            }
+            .graph-assistant-note-panel[data-visible="true"] {
+                display: grid;
+            }
+            .graph-assistant-note-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+            .graph-assistant-note-title {
+                font: 700 14px/1.2 "Inter", "Segoe UI", sans-serif;
+            }
+            .graph-assistant-note-close {
+                width: 30px;
+                height: 30px;
+                border: none;
+                border-radius: 999px;
+                background: rgba(15, 95, 140, 0.08);
+                color: #0f4f72;
+                cursor: pointer;
+                font-size: 18px;
+                line-height: 1;
+            }
+            .graph-assistant-note-controls {
+                display: grid;
+                gap: 8px;
+            }
+            .graph-assistant-note-mic {
+                justify-self: start;
+                border: none;
+                border-radius: 999px;
+                padding: 10px 16px;
+                background: #0f5f8c;
+                color: #ffffff;
+                font: 700 13px/1 "Inter", "Segoe UI", sans-serif;
+                cursor: pointer;
+            }
+            .graph-assistant-note-mic[data-active="true"] {
+                background: #b53b2c;
+            }
+            .graph-assistant-note-mic:disabled {
+                opacity: 0.7;
+                cursor: wait;
+            }
+            .graph-assistant-note-status {
+                min-height: 17px;
+                color: rgba(22, 51, 69, 0.78);
+                font: 500 12px/1.35 "Inter", "Segoe UI", sans-serif;
+            }
+            .graph-assistant-note-editor {
+                width: 100%;
+                min-height: 220px;
+                height: 100%;
+                resize: none;
+                box-sizing: border-box;
+                border: none;
+                border-radius: 16px;
+                padding: 14px;
+                background: rgba(255, 255, 255, 0.95);
+                color: #163345;
+                box-shadow:
+                    inset 0 0 0 1px rgba(15, 95, 140, 0.08),
+                    0 10px 30px rgba(15, 95, 140, 0.05);
+                font: 500 13px/1.5 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+                outline: none;
+                white-space: pre-wrap;
+            }
+            .graph-assistant-note-editor::placeholder {
+                color: rgba(22, 51, 69, 0.46);
+            }
             .graph-assistant-avatar {
                 width: var(--graph-assistant-glass-size);
                 height: var(--graph-assistant-glass-size);
@@ -668,6 +793,38 @@
             document.body.appendChild(chatComposer);
         }
 
+        let noteButton = document.getElementById('graph-assistant-note-toggle');
+        if (!noteButton) {
+            noteButton = document.createElement('button');
+            noteButton.id = 'graph-assistant-note-toggle';
+            noteButton.className = 'graph-assistant-note-toggle';
+            noteButton.type = 'button';
+            noteButton.dataset.active = 'false';
+            noteButton.setAttribute('aria-label', 'Abrir hoja de notas');
+            setElementHtml(noteButton, '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm6 1.5V9h4.5M9 13h6M9 16h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+            document.body.appendChild(noteButton);
+        }
+
+        let notePanel = document.getElementById('graph-assistant-note-panel');
+        if (!notePanel) {
+            notePanel = document.createElement('div');
+            notePanel.id = 'graph-assistant-note-panel';
+            notePanel.className = 'graph-assistant-note-panel';
+            notePanel.dataset.visible = 'false';
+            setElementHtml(notePanel, `
+                <div class="graph-assistant-note-header">
+                    <div class="graph-assistant-note-title" id="graph-assistant-note-title">Hoja en blanco</div>
+                    <button id="graph-assistant-note-close" class="graph-assistant-note-close" type="button" aria-label="Cerrar hoja">×</button>
+                </div>
+                <div class="graph-assistant-note-controls">
+                    <button id="graph-assistant-note-mic" class="graph-assistant-note-mic" type="button" data-active="false">Grabar</button>
+                    <div id="graph-assistant-note-status" class="graph-assistant-note-status">Lista para dictado con Miracle.</div>
+                </div>
+                <textarea id="graph-assistant-note-editor" class="graph-assistant-note-editor" spellcheck="false" readonly placeholder="La hoja flotante mostrara exactamente lo que Miracle devuelva."></textarea>
+            `);
+            document.body.appendChild(notePanel);
+        }
+
         let spotlight = document.getElementById('graph-assistant-spotlight');
         if (!spotlight) {
             spotlight = document.createElement('div');
@@ -684,9 +841,16 @@
             userBubble,
             micButton,
             chatButton,
+            noteButton,
             chatComposer,
             chatInput: document.getElementById('graph-assistant-chat-input'),
             chatSendButton: document.getElementById('graph-assistant-chat-send'),
+            notePanel,
+            notePanelTitle: document.getElementById('graph-assistant-note-title'),
+            notePanelClose: document.getElementById('graph-assistant-note-close'),
+            notePanelMic: document.getElementById('graph-assistant-note-mic'),
+            notePanelStatus: document.getElementById('graph-assistant-note-status'),
+            notePanelEditor: document.getElementById('graph-assistant-note-editor'),
             label: document.getElementById('graph-assistant-label'),
             spotlight
         };
@@ -756,7 +920,9 @@
             element?.closest?.('#graph-assistant-shell')
             || element?.closest?.('#graph-assistant-bubble')
             || element?.closest?.('#graph-assistant-chat-toggle')
+            || element?.closest?.('#graph-assistant-note-toggle')
             || element?.closest?.('#graph-assistant-chat-composer')
+            || element?.closest?.('#graph-assistant-note-panel')
             || element?.closest?.('#graph-assistant-bubble-mic')
             || element?.closest?.('#graph-assistant-spotlight')
         );
@@ -1089,7 +1255,9 @@
         const userBubble = document.getElementById('graph-assistant-user-bubble');
         const micButton = document.getElementById('graph-assistant-bubble-mic');
         const chatButton = document.getElementById('graph-assistant-chat-toggle');
+        const noteButton = document.getElementById('graph-assistant-note-toggle');
         const chatComposer = document.getElementById('graph-assistant-chat-composer');
+        const notePanel = document.getElementById('graph-assistant-note-panel');
         if (!shell || !bubble) {
             return;
         }
@@ -1108,7 +1276,7 @@
 
         const buttonSize = 42;
         const buttonGap = 10;
-        const controlsWidth = (buttonSize * 2) + buttonGap;
+        const controlsWidth = (buttonSize * 3) + (buttonGap * 2);
         const controlsLeft = clamp(
             rawLeft + (bubbleRect.width / 2) - (controlsWidth / 2),
             padding,
@@ -1161,6 +1329,19 @@
             micButton.style.left = `${controlsLeft + buttonSize + buttonGap}px`;
             micButton.style.top = `${controlsTop}px`;
         }
+        if (noteButton) {
+            noteButton.style.left = `${controlsLeft + (buttonSize + buttonGap) * 2}px`;
+            noteButton.style.top = `${controlsTop}px`;
+        }
+        if (notePanel && notePanel.dataset.visible === 'true') {
+            const noteRect = notePanel.getBoundingClientRect();
+            const noteWidth = Math.max(noteRect.width, 240);
+            const noteHeight = Math.max(noteRect.height, 280);
+            const noteLeft = clamp(rawLeft, padding, Math.max(padding, window.innerWidth - noteWidth - padding));
+            const noteTop = clamp(currentBottom - noteHeight, padding, Math.max(padding, window.innerHeight - noteHeight - padding));
+            notePanel.style.left = `${noteLeft}px`;
+            notePanel.style.top = `${noteTop}px`;
+        }
     }
 
     function setMode(mode) {
@@ -1208,7 +1389,16 @@
         mount(config = {}) {
             state.options = { ...DEFAULTS, ...config };
             ensureStyles();
-            const { label, micButton, chatButton, chatInput, chatSendButton } = ensureElements();
+            const {
+                label,
+                micButton,
+                chatButton,
+                noteButton,
+                notePanelClose,
+                notePanelMic,
+                chatInput,
+                chatSendButton
+            } = ensureElements();
             bindDragHandlers();
             document.documentElement.style.setProperty('--graph-assistant-accent', state.options.accentColor);
             document.documentElement.style.setProperty('--graph-assistant-z', `${state.options.zIndex}`);
@@ -1244,6 +1434,24 @@
                     setChatComposerVisible(!state.chat.open, { focus: true });
                     emit('chat-toggle', { open: state.chat.open });
                 });
+            }
+            if (noteButton && noteButton.dataset.bound !== 'true') {
+                noteButton.dataset.bound = 'true';
+                noteButton.addEventListener('click', () => {
+                    api.setNotePanelState({ visible: !state.note.open });
+                    emit('note-toggle', { open: state.note.open });
+                });
+            }
+            if (notePanelClose && notePanelClose.dataset.bound !== 'true') {
+                notePanelClose.dataset.bound = 'true';
+                notePanelClose.addEventListener('click', () => {
+                    api.setNotePanelState({ visible: false });
+                    emit('note-toggle', { open: false });
+                });
+            }
+            if (notePanelMic && notePanelMic.dataset.bound !== 'true') {
+                notePanelMic.dataset.bound = 'true';
+                notePanelMic.addEventListener('click', () => emit('note-mic-button', {}));
             }
             if (chatSendButton && chatSendButton.dataset.bound !== 'true') {
                 chatSendButton.dataset.bound = 'true';
@@ -1322,6 +1530,44 @@
             const { micButton } = ensureElements();
             if (!micButton) return;
             micButton.dataset.active = active ? 'true' : 'false';
+        },
+        setNotePanelState(nextState = {}) {
+            const {
+                noteButton,
+                notePanel,
+                notePanelTitle,
+                notePanelMic,
+                notePanelStatus,
+                notePanelEditor
+            } = ensureElements();
+
+            if (nextState.visible !== undefined) {
+                state.note.open = Boolean(nextState.visible);
+            }
+            if (noteButton) {
+                noteButton.dataset.active = state.note.open ? 'true' : 'false';
+            }
+            if (notePanel) {
+                notePanel.dataset.visible = state.note.open ? 'true' : 'false';
+            }
+            if (notePanelTitle && nextState.title !== undefined) {
+                notePanelTitle.textContent = `${nextState.title || 'Hoja en blanco'}`;
+            }
+            if (notePanelStatus && nextState.status !== undefined) {
+                notePanelStatus.textContent = `${nextState.status || ''}`;
+            }
+            if (notePanelEditor && nextState.content !== undefined) {
+                notePanelEditor.value = `${nextState.content || ''}`;
+                notePanelEditor.scrollTop = notePanelEditor.scrollHeight;
+            }
+            if (notePanelMic) {
+                const recording = Boolean(nextState.recording);
+                const busy = Boolean(nextState.busy);
+                notePanelMic.dataset.active = recording ? 'true' : 'false';
+                notePanelMic.disabled = busy;
+                notePanelMic.textContent = recording ? 'Detener' : (busy ? 'Procesando...' : 'Grabar');
+            }
+            positionBubbleNearShell();
         },
         stopAudibleSpeech() {
             stopAudibleSpeech();

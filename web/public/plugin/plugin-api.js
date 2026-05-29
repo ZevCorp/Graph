@@ -27,6 +27,7 @@
 
     function createClient(config) {
         const baseUrl = normalizeBaseUrl(config?.baseUrl || '');
+        const miracleBaseUrl = normalizeBaseUrl(config?.miracleBaseUrl || '');
         const fetchImpl = typeof config?.fetchImpl === 'function'
             ? config.fetchImpl
             : fetch;
@@ -143,6 +144,19 @@
             },
             createPhoneSession(payload) {
                 return createJsonRequest(baseUrl, '/api/voice/phone-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload || {})
+                }, fetchImpl);
+            },
+            createMiracleStreamSession() {
+                return createJsonRequest(miracleBaseUrl, '/api/voice/stream-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                }, fetchImpl);
+            },
+            sendMiracleOrchestratorEvent(payload) {
+                return createJsonRequest(miracleBaseUrl, '/api/voice/orchestrator/events', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload || {})
