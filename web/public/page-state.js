@@ -3,6 +3,25 @@
         const storageKey = (config.storageKey || 'graph-page-state-v1').trim();
         const excludedIds = new Set(config.excludedIds || ['agent-message', 'wf-desc', 'step-explanation']);
 
+        // When true, a field is being written from a remote source (another device),
+        // so local listeners must persist it but must NOT re-broadcast it (avoids echo loops).
+        let applyingRemote = false;
+
+        function getSyncHook() {
+            return (typeof window !== 'undefined' && window.MiracleNoteSync) || null;
+        }
+
+        function notifyFieldChange(id, value) {
+            try {
+                if (typeof config.onFieldChange === 'function') {
+                    config.onFieldChange(id, value);
+                }
+                getSyncHook()?.onLocalFieldChange?.(id, value);
+            } catch (error) {
+                console.warn('[Page State] Field change hook failed:', error);
+            }
+        }
+
         function isPersistableField(element) {
             if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)) {
                 return false;
@@ -42,10 +61,14 @@
 
         function saveField(element) {
             const state = readState();
-            state[element.id] = element.type === 'checkbox' || element.type === 'radio'
+            const value = element.type === 'checkbox' || element.type === 'radio'
                 ? element.checked
                 : element.value;
+            state[element.id] = value;
             writeState(state);
+            if (!applyingRemote) {
+                notifyFieldChange(element.id, value);
+            }
         }
 
         function restoreField(element, state) {
@@ -90,9 +113,18 @@
                 element.addEventListener('input', () => saveField(element));
                 element.addEventListener('change', () => saveField(element));
             });
+
+            try {
+                if (typeof config.onReady === 'function') {
+                    config.onReady(api);
+                }
+                getSyncHook()?.attach?.(api);
+            } catch (error) {
+                console.warn('[Page State] Ready hook failed:', error);
+            }
         }
 
-        return {
+        const api = {
             clear() {
                 try {
                     localStorage.removeItem(storageKey);
@@ -111,8 +143,45 @@
                         saveField(element);
                     }
                 });
+            },
+            getState() {
+                return readState();
+            },
+            // Apply a single field value coming from another device. Persists locally
+            // and updates the DOM, but does not re-broadcast (guarded by applyingRemote).
+            applyRemoteField(id, value) {
+                const element = document.getElementById(id);
+                if (!element || !isPersistableField(element)) {
+                    return false;
+                }
+                // Never yank a field the user is actively editing on this device.
+                if (document.activeElement === element) {
+                    return false;
+                }
+                applyingRemote = true;
+                try {
+                    if (element.type === 'checkbox' || element.type === 'radio') {
+                        element.checked = Boolean(value);
+                    } else {
+                        element.value = value ?? '';
+                    }
+                    element.dispatchEvent(new Event('input', { bubbles: true }));
+                    element.dispatchEvent(new Event('change', { bubbles: true }));
+                } finally {
+                    applyingRemote = false;
+                }
+                return true;
+            },
+            // Apply a full { fieldId: value } map (e.g. initial load from the server).
+            applyRemoteState(state) {
+                if (!state || typeof state !== 'object') {
+                    return;
+                }
+                Object.keys(state).forEach((id) => api.applyRemoteField(id, state[id]));
             }
         };
+
+        return api;
     }
 
     window.PageState = {
