@@ -19,7 +19,10 @@
         initialized: false,
         syncDisabled: false,
         upsertTimer: null,
-        pendingRemote: {}
+        pendingRemote: {},
+        lastValues: {},
+        auditQueue: [],
+        auditTimer: null
     };
 
     function log() {
@@ -132,6 +135,7 @@
         state.appliedInitial = true;
 
         const dbNote = state.loadedNote || {};
+        state.lastValues = { ...dbNote };
         if (Object.keys(dbNote).length > 0) {
             // Server note is the shared source of truth — apply it over local.
             state.manager.applyRemoteState(dbNote);
@@ -155,12 +159,44 @@
         maybeApplyInitial();
     }
 
-    function onLocalFieldChange(id, value) {
+    function onLocalFieldChange(id, value, meta) {
         if (state.syncDisabled) return;
         if (state.channelReady && state.channel) {
             state.channel.send({ type: 'broadcast', event: 'field', payload: { id, value, senderId } });
         }
         scheduleUpsert();
+        queueAudit(id, value, meta || { source: 'human' });
+    }
+
+    // Append-only audit: every local change (human or AI) becomes a row in
+    // encounter_events with its origin, evidence and previous value.
+    function queueAudit(id, value, meta) {
+        const previous = state.lastValues[id];
+        state.lastValues[id] = value;
+        state.auditQueue.push({
+            field_id: id,
+            old_value: previous == null ? null : String(previous),
+            new_value: value == null ? null : String(value),
+            source: (meta && meta.source) || 'human',
+            confidence: meta && typeof meta.confidence === 'number' ? meta.confidence : null,
+            evidence: (meta && meta.evidence) || ''
+        });
+        if (state.auditTimer) clearTimeout(state.auditTimer);
+        state.auditTimer = setTimeout(flushAudit, 1200);
+    }
+
+    async function flushAudit() {
+        state.auditTimer = null;
+        if (state.syncDisabled) { state.auditQueue = []; return; }
+        if (!state.initialized || !state.encounterId || !state.client) {
+            if (state.auditQueue.length) state.auditTimer = setTimeout(flushAudit, 1200);
+            return;
+        }
+        if (!state.auditQueue.length) return;
+        const batch = state.auditQueue.splice(0, state.auditQueue.length)
+            .map((row) => ({ ...row, encounter_id: state.encounterId }));
+        const { error } = await state.client.from('encounter_events').insert(batch);
+        if (error) console.warn('[Miracle Sync] No se pudo guardar la auditoria:', error.message);
     }
 
     window.MiracleNoteSync = {

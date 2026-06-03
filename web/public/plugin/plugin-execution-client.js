@@ -1638,25 +1638,42 @@
                 notifyAutomationStep(step, describeMatchAction(step));
 
                 const actionType = `${step.actionType || ''}`;
-                if (actionType === 'input') {
-                    await applyInputStep(element, { ...step, value: match.value }, plan.variables || {});
-                } else if (actionType === 'select') {
-                    const patchedStep = {
-                        ...step,
-                        selectedValue: match.value,
-                        selectedLabel: match.value,
-                        __runtimeSelectedValue: match.value,
-                        __runtimeSelectedLabel: match.value
-                    };
-                    await applySelectStep(element, patchedStep, plan.variables || {}, { runtimeStrict: false });
-                } else if (actionType === 'click') {
-                    element.scrollIntoView({ block: 'center', inline: 'nearest' });
-                    if ('disabled' in element && element.disabled) {
-                        return { applied: false, reason: 'element_disabled' };
+                // Tag AI-driven fills with their origin + evidence so they are audited
+                // and surfaced as "proposed / unconfirmed" for clinical review.
+                const pageState = (window.PageState && window.PageState.current) || null;
+                const aiMeta = {
+                    source: 'ai',
+                    evidence: match.evidence || '',
+                    confidence: typeof match.confidence === 'number' ? match.confidence : null
+                };
+                if (pageState && typeof pageState.beginProgrammatic === 'function' && (actionType === 'input' || actionType === 'select')) {
+                    pageState.beginProgrammatic(aiMeta);
+                }
+                try {
+                    if (actionType === 'input') {
+                        await applyInputStep(element, { ...step, value: match.value }, plan.variables || {});
+                    } else if (actionType === 'select') {
+                        const patchedStep = {
+                            ...step,
+                            selectedValue: match.value,
+                            selectedLabel: match.value,
+                            __runtimeSelectedValue: match.value,
+                            __runtimeSelectedLabel: match.value
+                        };
+                        await applySelectStep(element, patchedStep, plan.variables || {}, { runtimeStrict: false });
+                    } else if (actionType === 'click') {
+                        element.scrollIntoView({ block: 'center', inline: 'nearest' });
+                        if ('disabled' in element && element.disabled) {
+                            return { applied: false, reason: 'element_disabled' };
+                        }
+                        element.click();
+                    } else {
+                        return { applied: false, reason: 'unsupported_action' };
                     }
-                    element.click();
-                } else {
-                    return { applied: false, reason: 'unsupported_action' };
+                } finally {
+                    if (pageState && typeof pageState.endProgrammatic === 'function') {
+                        pageState.endProgrammatic();
+                    }
                 }
 
                 return { applied: true };
