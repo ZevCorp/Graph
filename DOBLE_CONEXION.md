@@ -87,7 +87,21 @@ Abre `http://localhost:3000/emr-workspace.html`.
 - Para uso clínico real: revisar región de datos, retención y cifrado. Esto es un
   prototipo en la rama `feature/doble-conexion`.
 
+## Añadido después (seguridad, clínico, móvil)
+- **Seguridad backend**: los endpoints que gastan OpenAI/LLM exigen sesión Supabase
+  (`web/api/requireAuth.js`, JWT vía JWKS) + rate-limit + CORS allowlist. El demo
+  público usa sesión anónima (`demo-auth.js`).
+- **Seguridad clínica**: la IA *propone* (campos "sin confirmar" con evidencia y
+  confianza); el médico confirma; se bloquea finalizar si quedan pendientes
+  (`clinical-review.js`). Cada cambio se audita en `encounter_events` (RLS).
+- **Pacientes**: `patients.js` (elegir/crear paciente, reabrir encuentros);
+  tabla `patients` + `encounters.patient_id`.
+- **PWA/móvil**: `manifest.webmanifest` + `service-worker.js` (instalable + offline);
+  EMR responsive; `note-sync` reintenta escrituras al reconectar.
+
 ## Pendiente (seguimiento)
-- Cablear también `index.html` / `page1.html` / `page2.html` (hoy solo `emr-workspace.html`).
-- Selector de pacientes/encuentros (hoy se crea/uno por URL).
-- Teléfono como EMR completo (hoy: teléfono micro + PC espejo).
+- Iconos PNG 192/512 para la PWA (hoy un SVG).
+- Activar en Supabase: **Google** (emr-workspace) y **Anonymous sign-ins** (demo).
+- Prueba en teléfono real: permisos de micrófono iOS para la voz autónoma.
+- Versionar las migraciones SQL en el repo (hoy aplicadas directo a la BD).
+- Tests/CI y partir `trainer-plugin.js` (descartado por ahora).
