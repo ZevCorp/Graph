@@ -641,6 +641,20 @@
                 width: 100%;
             }
         }
+
+        @media (max-width: 520px) {
+            /* 16px inputs avoid iOS zoom-on-focus; 44px gives comfortable touch targets. */
+            input, select, textarea {
+                font-size: 16px;
+            }
+            input:not([type="checkbox"]):not([type="radio"]), select, textarea, .nav-btn, .action-btn {
+                min-height: 44px;
+            }
+            .shell {
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1308,6 +1322,7 @@
     <script src="page-state.js"></script>
     <script src="supabase-client.js"></script>
     <script src="auth-gate.js"></script>
+    <script src="patients.js"></script>
     <script src="note-sync.js"></script>
     <script src="clinical-review.js"></script>
     <script>

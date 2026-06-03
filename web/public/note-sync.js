@@ -6,6 +6,7 @@
     const ENCOUNTER_STORAGE_KEY = 'miracle-active-encounter';
     const UPSERT_DEBOUNCE_MS = 800;
     const senderId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const DEFERRED = Symbol('deferred-encounter');
 
     const state = {
         client: null,
@@ -22,7 +23,8 @@
         pendingRemote: {},
         lastValues: {},
         auditQueue: [],
-        auditTimer: null
+        auditTimer: null,
+        dirtyNote: false
     };
 
     function log() {
@@ -70,6 +72,13 @@
             log('Encuentro previo no disponible, creando uno nuevo.', (error && error.message) || '');
         }
 
+        // No encounter selected. If the patient picker is present, let the clinician
+        // choose/create one (it reloads with ?encounter=<id>); otherwise auto-create.
+        if (window.MiraclePatients && typeof window.MiraclePatients.open === 'function') {
+            window.MiraclePatients.open();
+            return DEFERRED;
+        }
+
         const label = 'Encuentro ' + new Date().toLocaleString();
         const { data, error } = await client
             .from('encounters')
@@ -110,6 +119,7 @@
     }
 
     function scheduleUpsert() {
+        state.dirtyNote = true;
         if (state.upsertTimer) clearTimeout(state.upsertTimer);
         state.upsertTimer = setTimeout(flushUpsert, UPSERT_DEBOUNCE_MS);
     }
@@ -122,12 +132,21 @@
             scheduleUpsert();
             return;
         }
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            state.dirtyNote = true; // offline: keep dirty and flush on reconnect
+            return;
+        }
         const note = state.manager.getState();
         const { error } = await state.client
             .from('encounters')
             .update({ note, updated_at: new Date().toISOString() })
             .eq('id', state.encounterId);
-        if (error) console.warn('[Miracle Sync] No se pudo guardar la nota:', error.message);
+        if (error) {
+            state.dirtyNote = true;
+            console.warn('[Miracle Sync] No se pudo guardar la nota:', error.message);
+        } else {
+            state.dirtyNote = false;
+        }
     }
 
     function maybeApplyInitial() {
@@ -192,6 +211,9 @@
             if (state.auditQueue.length) state.auditTimer = setTimeout(flushAudit, 1200);
             return;
         }
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            return; // offline: keep the queue and flush on reconnect
+        }
         if (!state.auditQueue.length) return;
         const batch = state.auditQueue.splice(0, state.auditQueue.length)
             .map((row) => ({ ...row, encounter_id: state.encounterId }));
@@ -204,6 +226,15 @@
         onLocalFieldChange,
         getEncounterId() { return state.encounterId; }
     };
+
+    // Offline resilience: when the device comes back online, flush whatever is pending.
+    if (typeof window !== 'undefined') {
+        window.addEventListener('online', () => {
+            if (state.syncDisabled || !state.initialized) return;
+            if (state.dirtyNote) flushUpsert();
+            if (state.auditQueue.length) flushAudit();
+        });
+    }
 
     // ---- floating badge: copy the encounter link to open it on another device ----
     function renderBadge() {
@@ -264,6 +295,9 @@
         state.user = await window.MiracleAuth.whenAuthenticated();
 
         const note = await ensureEncounter();
+        if (note === DEFERRED) {
+            return; // the patient picker will reload with ?encounter=<id>
+        }
         if (note === null) {
             state.syncDisabled = true;
             return;
