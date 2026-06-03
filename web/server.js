@@ -25,6 +25,8 @@ const registerWorkflowRoutes = require('./api/registerWorkflowRoutes');
 const registerContextRoutes = require('./api/registerContextRoutes');
 const registerExecutionIntelligenceRoutes = require('./api/registerExecutionIntelligenceRoutes');
 const registerVoiceRoutes = require('./api/registerVoiceRoutes');
+const rateLimit = require('express-rate-limit');
+const { requireAuth } = require('./api/requireAuth');
 
 const GetGraphVisualization = require('../src/application/use-cases/GetGraphVisualization');
 
@@ -59,10 +61,25 @@ const noteFieldMatcher = new NoteFieldMatcher(llmProvider);
 
 app.use(bodyParser.json());
 
+const ALLOWED_ORIGINS = `${process.env.ALLOWED_ORIGINS || ''}`
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+function isOriginAllowed(origin) {
+  if (!origin) return true; // same-origin, curl, or native apps (no Origin header)
+  if (ALLOWED_ORIGINS.length === 0) return true; // dev default: permissive
+  return ALLOWED_ORIGINS.includes(origin);
+}
+
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.get('origin') || '';
+  if (isOriginAllowed(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Graph-Voice-Context, X-Graph-Voice-History');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Graph-Voice-Context, X-Graph-Voice-History');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
@@ -83,6 +100,17 @@ app.use((req, res, next) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
   next();
 });
+
+// Rate limiting: a generous backstop on all /api, and a stricter cap on the
+// endpoints that spend OpenAI/LLM credits.
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false });
+const costlyLimiter = rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false });
+app.use('/api', apiLimiter);
+
+// Require a valid Supabase session on the endpoints that invoke OpenAI/LLM with
+// the server's API key (fail closed so a third party cannot burn the quota).
+app.use('/api/voice/openai', costlyLimiter, requireAuth);
+app.use('/api/workflows/:id/note-field-matches', costlyLimiter, requireAuth);
 
 app.get('/api/public-config', (req, res) => {
   res.json({
@@ -106,7 +134,7 @@ registerVoiceRoutes(app, {
   catalogService
 });
 
-app.post('/api/agent/chat', async (req, res) => {
+app.post('/api/agent/chat', costlyLimiter, requireAuth, async (req, res) => {
   try {
     const response = await agentChat.handleMessage(
       req.body?.message,

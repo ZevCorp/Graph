@@ -183,18 +183,34 @@
 
     function getRealtimeSocketUrl() {
         const baseUrl = pluginHost()?.apiBaseUrl || options.apiBaseUrl || '';
+        let socketUrl = '';
         if (baseUrl) {
             try {
                 const parsed = new URL(baseUrl, window.location.href);
                 const protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
-                return `${protocol}//${parsed.host}/api/voice/realtime`;
+                socketUrl = `${protocol}//${parsed.host}/api/voice/realtime`;
             } catch (error) {
                 // Fall through to current page origin.
             }
         }
 
-        const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return `${socketProtocol}//${window.location.host}/api/voice/realtime`;
+        if (!socketUrl) {
+            const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socketUrl = `${socketProtocol}//${window.location.host}/api/voice/realtime`;
+        }
+
+        // Browsers cannot set headers on a WS upgrade, so the Supabase token (when a
+        // session exists) travels as a query param the server validates.
+        try {
+            const token = window.MiracleAuth && typeof window.MiracleAuth.getAccessToken === 'function'
+                ? window.MiracleAuth.getAccessToken()
+                : '';
+            if (token) {
+                socketUrl += `${socketUrl.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
+            }
+        } catch (error) { /* ignore */ }
+
+        return socketUrl;
     }
 
     function getStoredPhoneSessionId() {

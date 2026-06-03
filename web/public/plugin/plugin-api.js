@@ -14,9 +14,24 @@
         return `${normalizedBase}${path.startsWith('/') ? path : `/${path}`}`;
     }
 
+    // Attaches the Supabase access token (when a session exists) so protected
+    // endpoints accept the request. No-ops in contexts without MiracleAuth
+    // (e.g. the Chrome extension), which simply send no token.
+    function withAuth(init = {}) {
+        try {
+            const token = window.MiracleAuth && typeof window.MiracleAuth.getAccessToken === 'function'
+                ? window.MiracleAuth.getAccessToken()
+                : '';
+            if (token) {
+                return { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } };
+            }
+        } catch (error) { /* ignore */ }
+        return init;
+    }
+
     function createJsonRequest(baseUrl, path, init, fetchImpl) {
         const effectiveFetch = typeof fetchImpl === 'function' ? fetchImpl : fetch;
-        return effectiveFetch(buildUrl(baseUrl, path), init).then(async (response) => {
+        return effectiveFetch(buildUrl(baseUrl, path), withAuth(init)).then(async (response) => {
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
                 throw new Error(payload.error || `Request failed: ${path}`);
@@ -177,14 +192,14 @@
                 }, fetchImpl);
             },
             createOpenAiRealtimeSession(sdp, headers) {
-                return fetchImpl(buildUrl(baseUrl, '/api/voice/openai/session'), {
+                return fetchImpl(buildUrl(baseUrl, '/api/voice/openai/session'), withAuth({
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/sdp',
                         ...(headers || {})
                     },
                     body: sdp
-                });
+                }));
             }
         };
     }

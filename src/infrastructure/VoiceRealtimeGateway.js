@@ -1,5 +1,6 @@
 const WebSocket = require('ws');
 const workflowAssistantPolicy = require('../application/use-cases/WorkflowAssistantPolicy');
+const { verifySupabaseToken } = require('../../web/api/requireAuth');
 
 class VoiceRealtimeGateway {
   constructor({ deepgramApiKey, openAiApiKey, llmProvider, catalogService, conversationInsights }) {
@@ -98,9 +99,21 @@ class VoiceRealtimeGateway {
     server.on('upgrade', (request, socket, head) => {
       const url = new URL(request.url, 'http://localhost');
       if (url.pathname === '/api/voice/realtime') {
-        wss.handleUpgrade(request, socket, head, (client) => {
-          wss.emit('connection', client, request);
-        });
+        // This socket opens an OpenAI Realtime session with the server's API key,
+        // so it must be authenticated. Browsers cannot set headers on a WS upgrade,
+        // so the token travels as the access_token query param.
+        const token = (url.searchParams.get('access_token') || '').trim();
+        verifySupabaseToken(token)
+          .then((payload) => {
+            wss.handleUpgrade(request, socket, head, (client) => {
+              client.user = { id: payload.sub, email: payload.email || '' };
+              wss.emit('connection', client, request);
+            });
+          })
+          .catch(() => {
+            try { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); } catch (error) { /* ignore */ }
+            socket.destroy();
+          });
         return;
       }
 

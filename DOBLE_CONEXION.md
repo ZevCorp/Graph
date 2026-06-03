@@ -52,6 +52,16 @@ servidor no arranca sin `NEO4J_URI`).
    - *Redirect URLs* (añade ambas): `http://localhost:3000/**` y la de tu red
      local, p. ej. `http://192.168.1.50:3000/**` (para abrirlo desde el teléfono).
 
+### 2.b Activar sesión anónima (para el demo público sin login)
+Las páginas de demo (`index.html`, `page1.html`, `page2.html`) usan voz sin pedir
+Google. Para que sus llamadas pasen la autenticación del backend, obtienen una
+**sesión anónima** de Supabase. Actívalo una vez:
+- **Supabase dashboard** → *Authentication* → *Sign In / Providers* → **Anonymous
+  sign-ins** → activar.
+
+Sin esto, el demo público mostrará un aviso en consola y la voz no conectará (la hoja
+clínica con Google en `emr-workspace.html` no se ve afectada).
+
 ### 3. Levantar
 ```
 npm start

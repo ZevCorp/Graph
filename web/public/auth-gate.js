@@ -3,7 +3,7 @@
     // shows a blocking overlay; once signed in it resolves window.MiracleAuth.whenAuthenticated().
     let resolveAuthed;
     const authed = new Promise((resolve) => { resolveAuthed = resolve; });
-    const state = { client: null, user: null, overlay: null };
+    const state = { client: null, user: null, overlay: null, accessToken: '' };
 
     function buildOverlay() {
         const overlay = document.createElement('div');
@@ -105,9 +105,11 @@
         }
 
         const { data } = await client.auth.getSession();
+        state.accessToken = (data && data.session && data.session.access_token) || '';
         setUser(data && data.session ? data.session.user : null);
 
         client.auth.onAuthStateChange((_event, session) => {
+            state.accessToken = (session && session.access_token) || '';
             setUser(session ? session.user : null);
         });
     }
@@ -115,6 +117,7 @@
     window.MiracleAuth = {
         whenAuthenticated() { return authed; },
         getUser() { return state.user; },
+        getAccessToken() { return state.accessToken || ''; },
         async signOut() {
             try { await state.client?.auth.signOut(); } catch (error) { console.warn('[Miracle Auth] Sign-out failed:', error); }
         }
