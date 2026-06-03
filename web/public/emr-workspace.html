@@ -2,7 +2,12 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2f8cff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Miracle">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/icon.svg">
     <title>Miracle EMR Workspace</title>
     <style>
         :root {
@@ -1305,6 +1310,14 @@
     <script src="auth-gate.js"></script>
     <script src="note-sync.js"></script>
     <script src="clinical-review.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .catch((error) => console.warn('[Miracle PWA] SW registration failed:', error));
+            });
+        }
+    </script>
     <script src="recorder.js"></script>
     <script src="assistant-runtime.js"></script>
     <script src="plugin/plugin-events.js"></script>

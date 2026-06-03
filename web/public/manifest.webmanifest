@@ -1,0 +1,16 @@
+{
+  "name": "Miracle EMR",
+  "short_name": "Miracle",
+  "description": "Asistente clínico Miracle — nota en tiempo real",
+  "lang": "es",
+  "start_url": "/emr-workspace.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#101820",
+  "theme_color": "#2f8cff",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
