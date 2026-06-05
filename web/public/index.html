@@ -1,9 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Miracle | AI Agent for Clinical Operations</title>
+    <title>Miracle | Inteligencia clínica para documentación médica</title>
+    <meta name="description" content="Miracle convierte cada consulta en documentación clínica clara, estructurada y trazable, sobre los sistemas que su institución ya usa. Menos carga administrativa, más tiempo con el paciente. Con revisión médica y control humano.">
+    <meta name="theme-color" content="#0b1424">
+    <meta property="og:title" content="Miracle | Menos tiempo documentando. Más tiempo con el paciente.">
+    <meta property="og:description" content="Inteligencia clínica que asiste la documentación médica con control humano y trazabilidad. Para hospitales, clínicas y direcciones médicas.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Miracle">
+    <meta property="og:locale" content="es_ES">
+    <!-- TODO despliegue: reemplazar https://REEMPLAZAR-DOMINIO por el dominio real de producción -->
+    <meta property="og:url" content="https://REEMPLAZAR-DOMINIO/">
+    <meta property="og:image" content="https://REEMPLAZAR-DOMINIO/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Miracle — Menos tiempo documentando. Más tiempo con el paciente.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Miracle | Menos tiempo documentando. Más tiempo con el paciente.">
+    <meta name="twitter:description" content="Inteligencia clínica que asiste la documentación médica con control humano y trazabilidad.">
+    <meta name="twitter:image" content="https://REEMPLAZAR-DOMINIO/og-image.png">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -18,8 +35,10 @@
             --ink: #0f172a;
             --muted: #64748b;
             --muted-strong: #334155;
-            --accent: #2f8cff;
+            --accent: #1f6feb;
             --accent-soft: rgba(220, 239, 253, 0.74);
+            --navy: #0a1424;
+            --navy-2: #111c30;
             --mint: #b7f0d8;
             --success: #13795b;
             --left-blue-alpha: 0.78;
@@ -1699,6 +1718,912 @@
                 text-align: center;
             }
         }
+
+        /* ============================================================
+           Premium B2B healthcare upgrade — Miracle
+           ============================================================ */
+
+        /* Credibility strip under hero */
+        .cred-strip {
+            margin-top: 34px;
+            padding-top: 26px;
+            border-top: 1px solid var(--line);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 14px 26px;
+        }
+
+        .cred-label {
+            font-size: 0.74rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .cred-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 12px;
+        }
+
+        .cred-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid var(--line);
+            font-size: 0.86rem;
+            font-weight: 600;
+            color: var(--muted-strong);
+        }
+
+        .cred-pill::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, var(--accent), var(--mint));
+        }
+
+        /* Impact / cost stat cards */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .stat-card {
+            padding: 32px 28px;
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow-md);
+            transition: transform 200ms ease, box-shadow 200ms ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-num {
+            font-family: "Sohne", "Söhne", "Inter", sans-serif;
+            font-size: clamp(2.6rem, 4.4vw, 3.5rem);
+            line-height: 1;
+            letter-spacing: -0.05em;
+            color: var(--ink);
+            font-weight: 700;
+        }
+
+        .stat-num .unit {
+            font-size: 0.46em;
+            color: var(--muted);
+            font-weight: 600;
+            letter-spacing: 0;
+            margin-left: 2px;
+        }
+
+        .stat-label {
+            margin-top: 16px;
+            font-size: 1.04rem;
+            line-height: 1.5;
+            color: var(--muted-strong);
+        }
+
+        .stat-src {
+            margin-top: 16px;
+            display: block;
+            font-size: 0.76rem;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        /* How it works — numbered steps */
+        .step-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .step-card {
+            position: relative;
+            padding: 32px 28px;
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.76);
+            border: 1px solid var(--line);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+            transition: transform 200ms ease, box-shadow 200ms ease;
+        }
+
+        .step-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .step-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 46px;
+            height: 46px;
+            border-radius: 15px;
+            background: var(--ink);
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.12rem;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.2);
+        }
+
+        .step-card h3 {
+            margin: 20px 0 8px;
+            font-size: 1.24rem;
+            letter-spacing: -0.02em;
+        }
+
+        .step-card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.62;
+            font-size: 0.99rem;
+        }
+
+        .step-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            margin-top: 16px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--success);
+            letter-spacing: 0.01em;
+        }
+
+        .step-tag::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--success);
+        }
+
+        /* Dark institutional band (evidence / authority) */
+        .band-dark {
+            margin: 20px auto;
+            width: min(calc(100% - 32px), var(--content-width));
+            border-radius: var(--radius-xl);
+            background:
+                radial-gradient(ellipse at 12% 0%, rgba(47, 140, 255, 0.24), transparent 46%),
+                radial-gradient(ellipse at 100% 100%, rgba(183, 240, 216, 0.14), transparent 42%),
+                linear-gradient(160deg, #111c30 0%, #0b1424 60%, #0a1120 100%);
+            color: #e7eef7;
+            padding: clamp(40px, 5vw, 76px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            box-shadow: var(--shadow-xl);
+            position: relative;
+            z-index: 1;
+        }
+
+        .band-dark .section-kicker {
+            color: #7fb6ff;
+        }
+
+        .band-dark h2 {
+            margin: 0;
+            color: #fff;
+            font-size: clamp(2rem, 3.6vw, 3.2rem);
+            letter-spacing: -0.045em;
+            line-height: 1.04;
+        }
+
+        .band-lead {
+            color: rgba(231, 238, 247, 0.74);
+            line-height: 1.7;
+            font-size: 1.06rem;
+            max-width: 720px;
+            margin: 16px 0 0;
+        }
+
+        .evidence-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 36px;
+        }
+
+        .evidence-card {
+            padding: 26px 22px;
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(6px);
+        }
+
+        .ev-num {
+            font-family: "Sohne", "Söhne", "Inter", sans-serif;
+            font-size: clamp(2rem, 3vw, 2.7rem);
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: -0.04em;
+            color: #fff;
+        }
+
+        .ev-label {
+            margin-top: 14px;
+            font-size: 0.96rem;
+            line-height: 1.5;
+            color: rgba(231, 238, 247, 0.82);
+        }
+
+        .ev-src {
+            margin-top: 14px;
+            display: block;
+            font-size: 0.74rem;
+            color: rgba(231, 238, 247, 0.5);
+            line-height: 1.45;
+        }
+
+        .ev-src a {
+            color: #9cc4ff;
+            text-decoration: none;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .ev-src a:hover {
+            text-decoration: underline;
+        }
+
+        .stat-src a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .stat-src a:hover {
+            text-decoration: underline;
+        }
+
+        .evidence-foot {
+            margin-top: 32px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 18px;
+            justify-content: space-between;
+        }
+
+        .disclaimer {
+            font-size: 0.82rem;
+            color: rgba(231, 238, 247, 0.55);
+            max-width: 540px;
+            line-height: 1.55;
+            margin: 0;
+        }
+
+        .btn-on-navy {
+            background: #fff;
+            color: var(--ink);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.32);
+        }
+
+        .btn-line-light {
+            background: transparent;
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.32);
+        }
+
+        .btn-line-light:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .section-head.center {
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+        }
+
+        @media (max-width: 900px) {
+            .stat-grid,
+            .step-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .evidence-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 560px) {
+            .evidence-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .evidence-foot {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        /* ============================================================
+           Institutional dark theme — navy header + dark hero
+           ============================================================ */
+
+        .page-shell {
+            overflow-x: clip;
+        }
+
+        /* Dark navy header */
+        .site-header {
+            background: rgba(10, 20, 36, 0.82);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .brand-wordmark {
+            color: #fff;
+        }
+
+        .top-nav a,
+        .top-nav button {
+            color: rgba(231, 238, 247, 0.82);
+        }
+
+        .top-nav a:hover,
+        .top-nav button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.16);
+            color: #fff;
+        }
+
+        .top-nav .nav-cta {
+            background: #fff;
+            color: var(--navy);
+            border-color: #fff;
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+        }
+
+        .top-nav .nav-cta:hover {
+            background: #eaf2ff;
+            color: var(--navy);
+            border-color: #eaf2ff;
+        }
+
+        /* Full-bleed dark hero */
+        .hero {
+            position: relative;
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            z-index: 0;
+            top: 0;
+            bottom: 0;
+            left: calc(50% - 50vw);
+            width: 100vw;
+            background:
+                radial-gradient(ellipse at 16% -6%, rgba(47, 140, 255, 0.26), transparent 48%),
+                radial-gradient(ellipse at 102% 116%, rgba(183, 240, 216, 0.12), transparent 44%),
+                linear-gradient(165deg, #0f1d33 0%, #0b1424 58%, #0a1120 100%);
+            pointer-events: none;
+        }
+
+        .hero > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero h1 {
+            color: #fff;
+        }
+
+        .hero-lead {
+            color: rgba(231, 238, 247, 0.82);
+        }
+
+        .hero .eyebrow {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(255, 255, 255, 0.16);
+            color: #bcd9ff;
+            box-shadow: none;
+        }
+
+        .hero .eyebrow::before {
+            box-shadow: 0 0 0 6px rgba(47, 140, 255, 0.18);
+        }
+
+        .hero .btn-primary {
+            background: #fff;
+            color: var(--navy);
+            box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34);
+        }
+
+        .hero .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.22);
+        }
+
+        .hero .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .hero .proof-card {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow: none;
+        }
+
+        .hero .proof-card strong {
+            color: #fff;
+        }
+
+        .hero .proof-card span {
+            color: rgba(231, 238, 247, 0.7);
+        }
+
+        .hero .cred-strip {
+            border-top-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .hero .cred-label {
+            color: rgba(231, 238, 247, 0.6);
+        }
+
+        .hero .cred-pill {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.14);
+            color: rgba(231, 238, 247, 0.85);
+        }
+
+        /* Demo showcase (static mockup replacing embedded EMR) */
+        .demo-showcase {
+            display: grid;
+            grid-template-columns: 0.92fr 1.08fr;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .demo-pitch h3 {
+            margin: 0 0 12px;
+            font-size: clamp(1.5rem, 2.4vw, 2rem);
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+        }
+
+        .demo-pitch p {
+            margin: 0 0 18px;
+            color: var(--muted-strong);
+            line-height: 1.65;
+            font-size: 1.04rem;
+        }
+
+        .demo-points {
+            list-style: none;
+            margin: 0 0 26px;
+            padding: 0;
+            display: grid;
+            gap: 12px;
+        }
+
+        .demo-points li {
+            position: relative;
+            padding-left: 30px;
+            color: var(--muted-strong);
+            line-height: 1.5;
+        }
+
+        .demo-points li::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 3px;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background:
+                radial-gradient(circle at 50% 50%, #fff 0 3px, transparent 4px),
+                linear-gradient(135deg, var(--accent), #0f5f9f);
+            box-shadow: 0 4px 10px rgba(31, 111, 235, 0.3);
+        }
+
+        .demo-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .demo-actions .access-note {
+            display: block;
+            margin-top: 12px;
+            font-size: 0.82rem;
+            color: var(--muted);
+            width: 100%;
+        }
+
+        .demo-actions .access-note::before {
+            content: "🔒 ";
+        }
+
+        /* Mock EMR window (visual only) */
+        .emr-mock {
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .emr-mock-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 18px;
+            background: linear-gradient(180deg, #f7f9fc, #eef2f8);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .emr-mock-bar .dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 999px;
+            background: #cdd6e4;
+        }
+
+        .emr-mock-bar .dot:nth-child(1) { background: #f0a4a4; }
+        .emr-mock-bar .dot:nth-child(2) { background: #f2cf8e; }
+        .emr-mock-bar .dot:nth-child(3) { background: #a8d8b4; }
+
+        .emr-mock-bar .mock-title {
+            margin-left: 8px;
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: var(--muted-strong);
+        }
+
+        .emr-mock-bar .mock-live {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            color: var(--success);
+        }
+
+        .emr-mock-bar .mock-live::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--success);
+            box-shadow: 0 0 0 4px rgba(19, 121, 91, 0.16);
+        }
+
+        .emr-mock-body {
+            padding: 20px;
+            display: grid;
+            gap: 14px;
+            background:
+                radial-gradient(ellipse at 100% 0%, rgba(220, 239, 253, 0.5), transparent 55%),
+                #fff;
+        }
+
+        .emr-mock-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .emr-mock-steps span {
+            font-size: 0.76rem;
+            font-weight: 600;
+            padding: 6px 11px;
+            border-radius: 999px;
+            background: #f1f5fb;
+            color: var(--muted);
+            border: 1px solid var(--line);
+        }
+
+        .emr-mock-steps span.on {
+            background: var(--navy);
+            color: #fff;
+            border-color: var(--navy);
+        }
+
+        .emr-mock-note {
+            border-radius: var(--radius-md);
+            border: 1px solid var(--line);
+            background: #fff;
+            box-shadow: var(--shadow-md);
+            padding: 16px 18px;
+        }
+
+        .emr-mock-note .note-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .emr-mock-note .note-head strong {
+            font-size: 0.92rem;
+        }
+
+        .emr-mock-note .note-head .ai-chip {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--accent);
+            background: rgba(31, 111, 235, 0.1);
+            border: 1px solid rgba(31, 111, 235, 0.22);
+            padding: 4px 9px;
+            border-radius: 999px;
+        }
+
+        .emr-mock-line {
+            height: 9px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #e7eef7, #f3f6fb);
+            margin: 9px 0;
+        }
+
+        .emr-mock-line.w-90 { width: 90%; }
+        .emr-mock-line.w-75 { width: 75%; }
+        .emr-mock-line.w-60 { width: 60%; }
+        .emr-mock-line.accent {
+            background: linear-gradient(90deg, rgba(31, 111, 235, 0.5), rgba(31, 111, 235, 0.12));
+        }
+
+        .emr-mock-confirm {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 6px;
+            padding-top: 14px;
+            border-top: 1px dashed var(--line);
+            font-size: 0.84rem;
+            color: var(--muted-strong);
+        }
+
+        .emr-mock-confirm .pill {
+            margin-left: auto;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #fff;
+            background: var(--navy);
+            padding: 7px 13px;
+            border-radius: 999px;
+        }
+
+        @media (max-width: 860px) {
+            .demo-showcase {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ============================================================
+           Lead capture form (on the dark contact panel)
+           ============================================================ */
+        .lead-form {
+            margin-top: 26px;
+            text-align: left;
+        }
+
+        .lead-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .lead-field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .lead-field.lead-span {
+            grid-column: 1 / -1;
+        }
+
+        .lead-field > span {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: rgba(231, 238, 247, 0.78);
+        }
+
+        .lead-field > span i {
+            color: #7fb6ff;
+            font-style: normal;
+        }
+
+        .lead-field > span em {
+            color: rgba(231, 238, 247, 0.5);
+            font-style: normal;
+            font-weight: 500;
+        }
+
+        .lead-form input,
+        .lead-form textarea {
+            width: 100%;
+            font-family: inherit;
+            font-size: 1rem;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 14px;
+            padding: 12px 14px;
+            transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+        }
+
+        .lead-form textarea {
+            resize: vertical;
+            min-height: 84px;
+        }
+
+        .lead-form input::placeholder,
+        .lead-form textarea::placeholder {
+            color: rgba(231, 238, 247, 0.4);
+        }
+
+        .lead-form input:focus,
+        .lead-form textarea:focus {
+            outline: none;
+            border-color: #4f93ff;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 4px rgba(47, 140, 255, 0.18);
+        }
+
+        .lead-form input.invalid,
+        .lead-form textarea.invalid {
+            border-color: #f3a4a4;
+            box-shadow: 0 0 0 4px rgba(243, 100, 100, 0.16);
+        }
+
+        .lead-hp {
+            position: absolute !important;
+            left: -9999px !important;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .lead-hint {
+            margin: 14px 0 0;
+            font-size: 0.8rem;
+            color: rgba(231, 238, 247, 0.5);
+            text-align: center;
+        }
+
+        .lead-form .cta-actions {
+            margin-top: 18px;
+        }
+
+        .lead-form #lead-submit {
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .lead-status {
+            margin: 14px 0 0;
+            text-align: center;
+            font-size: 0.92rem;
+            min-height: 1.2em;
+        }
+
+        .lead-status.ok {
+            color: #8ff0c4;
+        }
+
+        .lead-status.err {
+            color: #ffc2c2;
+        }
+
+        .lead-form.sending #lead-submit {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        /* ============================================================
+           Mobile hamburger navigation
+           ============================================================ */
+        .nav-toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 40px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            cursor: pointer;
+            padding: 0;
+            flex: 0 0 auto;
+        }
+
+        .nav-toggle-bars,
+        .nav-toggle-bars::before,
+        .nav-toggle-bars::after {
+            display: block;
+            width: 18px;
+            height: 2px;
+            border-radius: 2px;
+            background: #fff;
+            transition: transform 200ms ease, opacity 160ms ease, background 160ms ease;
+        }
+
+        .nav-toggle-bars {
+            position: relative;
+        }
+
+        .nav-toggle-bars::before {
+            content: "";
+            position: absolute;
+            top: -6px;
+            left: 0;
+        }
+
+        .nav-toggle-bars::after {
+            content: "";
+            position: absolute;
+            top: 6px;
+            left: 0;
+        }
+
+        .site-header.nav-open .nav-toggle-bars {
+            background: transparent;
+        }
+
+        .site-header.nav-open .nav-toggle-bars::before {
+            transform: translateY(6px) rotate(45deg);
+        }
+
+        .site-header.nav-open .nav-toggle-bars::after {
+            transform: translateY(-6px) rotate(-45deg);
+        }
+
+        @media (max-width: 640px) {
+            .nav-toggle {
+                display: inline-flex;
+            }
+
+            .header-inner {
+                position: relative;
+            }
+
+            .top-nav {
+                position: absolute;
+                top: calc(100% + 8px);
+                left: 0;
+                right: 0;
+                z-index: 40;
+                display: none;
+                grid-template-columns: 1fr;
+                gap: 6px;
+                padding: 12px;
+                border-radius: 16px;
+                background: rgba(10, 20, 36, 0.97);
+                backdrop-filter: blur(18px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+            }
+
+            .site-header.nav-open .top-nav {
+                display: grid;
+            }
+
+            .lead-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1710,12 +2635,18 @@
                     <span class="brand-wordmark">Miracle</span>
                 </a>
 
-                <nav class="top-nav" aria-label="Primary">
-                    <a href="#product">Cómo funciona</a>
-                    <a href="#demo">Demo</a>
-                    <a href="#trust">Por qué Miracle</a>
+                <button class="nav-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="top-nav">
+                    <span class="nav-toggle-bars" aria-hidden="true"></span>
+                </button>
+
+                <nav class="top-nav" id="top-nav" aria-label="Primary">
+                    <a href="#problema">El problema</a>
+                    <a href="#producto">Cómo funciona</a>
+                    <a href="#demo">Demo en vivo</a>
+                    <a href="#evidencia">Evidencia</a>
+                    <a href="#seguridad">Seguridad</a>
                     <button id="clear-emr" type="button">Reiniciar demo</button>
-                    <a class="nav-cta" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar diagnóstico</a>
+                    <a class="nav-cta" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar demo</a>
                 </nav>
             </div>
         </header>
@@ -1723,29 +2654,39 @@
         <main id="top">
             <section class="hero">
                 <div class="hero-copy">
-                    <div class="eyebrow">IA operativa para equipos de salud</div>
-                    <h1>Automatiza tareas clínicas sin cambiar tu sistema actual.</h1>
+                    <div class="eyebrow">Inteligencia clínica para instituciones de salud</div>
+                    <h1>Menos tiempo documentando. Más tiempo con el paciente.</h1>
                     <p class="hero-lead">
-                        Miracle ayuda a equipos de salud a completar procesos administrativos y clínicos sobre sus flujos existentes, con inteligencia artificial, control humano y trazabilidad.
+                        Miracle convierte cada consulta en una nota clínica clara, estructurada y trazable mientras el médico atiende. Trabaja sobre los sistemas que su institución ya usa, y el profesional revisa y firma cada registro.
                     </p>
 
                     <div class="hero-actions">
-                        <a class="btn btn-primary" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Agendar demo con mi flujo clínico</a>
-                        <a class="btn btn-secondary" href="#product">Conocer cómo funciona</a>
+                        <a class="btn btn-primary" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar diagnóstico operativo</a>
+                        <a class="btn btn-secondary" href="#producto">Ver cómo funciona</a>
                     </div>
 
-                    <div class="hero-proof" aria-label="Miracle value points">
+                    <div class="hero-proof" aria-label="Por qué Miracle es confiable">
                         <div class="proof-card">
-                            <strong>Sobre tu sistema</strong>
-                            <span>Se integra como una capa operativa sobre el software que la institución ya usa.</span>
+                            <strong>No reemplaza al médico</strong>
+                            <span>Le devuelve tiempo clínico. El criterio y la firma siguen siendo del profesional.</span>
                         </div>
                         <div class="proof-card">
-                            <strong>Con control humano</strong>
-                            <span>Ayuda a ejecutar pasos repetitivos sin reemplazar el criterio médico ni la supervisión del equipo.</span>
+                            <strong>Sobre su sistema actual</strong>
+                            <span>Se integra como una capa operativa, sin obligar a migraciones ni reemplazar el software clínico.</span>
                         </div>
                         <div class="proof-card">
-                            <strong>Con trazabilidad</strong>
-                            <span>Diseñado para flujos donde privacidad, precisión y responsabilidad operativa importan.</span>
+                            <strong>Revisable y trazable</strong>
+                            <span>Cada nota se revisa, edita y confirma. Las acciones quedan registradas para auditoría.</span>
+                        </div>
+                    </div>
+
+                    <div class="cred-strip">
+                        <span class="cred-label">Diseñado para</span>
+                        <div class="cred-items">
+                            <span class="cred-pill">Hospitales</span>
+                            <span class="cred-pill">Clínicas y centros médicos</span>
+                            <span class="cred-pill">Direcciones médicas</span>
+                            <span class="cred-pill">Operaciones y TI clínica</span>
                         </div>
                     </div>
                 </div>
@@ -1770,72 +2711,83 @@
                                 </div>
                             </div>
                             <div class="side-block assistant-card" style="margin: 18px;">
-                                <span class="assistant-badge">Agente Miracle</span>
-                                <h3>"Puedo asistir el flujo, pedir confirmación y registrar la acción."</h3>
-                                <p>Miracle está construido para operar tareas repetitivas con supervisión humana, no para tomar decisiones clínicas autónomas.</p>
+                                <span class="assistant-badge">Asistente Miracle</span>
+                                <h3>"Preparé la nota de esta consulta. ¿La revisa y confirma antes de registrarla?"</h3>
+                                <p>Miracle redacta y estructura la documentación mientras el médico atiende. El profesional revisa, edita y firma. Nada se registra sin su confirmación.</p>
                             </div>
                         </div>
                     </div>
                     <div class="preview-orbit">
-                        <strong>Automatización supervisada</strong>
-                        <span>Flujos guiados, confirmaciones humanas y registro de acciones para equipos clínicos y administrativos.</span>
+                        <strong>Documentación asistida</strong>
+                        <span>El médico atiende. Miracle estructura la nota. La revisión humana confirma cada registro.</span>
                     </div>
                 </div>
             </section>
 
-            <section class="section signal-band" aria-label="Buyer signals">
-                <div class="section-inner">
-                    <div class="signal-grid">
-                        <div class="signal-card">
-                            <strong>Para clínicas y hospitales</strong>
-                            <span>Diseñado para equipos que ya tienen sistemas clínicos y necesitan reducir carga operativa sin migraciones grandes.</span>
-                        </div>
-                        <div class="signal-card">
-                            <strong>Capa operativa</strong>
-                            <span>Miracle acompaña procesos existentes y ayuda a completar pasos repetitivos con supervisión del usuario.</span>
-                        </div>
-                        <div class="signal-card">
-                            <strong>Entrada gradual</strong>
-                            <span>Empieza por un flujo de alta fricción, valida el impacto y expande solo donde tenga sentido operativo.</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="section" id="product">
+            <section class="section signal-band" id="problema" aria-label="El costo de la carga administrativa">
                 <div class="section-inner">
                     <div class="section-head">
-                        <span class="section-kicker">El problema</span>
-                        <h2>Demasiado tiempo clínico se pierde navegando pantallas y repitiendo información.</h2>
+                        <span class="section-kicker">El costo invisible</span>
+                        <h2>La carga administrativa no solo cansa al médico. Le cuesta a la institución.</h2>
                         <p>
-                            En muchos equipos de salud, médicos, auxiliares y personal administrativo dedican una parte importante del día a buscar campos, copiar datos, avanzar formularios y coordinar tareas entre sistemas. Ese trabajo es necesario, pero consume atención que podría usarse mejor en el paciente y en decisiones operativas.
+                            Cada hora frente a la pantalla es una hora menos con el paciente. La documentación lenta o inconsistente afecta la productividad, la calidad del registro y la experiencia clínica. La evidencia es consistente en todo el sector.
+                        </p>
+                    </div>
+
+                    <div class="stat-grid">
+                        <div class="stat-card">
+                            <div class="stat-num">2<span class="unit">: 1</span></div>
+                            <p class="stat-label">Por cada hora con el paciente, el médico dedica cerca de dos horas al registro clínico y al trabajo de escritorio.</p>
+                            <span class="stat-src">Sinsky et al., Annals of Internal Medicine, 2016. <a href="#evidencia">Ver fuentes →</a></span>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-num">~1–2<span class="unit">h/día</span></div>
+                            <p class="stat-label">Tiempo adicional de documentación fuera del horario clínico —el llamado "trabajo en pijama"— que se acumula después de la jornada.</p>
+                            <span class="stat-src">Estudios sobre uso de EHR y tiempo extra-laboral. <a href="#evidencia">Ver fuentes →</a></span>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-num">Burnout</div>
+                            <p class="stat-label">La carga de documentación es uno de los factores más asociados al agotamiento profesional médico.</p>
+                            <span class="stat-src">Literatura sobre burnout y carga de EHR (p. ej. Mayo Clinic / AMA). <a href="#evidencia">Ver fuentes →</a></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="producto">
+                <div class="section-inner">
+                    <div class="section-head">
+                        <span class="section-kicker">La solución</span>
+                        <h2>Una capa de inteligencia clínica sobre los sistemas que ya usa.</h2>
+                        <p>
+                            Miracle no reemplaza su software clínico ni obliga a migraciones. Trabaja sobre los flujos existentes para que la documentación se genere mientras el médico atiende, con menos pasos manuales y más consistencia, sin sacrificar el criterio profesional.
                         </p>
                     </div>
 
                     <div class="info-grid">
                         <article class="info-card">
-                            <h3>Navegación repetitiva</h3>
-                            <p>Los equipos saltan entre pantallas, formularios y pasos administrativos para completar procesos que se repiten todos los días.</p>
+                            <h3>Documenta mientras atiende</h3>
+                            <p>Miracle estructura la nota clínica a partir de la consulta, para que el registro deje de competir con el tiempo del paciente.</p>
                         </article>
                         <article class="info-card">
-                            <h3>Variabilidad del registro</h3>
-                            <p>Cuando cada persona completa el flujo de forma distinta, aparecen omisiones, retrabajo y más dificultad para dar seguimiento.</p>
+                            <h3>Registro consistente y trazable</h3>
+                            <p>Notas estructuradas y estandarizadas que reducen omisiones, facilitan el seguimiento y son más fáciles de auditar.</p>
                         </article>
                         <article class="info-card">
-                            <h3>Menos foco en el paciente</h3>
-                            <p>La carga administrativa fragmenta la atención y hace más difícil mantener una experiencia clínica fluida.</p>
+                            <h3>El médico revisa y confirma</h3>
+                            <p>Nada se registra solo. El profesional revisa, edita y firma; las acciones quedan con trazabilidad para la institución.</p>
                         </article>
                     </div>
 
                     <div class="feature-rail section-offset">
                         <div class="feature-panel">
-                            <span class="section-kicker">La solución</span>
-                            <h3>Una capa inteligente sobre los sistemas que ya existen.</h3>
-                            <p>Miracle no obliga a reemplazar el software clínico actual. Se ubica sobre los flujos existentes para asistir tareas repetitivas, guiar pasos, preparar información y ayudar al equipo a avanzar con menos fricción.</p>
+                            <span class="section-kicker">Cómo encaja</span>
+                            <h3>Se adapta a su operación, no al revés.</h3>
+                            <p>Miracle se ubica sobre los flujos existentes para asistir la documentación y los pasos repetitivos, preparar información y ayudar al equipo a avanzar con menos fricción, manteniendo el control en el profesional.</p>
                             <ul class="feature-list">
                                 <li>
-                                    <strong>Ejecuta tareas repetitivas</strong>
-                                    <span>Ayuda con pasos administrativos y clínicos operativos que consumen tiempo y atención.</span>
+                                    <strong>Asiste la documentación clínica</strong>
+                                    <span>Estructura notas y registros que hoy consumen tiempo y atención del equipo.</span>
                                 </li>
                                 <li>
                                     <strong>Apoya distintos roles</strong>
@@ -1843,7 +2795,7 @@
                                 </li>
                                 <li>
                                     <strong>Mantiene supervisión humana</strong>
-                                    <span>El usuario conserva el control y puede confirmar acciones críticas antes de ejecutarlas.</span>
+                                    <span>El usuario conserva el control y confirma las acciones sensibles antes de registrarlas.</span>
                                 </li>
                             </ul>
                         </div>
@@ -1867,6 +2819,32 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="section-head section-offset">
+                        <span class="section-kicker">Cómo funciona</span>
+                        <h2>Tres pasos. El médico siempre tiene la última palabra.</h2>
+                    </div>
+
+                    <div class="step-grid">
+                        <article class="step-card">
+                            <span class="step-num">1</span>
+                            <h3>Captura la consulta</h3>
+                            <p>Durante la atención, Miracle recoge la información clínica relevante sobre el flujo que el equipo ya usa, sin interrumpir la conversación con el paciente.</p>
+                            <span class="step-tag">Sin cambiar de sistema</span>
+                        </article>
+                        <article class="step-card">
+                            <span class="step-num">2</span>
+                            <h3>Estructura la documentación</h3>
+                            <p>Convierte lo conversado en una nota clínica clara y estandarizada: motivo, hallazgos, impresión y plan, lista para revisar.</p>
+                            <span class="step-tag">Clara, estructurada y trazable</span>
+                        </article>
+                        <article class="step-card">
+                            <span class="step-num">3</span>
+                            <h3>El médico revisa y firma</h3>
+                            <p>El profesional edita, confirma y registra. Cada acción queda con trazabilidad para seguimiento y auditoría de la institución.</p>
+                            <span class="step-tag">Control humano en cada registro</span>
+                        </article>
                     </div>
                 </div>
             </section>
@@ -2292,48 +3270,73 @@
                 </div>
             </section>
 
-            <section class="section" id="trust">
+            <section class="section" id="evidencia" aria-label="Evidencia">
+                <div class="band-dark">
+                    <span class="section-kicker">Evidencia</span>
+                    <h2>El problema está documentado. La oportunidad también.</h2>
+                    <p class="band-lead">
+                        No partimos de promesas. La carga administrativa y documental del personal médico está ampliamente estudiada. Estos son algunos de los hallazgos que sustentan por qué vale la pena intervenir el flujo de documentación clínica.
+                    </p>
+
+                    <div class="evidence-grid">
+                        <div class="evidence-card">
+                            <div class="ev-num">≈ 2×</div>
+                            <p class="ev-label">Horas de trabajo en el sistema y de escritorio por cada hora de atención directa al paciente.</p>
+                            <span class="ev-src">Sinsky et al., <em>Annals of Internal Medicine</em> (2016). <a href="https://www.acpjournals.org/doi/10.7326/M16-0961" target="_blank" rel="noreferrer">Ver estudio →</a></span>
+                        </div>
+                        <div class="evidence-card">
+                            <div class="ev-num">~1–2 h</div>
+                            <p class="ev-label">Documentación adicional fuera del horario clínico ("trabajo en pijama") reportada en múltiples estudios.</p>
+                            <span class="ev-src">Arndt et al., <em>Annals of Family Medicine</em> (2017). <a href="https://doi.org/10.1370/afm.2121" target="_blank" rel="noreferrer">Ver estudio →</a></span>
+                        </div>
+                        <div class="evidence-card">
+                            <div class="ev-num">Burnout</div>
+                            <p class="ev-label">La carga de documentación figura entre los principales factores asociados al agotamiento profesional.</p>
+                            <span class="ev-src">Shanafelt et al., <em>Mayo Clinic Proceedings</em> (2016). <a href="https://pubmed.ncbi.nlm.nih.gov/27313121/" target="_blank" rel="noreferrer">Ver estudio →</a></span>
+                        </div>
+                        <div class="evidence-card">
+                            <div class="ev-num">Calidad</div>
+                            <p class="ev-label">El registro inconsistente dificulta el seguimiento, la auditoría y la continuidad asistencial.</p>
+                            <span class="ev-src">Buenas prácticas de registro clínico. <a href="evidencia.html#referencias" target="_blank" rel="noreferrer">Ver referencias →</a></span>
+                        </div>
+                    </div>
+
+                    <div class="evidence-foot">
+                        <p class="disclaimer">
+                            Las cifras citadas resumen hallazgos publicados en la literatura del sector y se presentan como referencia. Las fuentes verificables se detallan en la página de evidencia.
+                        </p>
+                        <a class="btn btn-on-navy" href="evidencia.html">Ver evidencia y fuentes completas →</a>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="seguridad">
                 <div class="section-inner">
                     <div class="section-head">
-                        <span class="section-kicker">Casos de uso</span>
-                        <h2>Empieza por tareas repetitivas donde el impacto operativo sea visible.</h2>
+                        <span class="section-kicker">Confianza y seguridad</span>
+                        <h2>Inteligencia con control humano. El criterio siempre es del médico.</h2>
                         <p>
-                            Miracle funciona mejor cuando se aplica a flujos frecuentes, con pasos claros y carga manual alta. La adopción puede comenzar en un proceso específico antes de expandirse a otras áreas.
+                            Miracle está pensado para entornos donde la privacidad, la precisión y la responsabilidad clínica no son negociables. Asiste el flujo de documentación; no toma decisiones clínicas por su cuenta. Cada registro pasa por revisión humana.
                         </p>
                     </div>
 
-                    <div class="info-grid">
-                        <article class="info-card">
-                            <h3>Intake y registro</h3>
-                            <p>Asistencia para completar datos del paciente, validar campos requeridos y preparar el siguiente paso del flujo.</p>
-                        </article>
-                        <article class="info-card">
-                            <h3>Seguimiento administrativo</h3>
-                            <p>Apoyo en tareas repetitivas posteriores a la atención, coordinación interna y actualización de información operativa.</p>
-                        </article>
-                        <article class="info-card">
-                            <h3>Flujos clínicos guiados</h3>
-                            <p>Ayuda para avanzar procesos estructurados con mayor consistencia, manteniendo revisión humana en puntos sensibles.</p>
-                        </article>
-                    </div>
-
-                    <div class="feature-rail section-offset trust-rail">
+                    <div class="feature-rail trust-rail">
                         <div class="contact-panel">
-                            <span class="section-kicker">Seguridad y control</span>
-                            <h3>La IA acompaña el proceso. No reemplaza el criterio médico.</h3>
-                            <p>Miracle está pensado para entornos donde privacidad, precisión y responsabilidad importan. Las acciones sensibles pueden requerir confirmación humana y los permisos pueden adaptarse por rol.</p>
+                            <span class="section-kicker">Principio de diseño</span>
+                            <h3>Miracle no reemplaza al médico. Le devuelve tiempo clínico.</h3>
+                            <p>La documentación se genera para revisión, no para reemplazar el juicio profesional. Las acciones sensibles se pausan hasta que un humano las confirma, y los permisos se ajustan por rol.</p>
                             <div class="contact-list">
                                 <div class="contact-card">
                                     <strong>Decisión clínica</strong>
-                                    <span>El criterio profesional permanece en el equipo de salud.</span>
+                                    <span>El diagnóstico, el tratamiento y la firma permanecen en el profesional de salud.</span>
                                 </div>
                                 <div class="contact-card">
-                                    <strong>Confirmación</strong>
-                                    <span>Las acciones sensibles pueden pausarse para revisión humana.</span>
+                                    <strong>Confirmación humana</strong>
+                                    <span>Nada sensible se registra sin que una persona lo revise y lo apruebe.</span>
                                 </div>
                                 <div class="contact-card">
-                                    <strong>Responsabilidad</strong>
-                                    <span>La automatización se aplica al flujo operativo, no al juicio médico autónomo.</span>
+                                    <strong>Uso responsable de IA</strong>
+                                    <span>La IA asiste la operación y la documentación, no la responsabilidad médica.</span>
                                 </div>
                             </div>
                         </div>
@@ -2343,22 +3346,45 @@
                             <ul class="feature-list">
                                 <li>
                                     <strong>Control humano</strong>
-                                    <span>El usuario puede revisar, confirmar o detener acciones antes de que avancen en el sistema.</span>
+                                    <span>El usuario puede revisar, editar o detener cualquier registro antes de que se confirme.</span>
                                 </li>
                                 <li>
-                                    <strong>Trazabilidad operativa</strong>
-                                    <span>Las acciones sugeridas o ejecutadas pueden registrarse para seguimiento y auditoría del flujo.</span>
+                                    <strong>Trazabilidad y auditoría</strong>
+                                    <span>Las acciones sugeridas o ejecutadas quedan registradas para seguimiento y auditoría.</span>
                                 </li>
                                 <li>
-                                    <strong>Permisos por rol</strong>
-                                    <span>La automatización puede ajustarse al nivel de acceso de médicos, auxiliares, operaciones o administración.</span>
+                                    <strong>Privacidad por diseño</strong>
+                                    <span>Pensado para manejar información clínica sensible con criterios de seguridad y acceso por rol.</span>
                                 </li>
                                 <li>
                                     <strong>Sin decisiones clínicas autónomas</strong>
-                                    <span>Miracle asiste la operación del flujo; no sustituye diagnóstico, tratamiento ni responsabilidad profesional.</span>
+                                    <span>Miracle asiste la documentación; no sustituye diagnóstico, tratamiento ni responsabilidad profesional.</span>
                                 </li>
                             </ul>
                         </div>
+                    </div>
+
+                    <div class="section-head section-offset">
+                        <span class="section-kicker">Dónde empezar</span>
+                        <h2>Comience por un flujo de alta fricción y mida el impacto.</h2>
+                        <p>
+                            Miracle rinde mejor en procesos frecuentes, con pasos claros y carga manual alta. La adopción puede empezar en un área específica, validarse con datos y expandirse solo donde tenga sentido operativo.
+                        </p>
+                    </div>
+
+                    <div class="info-grid">
+                        <article class="info-card">
+                            <h3>Intake y registro</h3>
+                            <p>Asistencia para completar datos del paciente, validar campos requeridos y preparar el siguiente paso del flujo.</p>
+                        </article>
+                        <article class="info-card">
+                            <h3>Documentación de la consulta</h3>
+                            <p>Generación de notas clínicas estructuradas a partir de la atención, listas para revisión y firma del profesional.</p>
+                        </article>
+                        <article class="info-card">
+                            <h3>Seguimiento y coordinación</h3>
+                            <p>Apoyo en tareas repetitivas posteriores a la atención, manteniendo revisión humana en los puntos sensibles.</p>
+                        </article>
                     </div>
 
                     <div class="section-head section-offset">
@@ -2368,36 +3394,67 @@
 
                     <div class="profile-grid">
                         <article class="profile-card">
-                            <span>Para médicos</span>
-                            <h3>Menos carga administrativa.</h3>
-                            <p>Menos navegación entre sistemas y más foco en la atención del paciente.</p>
+                            <span>Para el médico</span>
+                            <h3>Menos pantalla, más paciente.</h3>
+                            <p>Documentación asistida que reduce la carga administrativa y devuelve tiempo a la atención.</p>
                         </article>
                         <article class="profile-card">
-                            <span>Para operaciones</span>
-                            <h3>Procesos más estandarizados.</h3>
-                            <p>Menor variabilidad entre equipos y mejor seguimiento de tareas repetitivas.</p>
+                            <span>Para dirección médica</span>
+                            <h3>Registro consistente y auditable.</h3>
+                            <p>Menor variabilidad entre profesionales y mejor calidad documental para seguimiento y auditoría.</p>
                         </article>
                         <article class="profile-card">
-                            <span>Para tecnología</span>
-                            <h3>Una capa sobre sistemas existentes.</h3>
+                            <span>Para operaciones y TI</span>
+                            <h3>Una capa sobre lo que ya existe.</h3>
                             <p>Adopción gradual de IA sin reemplazar de entrada el software clínico actual.</p>
                         </article>
                         <article class="profile-card">
-                            <span>Para dirección</span>
+                            <span>Para la gerencia</span>
                             <h3>Eficiencia operativa medible.</h3>
                             <p>Mejor uso del tiempo del equipo y una ruta prudente para incorporar automatización.</p>
                         </article>
                     </div>
 
-                    <div class="contact-panel centered">
+                    <div class="contact-panel centered" id="contacto">
                         <span class="section-kicker">Siguiente paso</span>
-                        <h3>Solicita un diagnóstico operativo gratuito.</h3>
-                        <p>Analizamos un flujo repetitivo de tu institución y te mostramos dónde Miracle puede reducir carga administrativa, pasos manuales y fricción operativa.</p>
+                        <h3>Solicite un diagnóstico operativo para su institución.</h3>
+                        <p>Analizamos un flujo real de su operación y le mostramos, con datos, dónde Miracle puede reducir carga administrativa, acelerar la documentación y mejorar la consistencia del registro. Sin compromiso.</p>
 
-                        <div class="cta-actions">
-                            <a class="btn btn-primary btn-on-light" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar diagnóstico operativo gratuito</a>
-                            <a class="btn btn-secondary btn-on-dark" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Hablar por WhatsApp</a>
-                        </div>
+                        <form class="lead-form" id="lead-form" novalidate>
+                            <div class="lead-grid">
+                                <label class="lead-field">
+                                    <span>Nombre y apellido <i>*</i></span>
+                                    <input type="text" name="name" id="lead-name" autocomplete="name" required placeholder="Dr. José David Jaramillo">
+                                </label>
+                                <label class="lead-field">
+                                    <span>Cargo</span>
+                                    <input type="text" name="role" id="lead-role" autocomplete="organization-title" placeholder="Dirección médica, gerencia, TI…">
+                                </label>
+                                <label class="lead-field">
+                                    <span>Institución</span>
+                                    <input type="text" name="institution" id="lead-institution" autocomplete="organization" placeholder="Clínica u hospital">
+                                </label>
+                                <label class="lead-field">
+                                    <span>Correo</span>
+                                    <input type="email" name="email" id="lead-email" autocomplete="email" placeholder="nombre@institucion.com">
+                                </label>
+                                <label class="lead-field">
+                                    <span>Teléfono / WhatsApp</span>
+                                    <input type="tel" name="phone" id="lead-phone" autocomplete="tel" placeholder="+57 …">
+                                </label>
+                                <label class="lead-field lead-span">
+                                    <span>¿Qué flujo quiere mejorar? <em>(opcional)</em></span>
+                                    <textarea name="message" id="lead-message" rows="3" placeholder="Ej: documentación de consulta externa, intake de urgencias…"></textarea>
+                                </label>
+                            </div>
+                            <input type="text" name="company_website" id="lead-hp" class="lead-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+                            <p class="lead-hint">Mínimo: nombre y un medio de contacto (correo o teléfono).</p>
+                            <div class="cta-actions">
+                                <button type="submit" class="btn btn-primary btn-on-light" id="lead-submit">Solicitar diagnóstico operativo</button>
+                                <a class="btn btn-secondary btn-on-dark" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Prefiero WhatsApp</a>
+                            </div>
+                            <p class="lead-status" id="lead-status" role="status" aria-live="polite"></p>
+                        </form>
                     </div>
                 </div>
             </section>
@@ -2407,12 +3464,13 @@
             <div class="footer-inner">
                 <div class="footer-copy">
                     <strong>Miracle</strong>
-                    <span>Agente de IA para operaciones clínicas y ejecución sobre software médico.</span>
+                    <span>Inteligencia clínica para documentación médica más rápida, consistente y trazable. Con control humano.</span>
                 </div>
                 <div class="footer-links">
-                    <a href="#top">Volver arriba</a>
-                    <a href="#demo">Ver demo</a>
-                    <a href="#trust">Por qué Miracle</a>
+                    <a href="#producto">Cómo funciona</a>
+                    <a href="#demo">Demo en vivo</a>
+                    <a href="evidencia.html">Evidencia</a>
+                    <a href="#seguridad">Seguridad</a>
                     <a href="https://wa.me/573172550953" target="_blank" rel="noreferrer">WhatsApp</a>
                 </div>
             </div>
@@ -2651,6 +3709,115 @@
             syncAnamnesisActions();
             syncAssessmentActions();
         };
+    </script>
+
+    <script>
+        // --- Mobile hamburger navigation ---
+        (function () {
+            const header = document.querySelector('.site-header');
+            const navToggle = document.querySelector('.nav-toggle');
+            const topNav = document.getElementById('top-nav');
+            if (!header || !navToggle || !topNav) return;
+
+            function setOpen(open) {
+                header.classList.toggle('nav-open', open);
+                navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+                navToggle.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
+            }
+
+            navToggle.addEventListener('click', function (event) {
+                event.stopPropagation();
+                setOpen(!header.classList.contains('nav-open'));
+            });
+            topNav.addEventListener('click', function (event) {
+                if (event.target.closest('a')) setOpen(false);
+            });
+            document.addEventListener('click', function (event) {
+                if (header.classList.contains('nav-open') && !header.contains(event.target)) setOpen(false);
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') setOpen(false);
+            });
+        })();
+
+        // --- Lead capture: store in Supabase + WhatsApp ping ---
+        (function () {
+            const form = document.getElementById('lead-form');
+            if (!form) return;
+
+            const WHATSAPP = '573172550953';
+            const statusEl = document.getElementById('lead-status');
+            const nameEl = document.getElementById('lead-name');
+            const emailEl = document.getElementById('lead-email');
+            const phoneEl = document.getElementById('lead-phone');
+            const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+            function setStatus(message, kind) {
+                statusEl.textContent = message || '';
+                statusEl.className = 'lead-status' + (kind ? ' ' + kind : '');
+            }
+
+            form.addEventListener('submit', async function (event) {
+                event.preventDefault();
+
+                // Honeypot: real users leave this empty.
+                if (document.getElementById('lead-hp').value) return;
+
+                const data = {
+                    name: nameEl.value.trim(),
+                    role: document.getElementById('lead-role').value.trim(),
+                    institution: document.getElementById('lead-institution').value.trim(),
+                    email: emailEl.value.trim(),
+                    phone: phoneEl.value.trim(),
+                    message: document.getElementById('lead-message').value.trim()
+                };
+
+                [nameEl, emailEl].forEach((el) => el.classList.remove('invalid'));
+                if (!data.name) {
+                    nameEl.classList.add('invalid'); nameEl.focus();
+                    setStatus('Escribe tu nombre, por favor.', 'err'); return;
+                }
+                if (data.email && !isEmail(data.email)) {
+                    emailEl.classList.add('invalid'); emailEl.focus();
+                    setStatus('Revisa el formato del correo.', 'err'); return;
+                }
+                if (!data.email && !data.phone) {
+                    setStatus('Déjanos un correo o un teléfono para poder contactarte.', 'err'); return;
+                }
+
+                form.classList.add('sending');
+                setStatus('Enviando…', '');
+
+                // 1) Best-effort: store the lead in Supabase.
+                try {
+                    const client = window.MiracleSupabase ? await window.MiracleSupabase.whenReady() : null;
+                    if (client) {
+                        const { error } = await client.from('leads').insert([{ ...data, source: 'landing' }]);
+                        if (error) throw error;
+                    } else {
+                        console.warn('[Lead] Supabase no configurado; continúo con WhatsApp.');
+                    }
+                } catch (error) {
+                    console.warn('[Lead] No se pudo guardar en Supabase:', (error && error.message) || error);
+                }
+
+                // 2) Always open WhatsApp with the lead prefilled (instant ping).
+                const text = [
+                    'Hola, quiero un diagnóstico operativo de Miracle.',
+                    'Nombre: ' + data.name,
+                    data.role ? 'Cargo: ' + data.role : '',
+                    data.institution ? 'Institución: ' + data.institution : '',
+                    data.email ? 'Correo: ' + data.email : '',
+                    data.phone ? 'Teléfono: ' + data.phone : '',
+                    data.message ? 'Flujo a mejorar: ' + data.message : ''
+                ].filter(Boolean).join('\n');
+                window.open('https://wa.me/' + WHATSAPP + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+
+                form.classList.remove('sending');
+                setStatus('¡Gracias! Te contactamos muy pronto. Abrimos WhatsApp para agilizar.', 'ok');
+                form.reset();
+            });
+        })();
     </script>
 </body>
 </html>
