@@ -171,24 +171,13 @@
         }
 
         .workspace-body {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 340px;
-            gap: 0;
+            display: block;
             min-height: 920px;
         }
 
         .main-panel {
             padding: 24px;
             background: linear-gradient(180deg, rgba(249, 251, 253, 0.96), rgba(244, 248, 251, 0.94));
-        }
-
-        .sidebar {
-            padding: 24px 20px;
-            border-left: 1px solid var(--line);
-            background: linear-gradient(180deg, #fcfdfe, #f4f7fa);
-            display: grid;
-            gap: 16px;
-            align-content: start;
         }
 
         .patient-ribbon {
@@ -267,17 +256,19 @@
             min-height: 42px;
             padding: 0 16px;
             border-radius: 999px;
-            border: 1px solid var(--line);
-            background: #fff;
-            color: var(--muted);
+            border: 1px solid #1f638c;
+            background: #2f8cff;
+            color: #fff;
             font-weight: 700;
             cursor: pointer;
+            box-shadow: 0 10px 20px rgba(47, 140, 255, 0.18);
         }
 
         .tab-btn.active {
-            background: var(--accent-soft);
-            border-color: rgba(31, 99, 140, 0.18);
-            color: var(--accent);
+            background: #145ea8;
+            border-color: #145ea8;
+            color: #fff;
+            box-shadow: 0 14px 28px rgba(20, 94, 168, 0.24);
         }
 
         .view[hidden] {
@@ -576,14 +567,6 @@
         }
 
         @media (max-width: 1280px) {
-            .workspace-body {
-                grid-template-columns: 1fr;
-            }
-
-            .sidebar {
-                border-left: none;
-                border-top: 1px solid var(--line);
-            }
         }
 
         @media (max-width: 980px) {
@@ -614,7 +597,7 @@
             }
 
             .main-panel,
-            .sidebar {
+            .main-panel {
                 padding: 16px;
             }
 
@@ -673,18 +656,6 @@
 
         <div class="surface-card">
             <div class="workspace-shell">
-                <div class="workspace-top">
-                    <div>
-                        <strong>Graph EMR Workspace</strong>
-                        <span>Flujo clínico continuo para demostrar manejo de interfaces médicas amplias y complejas.</span>
-                    </div>
-                    <div class="workspace-badges">
-                        <span class="badge">Single page</span>
-                        <span class="badge">Estado compartido</span>
-                        <span class="badge">UI clínica expandida</span>
-                    </div>
-                </div>
-
                 <div class="workspace-body">
                     <main class="main-panel">
                         <div class="patient-ribbon">
@@ -1262,58 +1233,6 @@
                         </section>
                     </main>
 
-                    <aside class="sidebar">
-                        <section class="side-card">
-                            <h3>Resumen del workspace</h3>
-                            <p>Esta versión amplia concentra más datos clínicos, administrativos y operativos para proyectar una superficie de EMR más seria frente a compradores institucionales.</p>
-                        </section>
-
-                        <section class="side-card">
-                            <h3>Indicadores del demo</h3>
-                            <div class="side-stat-grid">
-                                <div class="side-stat">
-                                    <strong>Módulos</strong>
-                                    <span>4</span>
-                                </div>
-                                <div class="side-stat">
-                                    <strong>Campos</strong>
-                                    <span>40+</span>
-                                </div>
-                                <div class="side-stat">
-                                    <strong>Patrón</strong>
-                                    <span>Single page</span>
-                                </div>
-                                <div class="side-stat">
-                                    <strong>Estado</strong>
-                                    <span>Interactivo</span>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section class="side-card">
-                            <h3>Checklist clínico</h3>
-                            <ul>
-                                <li>Recepción y triage documentados en la misma historia.</li>
-                                <li>Anamnesis, ROS y examen físico sin cambiar de app.</li>
-                                <li>Órdenes y prescripción en una UI más densa y realista.</li>
-                                <li>Cierre con disposición, codificación y educación al paciente.</li>
-                            </ul>
-                        </section>
-
-                        <section class="side-card side-note">
-                            <h3>Consistencia visual</h3>
-                            <p>Se unificó el lenguaje visual del intake embebido con esta versión expandida para que ambas superficies parezcan parte del mismo producto.</p>
-                        </section>
-
-                        <section class="side-card">
-                            <h3>Actividad reciente</h3>
-                            <ol class="activity-list" id="activity-log">
-                                <li>Workspace expandido listo para captura clínica.</li>
-                                <li>La navegación entre módulos ocurre sin cambiar de URL interna.</li>
-                                <li>El estado del formulario puede persistirse entre sesiones.</li>
-                            </ol>
-                        </section>
-                    </aside>
                 </div>
             </div>
         </div>
