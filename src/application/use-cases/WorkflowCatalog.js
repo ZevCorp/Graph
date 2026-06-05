@@ -58,6 +58,7 @@ class WorkflowCatalog {
           selectedValue: row.selectedValue,
           selectedLabel: row.selectedLabel,
           semanticTarget: row.semanticTarget,
+          surfaceSection: row.surfaceSection,
           surfaceHints: row.surfaceHints,
           allowedOptions: row.allowedOptions,
           stepOrder: row.stepOrder

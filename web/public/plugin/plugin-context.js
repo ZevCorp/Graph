@@ -56,6 +56,15 @@
     }
 
     function capturePageSnapshot() {
+        const currentSurfaceSection = (() => {
+            const activeToggle = document.querySelector('[data-view-target].active');
+            const activeTarget = `${activeToggle?.getAttribute?.('data-view-target') || ''}`.trim();
+            if (activeTarget) return activeTarget;
+            const visibleView = Array.from(document.querySelectorAll('[data-view]'))
+                .find((element) => element instanceof Element && !element.hasAttribute('hidden'));
+            return `${visibleView?.getAttribute?.('data-view') || ''}`.trim();
+        })();
+
         const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
             .map((node) => (node.textContent || '').trim())
             .filter(Boolean)
@@ -107,6 +116,7 @@
 
         return {
             pageTitle: document.title || '',
+            currentSurfaceSection,
             headings,
             buttons,
             fieldLabels,

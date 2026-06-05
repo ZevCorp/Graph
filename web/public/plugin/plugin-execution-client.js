@@ -205,6 +205,119 @@
             ].some((token) => normalized === token || normalized.includes(token));
         }
 
+        function getCurrentSurfaceSection() {
+            const activeToggle = document.querySelector('[data-view-target].active');
+            const activeTarget = `${activeToggle?.getAttribute?.('data-view-target') || ''}`.trim();
+            if (activeTarget) {
+                return activeTarget;
+            }
+
+            const visibleView = Array.from(document.querySelectorAll('[data-view]')).find((element) => {
+                if (!(element instanceof Element)) {
+                    return false;
+                }
+                if (element.hasAttribute('hidden')) {
+                    return false;
+                }
+                const style = window.getComputedStyle(element);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            });
+            return `${visibleView?.getAttribute?.('data-view') || ''}`.trim();
+        }
+
+        function inferSurfaceSectionFromStep(step) {
+            const explicit = `${step?.surfaceSection || ''}`.trim();
+            if (explicit) {
+                return explicit;
+            }
+
+            if (`${step?.actionType || ''}`.trim().toLowerCase() === 'click' && `${step?.selector || ''}`.includes('data-view-target')) {
+                return '';
+            }
+
+            const haystack = `${step?.selector || ''} ${step?.label || ''} ${step?.semanticTarget || ''}`
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+
+            if (/(^|[^a-z])(intake|triage)([^a-z]|$)/.test(haystack)) {
+                return 'intake';
+            }
+            if (/(^|[^a-z])(anamnesis|exam)([^a-z]|$)/.test(haystack)) {
+                return 'anamnesis';
+            }
+            if (/(^|[^a-z])(assessment|orders|rx|plan)([^a-z]|$)/.test(haystack)) {
+                return 'orders';
+            }
+            if (/(^|[^a-z])(closure|disposition)([^a-z]|$)/.test(haystack)) {
+                return 'closure';
+            }
+
+            return '';
+        }
+
+        async function ensureSurfaceSection(step, context = {}) {
+            const requiredSection = inferSurfaceSectionFromStep(step);
+            if (!requiredSection) {
+                return false;
+            }
+
+            const currentSection = getCurrentSurfaceSection();
+            if (currentSection === requiredSection) {
+                return false;
+            }
+
+            const escapedSection = requiredSection.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const toggleSelector = `[data-view-target="${escapedSection}"]`;
+            const toggle = document.querySelector(toggleSelector);
+            if (!(toggle instanceof HTMLElement)) {
+                emitExtensionLog('warn', 'Required surface section toggle was not found.', buildStepDiagnostics(step, {
+                    workflowId: context.workflowId || '',
+                    trigger: context.trigger || '',
+                    stepIndex: context.stepIndex,
+                    failureKind: 'surface_section_toggle_missing',
+                    requiredSurfaceSection: requiredSection,
+                    currentSurfaceSection: currentSection
+                }));
+                return false;
+            }
+
+            if ('disabled' in toggle && toggle.disabled) {
+                throw new Error(`No pude cambiar al modulo ${requiredSection} porque el control esta deshabilitado.`);
+            }
+
+            updateWorkflowPanelStatus(`Abriendo ${requiredSection} para continuar la automatizacion...`);
+            emitExtensionLog('info', 'Switching surface section before workflow step.', buildStepDiagnostics(step, {
+                workflowId: context.workflowId || '',
+                trigger: context.trigger || '',
+                stepIndex: context.stepIndex,
+                resolution: 'surface_section_switch_started',
+                requiredSurfaceSection: requiredSection,
+                currentSurfaceSection: currentSection
+            }));
+
+            toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
+            toggle.click();
+
+            const startedAt = Date.now();
+            while (Date.now() - startedAt < waitTimeoutMs) {
+                if (getCurrentSurfaceSection() === requiredSection) {
+                    await waitMs(Math.min(stepDelayMs, 120));
+                    emitExtensionLog('info', 'Switched surface section before workflow step.', buildStepDiagnostics(step, {
+                        workflowId: context.workflowId || '',
+                        trigger: context.trigger || '',
+                        stepIndex: context.stepIndex,
+                        resolution: 'surface_section_switch_applied',
+                        requiredSurfaceSection: requiredSection
+                    }));
+                    return true;
+                }
+                await waitMs(60);
+            }
+
+            throw new Error(`No pude abrir el modulo ${requiredSection} antes de continuar.`);
+        }
+
         function isRequiredFieldLabel(label = '') {
             return `${label || ''}`.trim().startsWith('*');
         }
@@ -1340,6 +1453,12 @@
                         continue;
                     }
 
+                    await ensureSurfaceSection(step, {
+                        workflowId: currentPlan.workflowId,
+                        trigger,
+                        stepIndex
+                    });
+
                     if (step.actionType === 'navigation') {
                         if (currentPlan.runtimeIntelligence?.strictAfterTransversal) {
                             currentPlan = {
@@ -1625,6 +1744,15 @@
                 const stepWithUrl = step.url || '';
                 if (stepWithUrl && !urlsMatch(window.location.href, stepWithUrl)) {
                     return { applied: false, reason: 'other_page' };
+                }
+
+                try {
+                    await ensureSurfaceSection(step, {
+                        workflowId: plan.workflowId || '',
+                        trigger: 'dynamic-fill'
+                    });
+                } catch (error) {
+                    return { applied: false, reason: 'surface_section_switch_failed', error };
                 }
 
                 let element;

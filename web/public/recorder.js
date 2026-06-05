@@ -178,6 +178,27 @@ window.WorkflowRecorder = (() => {
     return (explicitLabel || ariaLabel || ariaLabelledBy || fallback || '').trim().slice(0, 120);
   }
 
+  function getCurrentSurfaceSection() {
+    const activeToggle = document.querySelector('[data-view-target].active');
+    const activeTarget = `${activeToggle?.getAttribute?.('data-view-target') || ''}`.trim();
+    if (activeTarget) {
+      return activeTarget;
+    }
+
+    const visibleView = Array.from(document.querySelectorAll('[data-view]')).find((element) => {
+      if (!(element instanceof Element)) return false;
+      if (element.hasAttribute('hidden')) return false;
+      const style = window.getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
+    return `${visibleView?.getAttribute?.('data-view') || ''}`.trim();
+  }
+
+  function inferSurfaceSection(element) {
+    const nearestSection = `${element?.closest?.('[data-view]')?.getAttribute?.('data-view') || ''}`.trim();
+    return nearestSection || getCurrentSurfaceSection();
+  }
+
   function controlTypeForElement(element) {
     if (element instanceof HTMLSelectElement) return 'select';
     if (element instanceof HTMLTextAreaElement) return 'textarea';
@@ -487,6 +508,7 @@ window.WorkflowRecorder = (() => {
       selector: selectorForElement(element),
       label: labelForElement(element),
       semanticTarget: inferSemanticClickTarget(element),
+      surfaceSection: inferSurfaceSection(element),
       surfaceHints: buildSurfaceHints(element),
       text: describeElementText(element),
       href,
@@ -712,6 +734,7 @@ window.WorkflowRecorder = (() => {
       actionType,
       selector: selectorForElement(element),
       label: labelForElement(element),
+      surfaceSection: inferSurfaceSection(element),
       value: element.value,
       ...getControlMetadata(element)
     });
@@ -763,6 +786,7 @@ window.WorkflowRecorder = (() => {
         selector: payload.selector,
         label: payload.label,
         semanticTarget: payload.semanticTarget || '',
+        surfaceSection: payload.surfaceSection || '',
         alternativeTargets: Array.isArray(payload.surfaceHints?.alternativeTargets)
           ? payload.surfaceHints.alternativeTargets
           : [],
@@ -849,6 +873,7 @@ window.WorkflowRecorder = (() => {
         selector: selectorForElement(target),
         label: labelForElement(target),
         semanticTarget: inferSemanticClickTarget(target),
+        surfaceSection: inferSurfaceSection(target),
         surfaceHints: buildSurfaceHints(target),
         value: '',
         href: target.getAttribute?.('href') || '',
