@@ -1,0 +1,17 @@
+# Keep secrets and backend/build cruft out of the Vercel upload.
+# The deploy only serves the static site in web/public (see vercel.json).
+.env
+.env.local
+.env.*.local
+node_modules
+.git
+*.log
+.codex-*
+debug.log
+generated
+src
+chrome-extension-src
+scripts
+supabase
+.agents
+.claude
