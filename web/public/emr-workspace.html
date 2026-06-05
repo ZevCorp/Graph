@@ -713,10 +713,10 @@
                         </div>
 
                         <div class="tabbar" aria-label="Módulos del EMR">
-                            <button class="tab-btn active" data-view-target="intake" type="button">Registro</button>
-                            <button class="tab-btn" data-view-target="anamnesis" type="button">Anamnesis</button>
-                            <button class="tab-btn" data-view-target="orders" type="button">Órdenes</button>
-                            <button class="tab-btn" data-view-target="closure" type="button">Cierre</button>
+                            <button aria-label="Abrir módulo Registro del EMR" class="tab-btn active" data-testid="emr-tab-intake" data-view-target="intake" title="Abrir módulo Registro del EMR" type="button">Registro</button>
+                            <button aria-label="Abrir módulo Anamnesis del EMR" class="tab-btn" data-testid="emr-tab-anamnesis" data-view-target="anamnesis" title="Abrir módulo Anamnesis del EMR" type="button">Anamnesis</button>
+                            <button aria-label="Abrir módulo Órdenes del EMR" class="tab-btn" data-testid="emr-tab-orders" data-view-target="orders" title="Abrir módulo Órdenes del EMR" type="button">Órdenes</button>
+                            <button aria-label="Abrir módulo Cierre del EMR" class="tab-btn" data-testid="emr-tab-closure" data-view-target="closure" title="Abrir módulo Cierre del EMR" type="button">Cierre</button>
                         </div>
 
                         <section class="view" data-view="intake">
@@ -922,7 +922,7 @@
                             <div class="actions">
                                 <button class="action-btn primary" data-testid="intake-save-patient" id="intake-save-patient" type="button">Guardar admisión</button>
                                 <button class="action-btn secondary" data-testid="intake-open-chart" id="intake-open-chart" type="button">Abrir historia clínica</button>
-                                <button class="action-btn ghost" data-view-target="anamnesis" type="button">Continuar a anamnesis</button>
+                                <button aria-label="Continuar al módulo Anamnesis" class="action-btn ghost" data-testid="intake-go-anamnesis" data-view-target="anamnesis" title="Continuar al módulo Anamnesis" type="button">Continuar a anamnesis</button>
                             </div>
                             <div class="feedback" data-testid="intake-feedback" id="intake-feedback"></div>
                         </section>
@@ -1025,8 +1025,8 @@
                             <div class="actions">
                                 <button class="action-btn primary" data-testid="anamnesis-save-note" id="anamnesis-save-note" type="button">Guardar nota médica</button>
                                 <button class="action-btn secondary" data-testid="anamnesis-request-labs" id="anamnesis-request-labs" type="button">Solicitar ayudas diagnósticas</button>
-                                <button class="action-btn ghost" data-view-target="intake" type="button">Volver a intake</button>
-                                <button class="action-btn ghost" data-view-target="orders" type="button">Ir a órdenes</button>
+                                <button aria-label="Volver al módulo Registro" class="action-btn ghost" data-testid="anamnesis-go-intake" data-view-target="intake" title="Volver al módulo Registro" type="button">Volver a intake</button>
+                                <button aria-label="Continuar al módulo Órdenes" class="action-btn ghost" data-testid="anamnesis-go-orders" data-view-target="orders" title="Continuar al módulo Órdenes" type="button">Ir a órdenes</button>
                             </div>
                             <div class="feedback" data-testid="anamnesis-feedback" id="anamnesis-feedback"></div>
                         </section>
@@ -1162,8 +1162,8 @@
                             <div class="actions">
                                 <button class="action-btn primary" data-testid="assessment-sign-note" id="assessment-sign-note" type="button">Firmar nota clínica</button>
                                 <button class="action-btn secondary" data-testid="assessment-generate-rx" id="assessment-generate-rx" type="button">Generar fórmula</button>
-                                <button class="action-btn ghost" data-view-target="anamnesis" type="button">Volver a anamnesis</button>
-                                <button class="action-btn ghost" data-view-target="closure" type="button">Continuar a cierre</button>
+                                <button aria-label="Volver al módulo Anamnesis" class="action-btn ghost" data-testid="orders-go-anamnesis" data-view-target="anamnesis" title="Volver al módulo Anamnesis" type="button">Volver a anamnesis</button>
+                                <button aria-label="Continuar al módulo Cierre" class="action-btn ghost" data-testid="orders-go-closure" data-view-target="closure" title="Continuar al módulo Cierre" type="button">Continuar a cierre</button>
                             </div>
                             <div class="feedback" data-testid="assessment-feedback" id="assessment-feedback"></div>
                         </section>
@@ -1255,7 +1255,7 @@
 
                             <div class="actions">
                                 <button class="action-btn primary" id="closure-complete" type="button">Cerrar encuentro</button>
-                                <button class="action-btn ghost" data-view-target="orders" type="button">Volver a órdenes</button>
+                                <button aria-label="Volver al módulo Órdenes" class="action-btn ghost" data-testid="closure-go-orders" data-view-target="orders" title="Volver al módulo Órdenes" type="button">Volver a órdenes</button>
                                 <a class="action-btn ghost" href="index.html#demo">Volver a demo embebida</a>
                             </div>
                             <div class="feedback" id="closure-feedback"></div>

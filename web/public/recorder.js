@@ -141,6 +141,9 @@ window.WorkflowRecorder = (() => {
     if (element.dataset && element.dataset.testid) {
       return buildAttributeSelector('data-testid', element.dataset.testid);
     }
+    if (element.dataset && element.dataset.viewTarget) {
+      return buildAttributeSelector('data-view-target', element.dataset.viewTarget, element.tagName ? element.tagName.toLowerCase() : '');
+    }
     if (element.id) {
       return isCssSafeId(element.id)
         ? `#${element.id}`
