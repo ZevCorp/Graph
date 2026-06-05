@@ -11,7 +11,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Miracle">
     <meta property="og:locale" content="es_ES">
-    <!-- TODO despliegue: reemplazar https://REEMPLAZAR-DOMINIO por el dominio real de producción -->
+    <!-- TODO despliegue: reemplazar https://REEMPLAZAR-DOMINIO por el dominio real -->
     <meta property="og:url" content="https://REEMPLAZAR-DOMINIO/evidencia.html">
     <meta property="og:image" content="https://REEMPLAZAR-DOMINIO/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,446 +21,7 @@
     <meta name="twitter:title" content="Miracle | Evidencia sobre la carga documental del médico">
     <meta name="twitter:description" content="Tiempo administrativo, documentación, burnout y eficiencia clínica, con fuentes verificables.">
     <meta name="twitter:image" content="https://REEMPLAZAR-DOMINIO/og-image.png">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-        :root {
-            --bg: #f8fafc;
-            --surface: rgba(255, 255, 255, 0.82);
-            --line: rgba(15, 23, 42, 0.1);
-            --ink: #0f172a;
-            --muted: #64748b;
-            --muted-strong: #334155;
-            --accent: #2f8cff;
-            --mint: #b7f0d8;
-            --success: #13795b;
-            --shadow-xl: 0 32px 90px rgba(15, 23, 42, 0.12);
-            --shadow-lg: 0 20px 54px rgba(15, 23, 42, 0.1);
-            --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.08);
-            --radius-xl: 32px;
-            --radius-lg: 24px;
-            --radius-md: 18px;
-            --content-width: 1080px;
-        }
-
-        * { box-sizing: border-box; }
-        html { scroll-behavior: smooth; }
-
-        body {
-            margin: 0;
-            color: var(--ink);
-            font-family: "Inter", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background:
-                radial-gradient(ellipse at 0% 6%, rgba(220, 239, 253, 0.7), transparent 42%),
-                radial-gradient(ellipse at 100% 12%, rgba(203, 213, 225, 0.5), transparent 40%),
-                linear-gradient(115deg, #dceffd 0%, #f8fafc 40%, #f8fafc 62%, #e8edf3 100%);
-            background-attachment: fixed;
-            line-height: 1.5;
-        }
-
-        a { color: inherit; }
-
-        .wrap {
-            width: min(calc(100% - 32px), var(--content-width));
-            margin: 0 auto;
-        }
-
-        /* Header */
-        .site-header {
-            position: sticky;
-            top: 0;
-            z-index: 30;
-            backdrop-filter: blur(18px);
-            background: rgba(248, 250, 252, 0.74);
-            border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-        }
-
-        .header-inner {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 18px;
-            padding: 16px 0;
-        }
-
-        .brand {
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .brand-mark {
-            width: 28px;
-            height: 28px;
-            border-radius: 999px;
-            background:
-                radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.96), transparent 18%),
-                radial-gradient(circle at 38% 36%, #dceffd 0 22%, #7fb6e6 48%, #0f5f9f 100%);
-            box-shadow: inset -6px -8px 14px rgba(15, 23, 42, 0.22), 0 8px 20px rgba(47, 140, 255, 0.18);
-        }
-
-        .brand-wordmark {
-            font-size: 1.3rem;
-            font-weight: 600;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-        }
-
-        .header-nav {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-
-        .header-nav a {
-            text-decoration: none;
-            border-radius: 999px;
-            padding: 9px 14px;
-            font-size: 0.9rem;
-            color: var(--muted-strong);
-            border: 1px solid transparent;
-            transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-        }
-
-        .header-nav a:hover {
-            background: rgba(255, 255, 255, 0.72);
-            border-color: var(--line);
-            color: var(--ink);
-        }
-
-        .header-nav .nav-cta {
-            background: var(--ink);
-            color: #fff;
-            border-color: var(--ink);
-        }
-
-        /* Hero */
-        .page-hero {
-            padding: 64px 0 26px;
-        }
-
-        .kicker {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 13px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.78);
-            border: 1px solid var(--line);
-            font-size: 0.76rem;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: #1d4f86;
-        }
-
-        .kicker::before {
-            content: "";
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: linear-gradient(135deg, var(--accent), var(--mint));
-        }
-
-        .page-hero h1 {
-            margin: 22px 0 16px;
-            font-size: clamp(2.4rem, 5vw, 4rem);
-            line-height: 1.02;
-            letter-spacing: -0.05em;
-            max-width: 880px;
-        }
-
-        .page-hero .lead {
-            margin: 0;
-            font-size: 1.12rem;
-            line-height: 1.7;
-            color: var(--muted-strong);
-            max-width: 720px;
-        }
-
-        /* How-to-read note */
-        .note-card {
-            margin-top: 30px;
-            padding: 24px 26px;
-            border-radius: var(--radius-lg);
-            background: rgba(255, 255, 255, 0.7);
-            border: 1px solid var(--line);
-            box-shadow: var(--shadow-md);
-            display: grid;
-            grid-template-columns: auto 1fr;
-            gap: 18px;
-            align-items: start;
-        }
-
-        .note-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 44px;
-            height: 44px;
-            border-radius: 13px;
-            background: linear-gradient(135deg, #eaf4ff, #dcecff);
-            border: 1px solid var(--line);
-            font-size: 1.3rem;
-        }
-
-        .note-card h2 {
-            margin: 0 0 8px;
-            font-size: 1.16rem;
-            letter-spacing: -0.01em;
-        }
-
-        .note-card p {
-            margin: 0;
-            color: var(--muted-strong);
-            line-height: 1.65;
-            font-size: 0.98rem;
-        }
-
-        /* Evidence sections */
-        .ev-section {
-            padding: 30px 0;
-        }
-
-        .ev-section-head {
-            max-width: 720px;
-            margin-bottom: 22px;
-        }
-
-        .ev-section-head .tag {
-            display: inline-block;
-            margin-bottom: 12px;
-            color: var(--accent);
-            font-size: 0.82rem;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        .ev-section-head h2 {
-            margin: 0;
-            font-size: clamp(1.7rem, 3vw, 2.5rem);
-            line-height: 1.08;
-            letter-spacing: -0.04em;
-        }
-
-        .ev-section-head p {
-            margin: 12px 0 0;
-            color: var(--muted-strong);
-            line-height: 1.65;
-        }
-
-        .ev-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 18px;
-        }
-
-        .ev-item {
-            padding: 28px 26px;
-            border-radius: var(--radius-lg);
-            background: var(--surface);
-            border: 1px solid var(--line);
-            box-shadow: var(--shadow-md);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .ev-stat {
-            font-family: "Inter", sans-serif;
-            font-weight: 700;
-            font-size: clamp(1.9rem, 3vw, 2.4rem);
-            letter-spacing: -0.04em;
-            line-height: 1;
-            color: var(--ink);
-        }
-
-        .ev-finding {
-            margin: 14px 0 0;
-            font-size: 1.02rem;
-            line-height: 1.55;
-            color: var(--muted-strong);
-        }
-
-        .ev-source {
-            margin-top: 18px;
-            padding-top: 16px;
-            border-top: 1px solid var(--line);
-            font-size: 0.86rem;
-            color: var(--muted);
-            line-height: 1.5;
-        }
-
-        .ev-source strong {
-            color: var(--ink);
-            font-weight: 600;
-        }
-
-        .ev-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            margin-top: 8px;
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: var(--accent);
-            text-decoration: none;
-        }
-
-        .ev-placeholder {
-            display: inline-block;
-            margin-top: 8px;
-            padding: 4px 10px;
-            border-radius: 8px;
-            background: rgba(47, 140, 255, 0.08);
-            border: 1px dashed rgba(47, 140, 255, 0.4);
-            font-size: 0.78rem;
-            color: #1d4f86;
-            font-weight: 600;
-        }
-
-        /* References */
-        .refs {
-            margin: 14px 0 0;
-            padding: 0;
-            list-style: none;
-            counter-reset: ref;
-        }
-
-        .refs li {
-            counter-increment: ref;
-            position: relative;
-            padding: 16px 18px 16px 52px;
-            border-bottom: 1px solid var(--line);
-            color: var(--muted-strong);
-            line-height: 1.55;
-            font-size: 0.96rem;
-        }
-
-        .refs li::before {
-            content: counter(ref);
-            position: absolute;
-            left: 14px;
-            top: 16px;
-            width: 26px;
-            height: 26px;
-            border-radius: 8px;
-            background: var(--ink);
-            color: #fff;
-            font-size: 0.82rem;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .refs li strong { color: var(--ink); }
-        .refs li .ph {
-            color: #1d4f86;
-            font-weight: 600;
-        }
-        .refs li a {
-            color: var(--accent);
-            font-weight: 600;
-            text-decoration: none;
-            word-break: break-word;
-        }
-        .refs li a:hover { text-decoration: underline; }
-
-        /* Dark CTA band */
-        .cta-band {
-            margin: 28px auto 48px;
-            border-radius: var(--radius-xl);
-            background:
-                radial-gradient(ellipse at 12% 0%, rgba(47, 140, 255, 0.24), transparent 46%),
-                linear-gradient(160deg, #111c30 0%, #0b1424 60%, #0a1120 100%);
-            color: #e7eef7;
-            padding: clamp(36px, 5vw, 64px);
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            box-shadow: var(--shadow-xl);
-            text-align: center;
-        }
-
-        .cta-band h2 {
-            margin: 0 auto;
-            font-size: clamp(1.8rem, 3.4vw, 2.8rem);
-            letter-spacing: -0.04em;
-            line-height: 1.06;
-            color: #fff;
-            max-width: 640px;
-        }
-
-        .cta-band p {
-            margin: 16px auto 0;
-            color: rgba(231, 238, 247, 0.74);
-            line-height: 1.65;
-            max-width: 600px;
-        }
-
-        .cta-actions {
-            margin-top: 26px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 14px;
-            justify-content: center;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            min-height: 52px;
-            padding: 0 24px;
-            border-radius: 999px;
-            text-decoration: none;
-            border: 1px solid transparent;
-            font-weight: 650;
-            transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
-        }
-
-        .btn:hover { transform: translateY(-1px); }
-
-        .btn-white { background: #fff; color: var(--ink); box-shadow: 0 16px 32px rgba(0, 0, 0, 0.3); }
-        .btn-line { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.32); }
-        .btn-line:hover { background: rgba(255, 255, 255, 0.08); }
-
-        /* Footer */
-        .footer {
-            border-top: 1px solid var(--line);
-            padding: 30px 0 44px;
-        }
-
-        .footer-inner {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .footer-copy strong { display: block; letter-spacing: 0.16em; text-transform: uppercase; }
-        .footer-copy span { color: var(--muted); font-size: 0.92rem; }
-
-        .footer-links { display: flex; gap: 8px; flex-wrap: wrap; }
-        .footer-links a {
-            text-decoration: none;
-            color: var(--muted-strong);
-            font-size: 0.9rem;
-            padding: 8px 12px;
-            border-radius: 999px;
-            border: 1px solid transparent;
-        }
-        .footer-links a:hover { background: rgba(255, 255, 255, 0.7); border-color: var(--line); }
-
-        @media (max-width: 760px) {
-            .ev-grid { grid-template-columns: 1fr; }
-            .note-card { grid-template-columns: 1fr; }
-        }
-    </style>
+    <link rel="stylesheet" href="site.css">
 </head>
 <body>
     <header class="site-header">
@@ -469,10 +30,15 @@
                 <span class="brand-mark" aria-hidden="true"></span>
                 <span class="brand-wordmark">Miracle</span>
             </a>
-            <nav class="header-nav" aria-label="Primary">
-                <a href="index.html#producto">Cómo funciona</a>
-                <a href="index.html#demo">Demo en vivo</a>
-                <a href="index.html#seguridad">Seguridad</a>
+            <button class="nav-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="site-nav">
+                <span class="nav-toggle-bars" aria-hidden="true"></span>
+            </button>
+            <nav class="header-nav" id="site-nav" aria-label="Primary">
+                <a href="index.html">Inicio</a>
+                <a href="producto.html">Cómo funciona</a>
+                <a href="evidencia.html" class="active">Evidencia</a>
+                <a href="seguridad.html">Seguridad</a>
+                <a href="casos.html">Casos de uso</a>
                 <a class="nav-cta" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar demo</a>
             </nav>
         </div>
@@ -484,7 +50,7 @@
                 <span class="kicker">Evidencia</span>
                 <h1>La carga documental del médico está bien documentada.</h1>
                 <p class="lead">
-                    Antes de hablar de soluciones, vale la pena mirar el problema con datos. Esta página reúne hallazgos publicados sobre tiempo administrativo, documentación clínica, fatiga médica y eficiencia operativa. No inventamos cifras: resumimos literatura del sector y señalamos con claridad dónde debe ir cada fuente verificable.
+                    Antes de hablar de soluciones, vale la pena mirar el problema con datos. Esta página reúne hallazgos publicados sobre tiempo administrativo, documentación clínica, fatiga médica y eficiencia operativa. No inventamos cifras: resumimos literatura del sector y enlazamos cada fuente verificable.
                 </p>
 
                 <div class="note-card">
@@ -650,7 +216,7 @@
                 <div class="ev-section-head">
                     <span class="tag">Fuentes</span>
                     <h2>Referencias</h2>
-                    <p>Listado para completar con los enlaces oficiales. Reemplace cada marcador por la URL verificable de la fuente.</p>
+                    <p>Fuentes citadas en esta página. Las marcadas como "Referencia por confirmar" se completarán con su enlace oficial.</p>
                 </div>
                 <ol class="refs">
                     <li><strong>Sinsky C, et al.</strong> Allocation of Physician Time in Ambulatory Practice: A Time and Motion Study in 4 Specialties. <em>Annals of Internal Medicine</em>, 2016. <a href="https://www.acpjournals.org/doi/10.7326/M16-0961" target="_blank" rel="noreferrer">acpjournals.org/doi/10.7326/M16-0961</a></li>
@@ -665,14 +231,15 @@
             </div>
         </section>
 
-        <section>
+        <section class="section" style="padding-top: 0;">
             <div class="wrap">
                 <div class="cta-band">
+                    <span class="tag">Siguiente paso</span>
                     <h2>El problema está medido. La conversación es el siguiente paso.</h2>
                     <p>Le mostramos cómo Miracle interviene el flujo de documentación de su institución, con control humano y trazabilidad, y medimos el impacto en un flujo real.</p>
                     <div class="cta-actions">
                         <a class="btn btn-white" href="https://wa.me/573172550953" target="_blank" rel="noreferrer">Solicitar diagnóstico operativo</a>
-                        <a class="btn btn-line" href="index.html#demo">Ver demo en vivo</a>
+                        <a class="btn btn-line-light" href="index.html#demo">Ver demo en vivo</a>
                     </div>
                 </div>
             </div>
@@ -687,12 +254,14 @@
             </div>
             <div class="footer-links">
                 <a href="index.html">Inicio</a>
-                <a href="index.html#producto">Cómo funciona</a>
-                <a href="index.html#demo">Demo en vivo</a>
-                <a href="#referencias">Referencias</a>
+                <a href="producto.html">Cómo funciona</a>
+                <a href="evidencia.html">Evidencia</a>
+                <a href="seguridad.html">Seguridad</a>
+                <a href="casos.html">Casos de uso</a>
                 <a href="https://wa.me/573172550953" target="_blank" rel="noreferrer">WhatsApp</a>
             </div>
         </div>
     </footer>
+    <script src="site-nav.js"></script>
 </body>
 </html>
