@@ -276,13 +276,17 @@ class VoiceRealtimeGateway {
             },
             transcription: {
               model: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
-              language: 'es'
+              language: 'es',
+              // Bias prompt: tells the transcriber the domain so proper nouns and
+              // digits (names, IDs, phones, doses) are captured faithfully.
+              prompt: process.env.OPENAI_REALTIME_TRANSCRIPTION_PROMPT
+                || 'Transcripción clínica en español. Un profesional de salud dicta datos de un paciente para llenar una historia clínica: nombres y apellidos hispanos completos, números de documento o cédula, teléfonos, fechas, signos vitales, diagnósticos, medicamentos y dosis. Transcribe los nombres propios y los números de forma literal y fiel, sin traducir ni inventar. Escribe las cifras como dígitos (por ejemplo 32, no "treinta y dos") y deja los números de documento y teléfono como secuencias de dígitos.'
             },
             turn_detection: {
               type: 'server_vad',
               threshold: 0.5,
               prefix_padding_ms: 300,
-              silence_duration_ms: 900,
+              silence_duration_ms: Number(process.env.OPENAI_REALTIME_VAD_SILENCE_MS || 1100),
               create_response: false,
               interrupt_response: true
             }
@@ -339,6 +343,8 @@ class VoiceRealtimeGateway {
     this.log(session.id, 'Sending Voice Agent settings', {
       workflowCount: session.availableWorkflows?.length || 0,
       llmModel: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime',
+      transcriptionModel: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
+      vadSilenceMs: Number(process.env.OPENAI_REALTIME_VAD_SILENCE_MS || 1100),
       ttsVoice: settings.session?.audio?.output?.voice || process.env.OPENAI_REALTIME_VOICE || 'marin'
     });
     agentSocket.send(JSON.stringify(settings));
