@@ -9,6 +9,10 @@ function supabaseBaseUrl() {
   return `${process.env.SUPABASE_URL || ''}`.replace(/\/+$/, '');
 }
 
+function isSupabaseAuthConfigured() {
+  return Boolean(supabaseBaseUrl());
+}
+
 function getJwks() {
   if (jwks) return jwks;
   const base = supabaseBaseUrl();
@@ -52,8 +56,14 @@ async function verifySupabaseToken(token) {
   return payload;
 }
 
-// Express middleware: requires a valid Supabase session. Fails closed.
+// Express middleware: requires a valid Supabase session when auth is configured.
+// If Supabase is absent, degrade to a local anonymous user so the app remains usable.
 function requireAuth(req, res, next) {
+  if (!isSupabaseAuthConfigured()) {
+    req.user = { id: 'local-dev-user', email: '', role: 'local-dev', token: '' };
+    return next();
+  }
+
   const token = extractToken(req);
   verifySupabaseToken(token)
     .then((payload) => {
@@ -68,4 +78,4 @@ function requireAuth(req, res, next) {
     });
 }
 
-module.exports = { requireAuth, verifySupabaseToken, extractToken };
+module.exports = { requireAuth, verifySupabaseToken, extractToken, isSupabaseAuthConfigured };

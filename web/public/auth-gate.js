@@ -4,6 +4,7 @@
     let resolveAuthed;
     const authed = new Promise((resolve) => { resolveAuthed = resolve; });
     const state = { client: null, user: null, overlay: null, accessToken: '' };
+    const LOCAL_USER = { id: 'local-dev-user', email: '', role: 'local-dev' };
 
     function buildOverlay() {
         const overlay = document.createElement('div');
@@ -69,6 +70,12 @@
         }
     }
 
+    function enableLocalMode() {
+        state.accessToken = '';
+        setUser(LOCAL_USER);
+        console.warn('[Miracle Auth] Supabase no esta configurado. EMR continua en modo local sin login ni sync.');
+    }
+
     async function signIn() {
         if (!state.client) return;
         try {
@@ -100,7 +107,7 @@
         state.client = client;
 
         if (!client) {
-            showOverlay(window.MiracleSupabase.getError() || 'Supabase no esta configurado.');
+            enableLocalMode();
             return;
         }
 
