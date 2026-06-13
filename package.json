@@ -2,10 +2,13 @@
   "name": "graph",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "web/server.js",
   "scripts": {
     "start": "node web/server.js",
+    "build:vercel": "node scripts/build-vercel.js",
     "build:chrome-extension": "node scripts/build-chrome-extension.js",
+    "audit:readiness": "node scripts/audit-system-readiness.js",
+    "test:clinical-assistant": "node scripts/verify-clinical-assistant-features.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

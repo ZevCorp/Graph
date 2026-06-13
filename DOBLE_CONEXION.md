@@ -31,26 +31,27 @@ El pipeline de voz/teléfono‑como‑micrófono **no cambia**.
 ## Puesta en marcha
 
 ### 1. Variables de entorno
-Ya quedaron en `.env` (gitignored):
+Configura en `.env` (gitignored) los valores del proyecto activo:
 ```
-SUPABASE_URL=https://nzccbfccuvyfxujymizr.supabase.co
-SUPABASE_ANON_KEY=sb_publishable_WbzIYqYVYGzjNWru2sfgCA_WzqH5EDb
+SUPABASE_URL=https://TU_PROJECT_REF.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_TU_CLAVE_PUBLICA
 ```
-⚠️ Reemplaza también `NEO4J_*` y `OPENAI_API_KEY` con tus valores reales (el
-servidor no arranca sin `NEO4J_URI`).
+El proyecto anterior `nzccbfccuvyfxujymizr` ya no resuelve por DNS y no debe
+reutilizarse. Reemplaza también `NEO4J_*` y `OPENAI_API_KEY` con valores reales.
 
 ### 2. Configurar Google como proveedor (manual — solo tú puedes)
 1. **Google Cloud Console** → *APIs & Services* → *Credentials* → *Create
    credentials* → *OAuth client ID* → tipo **Web application**.
    - *Authorized redirect URI*:
-     `https://nzccbfccuvyfxujymizr.supabase.co/auth/v1/callback`
+     `https://TU_PROJECT_REF.supabase.co/auth/v1/callback`
    - Copia el **Client ID** y el **Client Secret**.
 2. **Supabase dashboard** (proyecto *miracle*) → *Authentication* → *Sign In /
    Providers* → **Google** → activar y pegar Client ID + Secret → guardar.
 3. **Supabase dashboard** → *Authentication* → *URL Configuration*:
-   - *Site URL*: `http://localhost:3000`
-   - *Redirect URLs* (añade ambas): `http://localhost:3000/**` y la de tu red
-     local, p. ej. `http://192.168.1.50:3000/**` (para abrirlo desde el teléfono).
+   - *Site URL*: la URL HTTPS de producción.
+   - *Redirect URLs*: `http://localhost:3000/**`, la URL HTTPS de producción y,
+     solo durante pruebas, la URL concreta de red local.
+   - En producción usa rutas exactas y evita comodines amplios.
 
 ### 2.b Activar sesión anónima (para el demo público sin login)
 Las páginas de demo (`index.html`, `page1.html`, `page2.html`) usan voz sin pedir
@@ -61,6 +62,16 @@ Google. Para que sus llamadas pasen la autenticación del backend, obtienen una
 
 Sin esto, el demo público mostrará un aviso en consola y la voz no conectará (la hoja
 clínica con Google en `emr-workspace.html` no se ve afectada).
+
+### 2.c Invitado local temporal
+
+Mientras Supabase no este disponible, se puede habilitar en `.env`:
+```
+ALLOW_LOCAL_ANONYMOUS=true
+```
+Esto agrega **Entrar como invitado** al login. La sesion se firma temporalmente por
+el servidor, solo funciona fuera de produccion y no permite administrar, grabar ni
+persistir workflows. La nota permanece en el navegador y no se sincroniza.
 
 ### 3. Levantar
 ```
@@ -81,9 +92,11 @@ Abre `http://localhost:3000/emr-workspace.html`.
 5. Con **otra** cuenta de Google, ese encuentro no es visible (RLS).
 
 ## Notas de seguridad
-- El nombre del canal incluye el UUID del encuentro (no adivinable). Para
-  endurecer, se puede pasar a canales *privados* con políticas en `realtime.messages`.
+- Los canales de encuentro son privados y se autorizan con políticas sobre
+  `realtime.messages`. Desactiva **Allow public access** en Realtime Settings.
 - En el cliente solo va la **publishable key**, nunca la service key.
+- Las políticas clínicas rechazan usuarios anónimos aunque Supabase les asigne
+  el rol Postgres `authenticated`.
 - Para uso clínico real: revisar región de datos, retención y cifrado. Esto es un
   prototipo en la rama `feature/doble-conexion`.
 
@@ -101,7 +114,11 @@ Abre `http://localhost:3000/emr-workspace.html`.
 
 ## Pendiente (seguimiento)
 - Iconos PNG 192/512 para la PWA (hoy un SVG).
-- Activar en Supabase: **Google** (emr-workspace) y **Anonymous sign-ins** (demo).
+- Crear o restaurar un proyecto Supabase activo, enlazarlo y ejecutar `supabase db push`.
+- Activar **Google** y, solo si se necesita para demos remotos, **Anonymous sign-ins**.
+- Desactivar **Allow public access** en Realtime y probar las políticas privadas.
+- Ejecutar Security Advisor, Performance Advisor y el RLS tester del dashboard.
+- Proteger el formulario público de leads con Turnstile/hCaptcha o mover la
+  escritura a un endpoint servidor; el honeypot actual no sustituye rate limiting.
 - Prueba en teléfono real: permisos de micrófono iOS para la voz autónoma.
-- Versionar las migraciones SQL en el repo (hoy aplicadas directo a la BD).
 - Tests/CI y partir `trainer-plugin.js` (descartado por ahora).

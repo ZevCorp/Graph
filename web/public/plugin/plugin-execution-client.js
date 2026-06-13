@@ -12,6 +12,14 @@
         const stepDelayMs = Number.isFinite(deps.stepDelayMs) ? deps.stepDelayMs : 180;
         const emittedDiagnostics = new Set();
 
+        function postStepDelayMs(step) {
+            const actionType = `${step?.actionType || ''}`.trim().toLowerCase();
+            if (actionType === 'input' || actionType === 'select') {
+                return Math.min(stepDelayMs, 60);
+            }
+            return stepDelayMs;
+        }
+
         function cloneJson(value) {
             return JSON.parse(JSON.stringify(value));
         }
@@ -1603,7 +1611,7 @@
                         currentPlan = updateExecutionProgress(currentPlan, stepIndex + 1);
                     }
 
-                    await waitMs(stepDelayMs);
+                    await waitMs(postStepDelayMs(step));
                 }
 
                 clearPendingExecution();

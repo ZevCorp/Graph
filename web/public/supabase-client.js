@@ -4,7 +4,7 @@
     //
     // The anon/publishable key is public by design (browser-side), but we still serve
     // it from /api/public-config so it lives in .env instead of being hardcoded here.
-    const SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    const SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1';
 
     let resolveReady;
     const ready = new Promise((resolve) => { resolveReady = resolve; });

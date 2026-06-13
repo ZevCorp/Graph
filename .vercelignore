@@ -1,5 +1,4 @@
-# Keep secrets and backend/build cruft out of the Vercel upload.
-# The deploy only serves the static site in web/public (see vercel.json).
+# Keep secrets and local/generated artifacts out of the Vercel upload.
 .env
 .env.local
 .env.*.local
@@ -9,9 +8,8 @@ node_modules
 .codex-*
 debug.log
 generated
-src
 chrome-extension-src
-scripts
-supabase
 .agents
 .claude
+scratch
+/public

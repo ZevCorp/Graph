@@ -78,7 +78,14 @@
         committedTranscript: '',
         pendingDraft: '',
         noteContent: '',
-        noteTitle: 'Hoja en blanco'
+        noteTitle: 'Hoja en blanco',
+        diagnosisSuggestions: [],
+        diagnosisReviewNotice: '',
+        diagnosisStatus: '',
+        diagnosisError: '',
+        diagnosisBusy: false,
+        diagnosisSourceContent: '',
+        diagnosisRequestId: 0
     };
     const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
     const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
@@ -181,6 +188,14 @@
             || null;
     }
 
+    async function waitForAuthReady() {
+        try {
+            if (window.MiracleAuth && typeof window.MiracleAuth.whenAuthenticated === 'function') {
+                await window.MiracleAuth.whenAuthenticated();
+            }
+        } catch (error) { /* ignore */ }
+    }
+
     function getRealtimeSocketUrl() {
         const baseUrl = pluginHost()?.apiBaseUrl || options.apiBaseUrl || '';
         let socketUrl = '';
@@ -211,6 +226,11 @@
         } catch (error) { /* ignore */ }
 
         return socketUrl;
+    }
+
+    async function openRealtimeSocket() {
+        await waitForAuthReady();
+        return new WebSocket(getRealtimeSocketUrl());
     }
 
     function getStoredPhoneSessionId() {
@@ -1423,8 +1443,89 @@
             content: miracleNoteState.noteContent,
             status: statusText !== null ? statusText : undefined,
             recording: miracleNoteState.active,
-            busy: miracleNoteState.busy
+            busy: miracleNoteState.busy,
+            diagnosisSuggestions: miracleNoteState.diagnosisSuggestions,
+            diagnosisReviewNotice: miracleNoteState.diagnosisReviewNotice,
+            diagnosisStatus: miracleNoteState.diagnosisStatus,
+            diagnosisError: miracleNoteState.diagnosisError,
+            diagnosisBusy: miracleNoteState.diagnosisBusy,
+            diagnosisDisabled: !miracleNoteState.noteContent.trim()
+                || miracleNoteState.active
+                || miracleNoteState.busy
+                || miracleNoteState.diagnosisBusy
         });
+    }
+
+    function clearMiracleDiagnosisSuggestions() {
+        miracleNoteState.diagnosisRequestId += 1;
+        miracleNoteState.diagnosisSuggestions = [];
+        miracleNoteState.diagnosisReviewNotice = '';
+        miracleNoteState.diagnosisStatus = '';
+        miracleNoteState.diagnosisError = '';
+        miracleNoteState.diagnosisBusy = false;
+        miracleNoteState.diagnosisSourceContent = '';
+    }
+
+    function updateMiracleNoteContent(content) {
+        const nextContent = `${content || ''}`;
+        if (nextContent !== miracleNoteState.noteContent) {
+            clearMiracleDiagnosisSuggestions();
+        }
+        miracleNoteState.noteContent = nextContent;
+    }
+
+    async function requestMiracleDiagnosisSuggestions() {
+        const editor = document.getElementById('graph-assistant-note-editor');
+        const noteContent = `${miracleNoteState.noteContent || editor?.innerText || ''}`;
+
+        if (!noteContent.trim()) {
+            miracleNoteState.diagnosisError = 'Escribe o dicta información clínica antes de solicitar sugerencias.';
+            syncMiracleNotePanel();
+            return;
+        }
+        if (miracleNoteState.active || miracleNoteState.busy) {
+            miracleNoteState.diagnosisError = 'Detén el dictado antes de solicitar sugerencias.';
+            syncMiracleNotePanel();
+            return;
+        }
+
+        const requestId = miracleNoteState.diagnosisRequestId + 1;
+        miracleNoteState.diagnosisRequestId = requestId;
+        miracleNoteState.diagnosisBusy = true;
+        miracleNoteState.diagnosisError = '';
+        miracleNoteState.diagnosisStatus = 'Generando sugerencias para revisión médica...';
+        miracleNoteState.diagnosisSuggestions = [];
+        miracleNoteState.diagnosisReviewNotice = '';
+        miracleNoteState.diagnosisSourceContent = noteContent;
+        syncMiracleNotePanel();
+
+        try {
+            const payload = await requireApiClient().requestDiagnosisSuggestions(noteContent);
+            const currentContent = `${miracleNoteState.noteContent || ''}`;
+            if (requestId !== miracleNoteState.diagnosisRequestId || currentContent !== noteContent) {
+                return;
+            }
+            miracleNoteState.diagnosisSuggestions = Array.isArray(payload?.suggestions)
+                ? payload.suggestions
+                : [];
+            miracleNoteState.diagnosisReviewNotice = miracleNoteState.diagnosisSuggestions.length > 0
+                ? `${payload?.reviewNotice || ''}`
+                : '';
+            miracleNoteState.diagnosisStatus = miracleNoteState.diagnosisSuggestions.length > 0
+                ? ''
+                : 'La nota no contiene información suficiente para sugerir un diagnóstico diferencial.';
+        } catch (error) {
+            if (requestId !== miracleNoteState.diagnosisRequestId) {
+                return;
+            }
+            miracleNoteState.diagnosisError = error.message || 'No fue posible generar sugerencias diagnósticas.';
+            miracleNoteState.diagnosisStatus = '';
+        } finally {
+            if (requestId === miracleNoteState.diagnosisRequestId) {
+                miracleNoteState.diagnosisBusy = false;
+                syncMiracleNotePanel();
+            }
+        }
     }
 
     function mergeMiracleTranscript(base, addition) {
@@ -1569,7 +1670,7 @@
             }
         });
 
-        miracleNoteState.noteContent = `${response?.resolved_note_content || ''}`;
+        updateMiracleNoteContent(response?.resolved_note_content || '');
         syncMiracleNotePanel(miracleNoteState.noteContent ? 'Miracle organizo la nota.' : 'Segmento enviado a Miracle.');
         dispatchMiracleNoteToDynamicFill(miracleNoteState.noteContent);
     }
@@ -1790,7 +1891,9 @@
         const editor = document.getElementById('graph-assistant-note-editor');
         if (!editor) return;
         editor.addEventListener('input', () => {
-            dispatchMiracleNoteToDynamicFill(editor.innerText || '');
+            updateMiracleNoteContent(editor.innerText || '');
+            syncMiracleNotePanel();
+            dispatchMiracleNoteToDynamicFill(miracleNoteState.noteContent);
         });
         miracleNoteEditorBound = true;
     }
@@ -2528,7 +2631,7 @@
         greetingState.lastPlayedAt = now;
         voiceLog('preview_tts_start', { text: message.slice(0, 120) });
 
-        const socket = new WebSocket(getRealtimeSocketUrl());
+        const socket = await openRealtimeSocket();
         socket.binaryType = 'arraybuffer';
 
         await new Promise((resolve) => {
@@ -2601,7 +2704,7 @@
             runtime()?.speak('Voy a esperar a que tu telefono se conecte para seguir con la tarea.', { mode: 'listening' });
         }
 
-        const socket = new WebSocket(getRealtimeSocketUrl());
+        const socket = await openRealtimeSocket();
         socket.binaryType = 'arraybuffer';
         voiceState.socket = socket;
 
@@ -3347,7 +3450,7 @@
             if (effectivePhoneSessionId) {
                 voiceState.mode = 'phone';
                 persistVoiceResumeState();
-                const socket = new WebSocket(getRealtimeSocketUrl());
+                const socket = await openRealtimeSocket();
                 socket.binaryType = 'arraybuffer';
                 voiceState.socket = socket;
 
@@ -3634,13 +3737,20 @@
             requireVoiceClient().restoreStoredPhoneSession();
             runtime()?.mount(options.assistantRuntime || DEFAULTS.assistantRuntime);
             miracleNoteState.visible = false;
+            clearMiracleDiagnosisSuggestions();
             runtime()?.setNotePanelState?.({
                 visible: false,
                 title: miracleNoteState.noteTitle,
                 content: miracleNoteState.noteContent,
                 status: 'Lista para dictado con Miracle.',
                 recording: false,
-                busy: false
+                busy: false,
+                diagnosisSuggestions: [],
+                diagnosisReviewNotice: '',
+                diagnosisStatus: '',
+                diagnosisError: '',
+                diagnosisBusy: false,
+                diagnosisDisabled: !miracleNoteState.noteContent.trim()
             });
             bindMiracleNoteEditorTyping();
             if (!runtimeTouchBound) {
@@ -3685,6 +3795,9 @@
                 });
                 runtime()?.subscribe?.('note-mic-button', async () => {
                     await toggleMiracleNoteDictation();
+                });
+                runtime()?.subscribe?.('note-diagnosis-button', async () => {
+                    await requestMiracleDiagnosisSuggestions();
                 });
                 pluginEvents()?.on?.('learning.context.captured', (payload) => {
                     persistLearningContextNote(payload?.note || null);

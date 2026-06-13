@@ -1,6 +1,10 @@
 const WebSocket = require('ws');
 const workflowAssistantPolicy = require('../application/use-cases/WorkflowAssistantPolicy');
-const { verifySupabaseToken, isSupabaseAuthConfigured } = require('../../web/api/requireAuth');
+const {
+  verifySupabaseToken,
+  isSupabaseAuthConfigured,
+  isSupabasePayloadAnonymous
+} = require('../../web/api/requireAuth');
 
 class VoiceRealtimeGateway {
   constructor({ deepgramApiKey, openAiApiKey, llmProvider, catalogService, conversationInsights }) {
@@ -105,6 +109,7 @@ class VoiceRealtimeGateway {
         if (!isSupabaseAuthConfigured()) {
           wss.handleUpgrade(request, socket, head, (client) => {
             client.user = { id: 'local-dev-user', email: '' };
+            client.workflowAccess = { ownerId: 'local-dev-user', includeGlobal: true };
             wss.emit('connection', client, request);
           });
           return;
@@ -113,8 +118,14 @@ class VoiceRealtimeGateway {
         const token = (url.searchParams.get('access_token') || '').trim();
         verifySupabaseToken(token)
           .then((payload) => {
+            if (isSupabasePayloadAnonymous(payload)) {
+              try { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); } catch (error) { /* ignore */ }
+              socket.destroy();
+              return;
+            }
             wss.handleUpgrade(request, socket, head, (client) => {
               client.user = { id: payload.sub, email: payload.email || '' };
+              client.workflowAccess = { ownerId: payload.sub, includeGlobal: true };
               wss.emit('connection', client, request);
             });
           })
@@ -264,7 +275,7 @@ class VoiceRealtimeGateway {
   }
 
   async buildSettingsPayload(session) {
-    const catalog = this.catalogService ? await this.catalogService.getCatalog() : [];
+    const catalog = this.catalogService ? await this.catalogService.getCatalog(session.workflowAccess || null) : [];
     const workflows = this.filterWorkflowsForContext(catalog, session.context || {});
     session.availableWorkflows = workflows;
 
@@ -574,6 +585,7 @@ class VoiceRealtimeGateway {
     const session = {
       id: `desktop_${Date.now()}_${++this.sessionCounter}`,
       context: {},
+      workflowAccess: client.workflowAccess || null,
       history: [],
       availableWorkflows: [],
       phoneSessionId: null,

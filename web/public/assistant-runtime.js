@@ -786,6 +786,76 @@
                 border-top: 1px solid rgba(15, 95, 140, 0.14);
                 margin: 14px 0;
             }
+            .graph-assistant-note-diagnosis {
+                flex: 0 0 auto;
+                display: grid;
+                gap: 10px;
+                max-height: min(44%, 300px);
+                padding: 12px 16px 14px;
+                overflow-y: auto;
+                border-top: 1px solid rgba(15, 95, 140, 0.12);
+                background: #f7fbfd;
+            }
+            .graph-assistant-note-diagnosis-button {
+                justify-self: start;
+                border: 1px solid rgba(15, 95, 140, 0.22);
+                border-radius: 999px;
+                padding: 8px 14px;
+                background: #ffffff;
+                color: #0f5f8c;
+                font: 700 12px/1 "Inter", "Segoe UI", sans-serif;
+                cursor: pointer;
+            }
+            .graph-assistant-note-diagnosis-button:hover:not(:disabled) {
+                border-color: rgba(15, 95, 140, 0.42);
+                background: #eef8fc;
+            }
+            .graph-assistant-note-diagnosis-button:disabled {
+                opacity: 0.55;
+                cursor: not-allowed;
+            }
+            .graph-assistant-note-diagnosis-status {
+                display: none;
+                color: #526b79;
+                font: 600 12px/1.45 "Inter", "Segoe UI", sans-serif;
+            }
+            .graph-assistant-note-diagnosis-status:not(:empty) {
+                display: block;
+            }
+            .graph-assistant-note-diagnosis-status[data-error="true"] {
+                color: #a2352b;
+            }
+            .graph-assistant-note-diagnosis-notice {
+                padding: 9px 10px;
+                border-radius: 10px;
+                background: #fff8e8;
+                color: #745519;
+                font: 650 11.5px/1.45 "Inter", "Segoe UI", sans-serif;
+            }
+            .graph-assistant-note-diagnosis-list {
+                display: grid;
+                gap: 8px;
+            }
+            .graph-assistant-note-diagnosis-card {
+                padding: 10px 11px;
+                border: 1px solid rgba(15, 95, 140, 0.12);
+                border-radius: 12px;
+                background: #ffffff;
+            }
+            .graph-assistant-note-diagnosis-card strong {
+                display: block;
+                color: #123f58;
+                font: 750 13px/1.3 "Inter", "Segoe UI", sans-serif;
+            }
+            .graph-assistant-note-diagnosis-card p {
+                margin: 5px 0 0;
+                color: #365768;
+                font: 400 12px/1.45 "Inter", "Segoe UI", sans-serif;
+            }
+            .graph-assistant-note-diagnosis-evidence {
+                color: #617987 !important;
+                font-style: italic !important;
+            }
             .graph-assistant-avatar {
                 width: var(--graph-assistant-glass-size);
                 height: var(--graph-assistant-glass-size);
@@ -1005,6 +1075,12 @@
                     <button id="graph-assistant-note-close" class="graph-assistant-note-close" type="button" aria-label="Cerrar hoja">×</button>
                 </div>
                 <div id="graph-assistant-note-editor" class="graph-assistant-note-editor" contenteditable="true" spellcheck="false" data-placeholder="Dicta con Miracle o escribe aqui directamente." role="textbox" aria-multiline="true"></div>
+                <section class="graph-assistant-note-diagnosis" aria-label="Sugerencias diagnósticas">
+                    <button id="graph-assistant-note-diagnosis-button" class="graph-assistant-note-diagnosis-button" type="button" disabled>Sugerir diagnósticos</button>
+                    <div id="graph-assistant-note-diagnosis-status" class="graph-assistant-note-diagnosis-status" role="status" aria-live="polite"></div>
+                    <div id="graph-assistant-note-diagnosis-notice" class="graph-assistant-note-diagnosis-notice" hidden></div>
+                    <div id="graph-assistant-note-diagnosis-list" class="graph-assistant-note-diagnosis-list"></div>
+                </section>
             `);
             document.body.appendChild(notePanel);
         }
@@ -1033,6 +1109,10 @@
             notePanelClose: document.getElementById('graph-assistant-note-close'),
             notePanelMic: document.getElementById('graph-assistant-note-mic'),
             notePanelEditor: document.getElementById('graph-assistant-note-editor'),
+            noteDiagnosisButton: document.getElementById('graph-assistant-note-diagnosis-button'),
+            noteDiagnosisStatus: document.getElementById('graph-assistant-note-diagnosis-status'),
+            noteDiagnosisNotice: document.getElementById('graph-assistant-note-diagnosis-notice'),
+            noteDiagnosisList: document.getElementById('graph-assistant-note-diagnosis-list'),
             label: document.getElementById('graph-assistant-label'),
             spotlight
         };
@@ -1578,6 +1658,7 @@
                 noteButton,
                 notePanelClose,
                 notePanelMic,
+                noteDiagnosisButton,
                 chatInput,
                 chatSendButton
             } = ensureElements();
@@ -1634,6 +1715,10 @@
             if (notePanelMic && notePanelMic.dataset.bound !== 'true') {
                 notePanelMic.dataset.bound = 'true';
                 notePanelMic.addEventListener('click', () => emit('note-mic-button', {}));
+            }
+            if (noteDiagnosisButton && noteDiagnosisButton.dataset.bound !== 'true') {
+                noteDiagnosisButton.dataset.bound = 'true';
+                noteDiagnosisButton.addEventListener('click', () => emit('note-diagnosis-button', {}));
             }
             if (chatSendButton && chatSendButton.dataset.bound !== 'true') {
                 chatSendButton.dataset.bound = 'true';
@@ -1718,7 +1803,11 @@
                 noteButton,
                 notePanel,
                 notePanelMic,
-                notePanelEditor
+                notePanelEditor,
+                noteDiagnosisButton,
+                noteDiagnosisStatus,
+                noteDiagnosisNotice,
+                noteDiagnosisList
             } = ensureElements();
 
             if (nextState.visible !== undefined) {
@@ -1744,6 +1833,44 @@
                 notePanelMic.dataset.active = recording ? 'true' : 'false';
                 notePanelMic.disabled = busy;
                 notePanelMic.textContent = recording ? 'Detener' : (busy ? '...' : 'Grabar');
+            }
+            if (noteDiagnosisButton) {
+                const diagnosisBusy = Boolean(nextState.diagnosisBusy);
+                noteDiagnosisButton.disabled = Boolean(nextState.diagnosisDisabled) || diagnosisBusy;
+                noteDiagnosisButton.textContent = diagnosisBusy ? 'Generando...' : 'Sugerir diagnósticos';
+                noteDiagnosisButton.setAttribute('aria-busy', diagnosisBusy ? 'true' : 'false');
+            }
+            if (noteDiagnosisStatus) {
+                const diagnosisError = `${nextState.diagnosisError || ''}`.trim();
+                const diagnosisStatus = `${nextState.diagnosisStatus || ''}`.trim();
+                noteDiagnosisStatus.textContent = diagnosisError || diagnosisStatus;
+                noteDiagnosisStatus.dataset.error = diagnosisError ? 'true' : 'false';
+            }
+            if (noteDiagnosisNotice) {
+                const notice = `${nextState.diagnosisReviewNotice || ''}`.trim();
+                noteDiagnosisNotice.textContent = notice;
+                noteDiagnosisNotice.hidden = !notice;
+            }
+            if (noteDiagnosisList && nextState.diagnosisSuggestions !== undefined) {
+                noteDiagnosisList.replaceChildren();
+                const suggestions = Array.isArray(nextState.diagnosisSuggestions)
+                    ? nextState.diagnosisSuggestions
+                    : [];
+                suggestions.forEach((suggestion) => {
+                    const card = document.createElement('article');
+                    card.className = 'graph-assistant-note-diagnosis-card';
+
+                    const title = document.createElement('strong');
+                    title.textContent = `${suggestion?.title || ''}`;
+                    const rationale = document.createElement('p');
+                    rationale.textContent = `${suggestion?.rationale || ''}`;
+                    const evidence = document.createElement('p');
+                    evidence.className = 'graph-assistant-note-diagnosis-evidence';
+                    evidence.textContent = `Evidencia en la nota: "${suggestion?.supportingEvidence || ''}"`;
+
+                    card.append(title, rationale, evidence);
+                    noteDiagnosisList.appendChild(card);
+                });
             }
             positionBubbleNearShell();
         },

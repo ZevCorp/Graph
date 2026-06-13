@@ -14,10 +14,18 @@
         return `${normalizedBase}${path.startsWith('/') ? path : `/${path}`}`;
     }
 
-    // Attaches the Supabase access token (when a session exists) so protected
-    // endpoints accept the request. No-ops in contexts without MiracleAuth
-    // (e.g. the Chrome extension), which simply send no token.
-    function withAuth(init = {}) {
+    async function waitForAuthReady() {
+        try {
+            if (window.MiracleAuth && typeof window.MiracleAuth.whenAuthenticated === 'function') {
+                await window.MiracleAuth.whenAuthenticated();
+            }
+        } catch (error) { /* ignore */ }
+    }
+
+    // Attaches the Supabase access token after MiracleAuth has resolved. In
+    // local mode there is no token, and the server falls back to local-dev-user.
+    async function withAuth(init = {}) {
+        await waitForAuthReady();
         try {
             const token = window.MiracleAuth && typeof window.MiracleAuth.getAccessToken === 'function'
                 ? window.MiracleAuth.getAccessToken()
@@ -31,7 +39,7 @@
 
     function createJsonRequest(baseUrl, path, init, fetchImpl) {
         const effectiveFetch = typeof fetchImpl === 'function' ? fetchImpl : fetch;
-        return effectiveFetch(buildUrl(baseUrl, path), withAuth(init)).then(async (response) => {
+        return withAuth(init).then((authenticatedInit) => effectiveFetch(buildUrl(baseUrl, path), authenticatedInit)).then(async (response) => {
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
                 throw new Error(payload.error || `Request failed: ${path}`);
@@ -138,6 +146,13 @@
                     body: JSON.stringify(payload || {})
                 }, fetchImpl);
             },
+            requestDiagnosisSuggestions(noteContent) {
+                return createJsonRequest(baseUrl, '/api/clinical/diagnosis-suggestions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ noteContent: `${noteContent || ''}` })
+                }, fetchImpl);
+            },
             recordBranchObservation(workflowId, payload) {
                 return createJsonRequest(baseUrl, `/api/workflows/${encodeURIComponent(workflowId)}/branch-observation`, {
                     method: 'POST',
@@ -192,14 +207,14 @@
                 }, fetchImpl);
             },
             createOpenAiRealtimeSession(sdp, headers) {
-                return fetchImpl(buildUrl(baseUrl, '/api/voice/openai/session'), withAuth({
+                return withAuth({
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/sdp',
                         ...(headers || {})
                     },
                     body: sdp
-                }));
+                }).then((authenticatedInit) => fetchImpl(buildUrl(baseUrl, '/api/voice/openai/session'), authenticatedInit));
             }
         };
     }

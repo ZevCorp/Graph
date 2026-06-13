@@ -103,7 +103,10 @@
 
     function setupChannel(id) {
         const channel = state.client.channel('encounter:' + id, {
-            config: { broadcast: { self: false } }
+            config: {
+                private: true,
+                broadcast: { self: false }
+            }
         });
         channel.on('broadcast', { event: 'field' }, (message) => {
             const payload = (message && message.payload) || {};
@@ -278,6 +281,28 @@
         updateBadge();
     }
 
+    function renderLocalModeBadge() {
+        if (document.getElementById('miracle-sync-badge')) return;
+        const badge = document.createElement('div');
+        badge.id = 'miracle-sync-badge';
+        badge.style.cssText = [
+            'position:fixed', 'left:16px', 'bottom:16px', 'z-index:2147482000',
+            'display:flex', 'align-items:center', 'gap:10px',
+            'padding:8px 12px', 'border-radius:999px',
+            'background:#fff7ed', 'color:#9a3412', 'font:600 12px Inter,system-ui,sans-serif',
+            'border:1px solid #fed7aa', 'box-shadow:0 12px 28px rgba(15,23,42,0.16)'
+        ].join(';');
+        const label = document.createElement('span');
+        label.textContent = 'Modo invitado local - sin sincronizacion';
+        const signOut = document.createElement('button');
+        signOut.type = 'button';
+        signOut.textContent = 'Salir';
+        signOut.style.cssText = 'border:0;border-radius:999px;padding:5px 10px;font:inherit;background:#ffedd5;color:#9a3412;cursor:pointer';
+        signOut.addEventListener('click', () => window.MiracleAuth && window.MiracleAuth.signOut());
+        badge.append(label, signOut);
+        (document.body || document.documentElement).appendChild(badge);
+    }
+
     function updateBadge() {
         const label = document.getElementById('miracle-sync-label');
         if (!label) return;
@@ -287,12 +312,17 @@
 
     async function init() {
         const client = await window.MiracleSupabase.whenReady();
+        state.user = await window.MiracleAuth.whenAuthenticated();
+        if (state.user?.role === 'local-anonymous') {
+            state.syncDisabled = true;
+            renderLocalModeBadge();
+            return;
+        }
         if (!client) {
             state.syncDisabled = true; // not configured; page-state keeps working locally
             return;
         }
         state.client = client;
-        state.user = await window.MiracleAuth.whenAuthenticated();
 
         const note = await ensureEncounter();
         if (note === DEFERRED) {

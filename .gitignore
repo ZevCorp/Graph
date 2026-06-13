@@ -10,6 +10,7 @@ coverage/
 build/
 dist/
 out/
+public/
 generated/chrome-extension/
 generated/pitch-personalities/
 scratch/
