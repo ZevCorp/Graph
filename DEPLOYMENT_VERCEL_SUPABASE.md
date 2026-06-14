@@ -4,7 +4,7 @@
 
 - Vercel sirve los archivos de `web/public` desde su CDN y ejecuta la API HTTP Express.
 - El micrófono local usa WebRTC con OpenAI Realtime y es compatible con Vercel.
-- El emparejamiento de micrófono por teléfono usa WebSocket y estado persistente. Vercel Functions no funciona como servidor WebSocket, por lo que esa opción responde `503` hasta desplegar `VoiceRealtimeGateway` en un servicio persistente.
+- El emparejamiento de micrófono por teléfono no usa Render como fallback. En Vercel queda desactivado hasta rediseñarlo sin WebSocket persistente.
 - Neo4j sigue siendo el almacén de workflows. Si no está configurado, la aplicación arranca, pero las rutas de workflows responden como almacenamiento no disponible.
 - Supabase gestiona identidad, pacientes, encuentros, notas, eventos y leads. Las migraciones versionadas están en `supabase/migrations`.
 
@@ -23,7 +23,6 @@ Variables necesarias:
 NODE_ENV=production
 PUBLIC_BASE_URL=https://miracle-zeta.vercel.app
 ALLOWED_ORIGINS=https://miracle-zeta.vercel.app
-VOICE_GATEWAY_URL=https://graph-1-hap6.onrender.com
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_ANON_KEY=<publishable-or-anon-key>
 NEO4J_URI=<neo4j-aura-uri>
@@ -41,7 +40,7 @@ OPENAI_MODEL=gpt-4o
 OPENAI_REALTIME_MODEL=gpt-realtime
 OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
 OPENAI_REALTIME_VOICE=marin
-MIRACLE_MEDICAL_ENGINE_URL=<public-sidecar-url>
+MIRACLE_MEDICAL_ENGINE_URL=<optional-http-medical-engine-url>
 ```
 
 Nunca se debe agregar `SUPABASE_SERVICE_ROLE_KEY`, el secreto OAuth de Google ni claves de IA al frontend o al repositorio.

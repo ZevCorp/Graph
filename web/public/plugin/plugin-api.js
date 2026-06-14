@@ -181,19 +181,25 @@
                 }, fetchImpl);
             },
             createPhoneSession(payload) {
-                return createJsonRequest(voiceGatewayUrl || baseUrl, '/api/voice/phone-session', {
+                return createJsonRequest(baseUrl, '/api/voice/phone-session', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload || {})
                 }, fetchImpl);
             },
             createMiracleStreamSession() {
+                if (!miracleBaseUrl) {
+                    return Promise.reject(new Error('El motor medico Miracle no esta configurado en Vercel. Render no se usa como fallback.'));
+                }
                 return createJsonRequest(miracleBaseUrl, '/api/voice/stream-session', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 }, fetchImpl);
             },
             sendMiracleOrchestratorEvent(payload) {
+                if (!miracleBaseUrl) {
+                    return Promise.reject(new Error('El motor medico Miracle no esta configurado en Vercel. Render no se usa como fallback.'));
+                }
                 return createJsonRequest(miracleBaseUrl, '/api/voice/orchestrator/events', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

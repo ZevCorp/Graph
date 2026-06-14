@@ -188,8 +188,7 @@ app.get('/api/public-config', (req, res) => {
     supabaseUrl: process.env.SUPABASE_URL || '',
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
     localAnonymousAccess: isLocalAnonymousAccessEnabled(),
-    phoneMicrophoneAvailable: !process.env.VERCEL || Boolean(process.env.VOICE_GATEWAY_URL),
-    voiceGatewayUrl: process.env.VOICE_GATEWAY_URL || ''
+    phoneMicrophoneAvailable: false
   });
 });
 

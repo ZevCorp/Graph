@@ -34,35 +34,15 @@
 
         async function openPhoneMicPairing() {
             openChatPanel();
-            updateVoiceStatus('Preparando QR para usar el telefono como microfono...');
             setPhoneConnectionActive(false);
-            setPhonePairingVisible(true);
-            const requestedId = getStoredPhoneSessionId() || `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
-
-            const payload = await requireApiClient().createPhoneSession({
-                context: getPageContext(),
-                requestedId
-            });
-
-            voiceState.phoneSession = payload;
-            setStoredPhoneSessionId(payload.id);
-            setPhonePairingVisible(true);
-            voiceLog('phone_session_created', {
-                id: payload.id,
-                phoneUrl: payload.phoneUrl
-            });
-
-            const qr = document.getElementById('phone-mic-qr');
-            const url = document.getElementById('phone-mic-url');
-            const floatingQr = document.getElementById('assistant-phone-mic-qr');
-            const floatingUrl = document.getElementById('assistant-phone-mic-url');
-            if (qr) qr.src = payload.qrDataUrl;
-            if (url) url.textContent = payload.phoneUrl;
-            if (floatingQr) floatingQr.src = payload.qrDataUrl;
-            if (floatingUrl) floatingUrl.textContent = payload.phoneUrl;
-
-            updateVoiceStatus('Escanea el QR con el telefono. Luego toca "Activar microfono" en el telefono.');
-            await startVoiceConversation({ phoneSessionId: payload.id });
+            setPhonePairingVisible(false);
+            voiceState.phoneSession = null;
+            setStoredPhoneSessionId('');
+            const message = 'El microfono por telefono ya no usa Render. Por ahora usa el microfono de este computador en Vercel.';
+            voiceLog('phone_microphone_disabled_on_vercel');
+            updateVoiceStatus(message);
+            appendAgentMessage('assistant', message, null, false);
+            throw new Error(message);
         }
 
         async function processVoiceComplaints(workflowDescription = '') {

@@ -15,7 +15,7 @@
   }
 
   const root = document.documentElement;
-  const backendUrl = `${root.dataset.graphTrainerBackendUrl || 'https://graph-1-hap6.onrender.com'}`.trim() || 'https://graph-1-hap6.onrender.com';
+  const backendUrl = `${root.dataset.graphTrainerBackendUrl || 'https://miracle-zeta.vercel.app'}`.trim() || 'https://miracle-zeta.vercel.app';
   const appId = `${root.dataset.graphTrainerAppId || 'chrome-extension-page'}`.trim() || 'chrome-extension-page';
   const storageKey = `${root.dataset.graphTrainerStorageKey || 'graph-extension-state-page'}`.trim() || 'graph-extension-state-page';
   const workflowDescription = `${root.dataset.graphTrainerWorkflowDescription || 'Workflow on current page'}`.trim() || 'Workflow on current page';

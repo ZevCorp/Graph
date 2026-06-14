@@ -6,7 +6,7 @@
         autoSyncStatus: true,
         apiBaseUrl: '',
         voiceGatewayUrl: '',
-        miracleBaseUrl: 'https://miracle-ai-t0dn.onrender.com',
+        miracleBaseUrl: '',
         adapter: null,
         assistantProfile: null,
         assistantRuntime: {
@@ -198,33 +198,11 @@
     }
 
     function getVoiceGatewayBaseUrl() {
-        const publicVoiceGatewayUrl = window.MiracleSupabase?.getConfig?.()?.voiceGatewayUrl || '';
-        return options.voiceGatewayUrl
-            || publicVoiceGatewayUrl
-            || '';
+        return '';
     }
 
     function getVoicePageContext() {
-        const context = getPageContext();
-        const voiceGatewayUrl = getVoiceGatewayBaseUrl();
-        if (!voiceGatewayUrl) {
-            return context;
-        }
-
-        try {
-            const gatewayOrigin = new URL(voiceGatewayUrl, window.location.href).origin;
-            if (!gatewayOrigin || gatewayOrigin === window.location.origin) {
-                return context;
-            }
-            const sourcePathname = context.sourcePathname || window.location.pathname || '/';
-            return {
-                ...context,
-                sourceOrigin: gatewayOrigin,
-                sourceUrl: new URL(sourcePathname, gatewayOrigin).toString()
-            };
-        } catch (error) {
-            return context;
-        }
+        return getPageContext();
     }
 
     function getRealtimeSocketUrl() {
@@ -430,8 +408,8 @@
             sendRealtimeEvent,
             getExecutionMode: () => 'openai-realtime',
             updateImprovementPanelStatus,
-            startVoiceConversationImpl: async (config = {}) => startVoiceConversationImpl(config),
-            stopVoiceConversationImpl: (options = {}) => stopVoiceConversationImpl(options)
+            startVoiceConversationImpl: async (config = {}) => startWebRtcVoiceConversation(config),
+            stopVoiceConversationImpl: (options = {}) => stopWebRtcVoiceConversation(options)
         }) || null;
     }
 
@@ -507,7 +485,7 @@
     function apiClient() {
         return window.GraphPluginApi?.createClient?.({
             baseUrl: pluginHost()?.apiBaseUrl || options.apiBaseUrl || '',
-            voiceGatewayUrl: getVoiceGatewayBaseUrl(),
+            voiceGatewayUrl: '',
             miracleBaseUrl: options.miracleBaseUrl || DEFAULTS.miracleBaseUrl,
             fetchImpl: pluginHost()?.fetchImpl || null
         }) || null;
@@ -3003,33 +2981,15 @@
 
     async function openPhoneMicPairing() {
         openChatPanel();
-        updateVoiceStatus('Preparando QR para usar el telefono como microfono...');
-        setPhonePairingVisible(true);
-        const requestedId = getStoredPhoneSessionId() || `phone_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
-
-        const payload = await requireApiClient().createPhoneSession({
-            context: getVoicePageContext(),
-            requestedId
-        });
-
-        voiceState.phoneSession = payload;
-        setStoredPhoneSessionId(payload.id);
-        setPhonePairingVisible(true);
-        voiceLog('phone_session_created', {
-            id: payload.id,
-            phoneUrl: payload.phoneUrl
-        });
-        const qr = document.getElementById('phone-mic-qr');
-        const url = document.getElementById('phone-mic-url');
-        const floatingQr = document.getElementById('assistant-phone-mic-qr');
-        const floatingUrl = document.getElementById('assistant-phone-mic-url');
-        if (qr) qr.src = payload.qrDataUrl;
-        if (url) url.textContent = payload.phoneUrl;
-        if (floatingQr) floatingQr.src = payload.qrDataUrl;
-        if (floatingUrl) floatingUrl.textContent = payload.phoneUrl;
-
-        updateVoiceStatus('Escanea el QR con el telefono. Luego toca "Activar microfono" en el telefono.');
-        await startVoiceConversation({ phoneSessionId: payload.id });
+        setPhoneConnectionActive(false);
+        setPhonePairingVisible(false);
+        voiceState.phoneSession = null;
+        setStoredPhoneSessionId('');
+        const message = 'El microfono por telefono ya no usa Render. Por ahora usa el microfono de este computador en Vercel.';
+        voiceLog('phone_microphone_disabled_on_vercel');
+        updateVoiceStatus(message);
+        appendAgentMessage('assistant', message, null, false);
+        throw new Error(message);
     }
 
     async function playAssistantGreeting() {
@@ -3464,7 +3424,7 @@
         }
     }
 
-    async function startVoiceConversation(config = {}) {
+    async function startWebRtcVoiceConversation(config = {}) {
         if (voiceState.active) {
             voiceLog('start_ignored_already_active');
             return;
@@ -3472,12 +3432,20 @@
 
         resetRealtimeTranscriptState();
         const effectivePhoneSessionId = config.phoneSessionId || null;
+        if (effectivePhoneSessionId) {
+            const message = 'El microfono por telefono ya no usa Render. Por ahora usa el microfono de este computador en Vercel.';
+            voiceLog('phone_microphone_disabled_on_vercel', { phoneSessionId: effectivePhoneSessionId });
+            openChatPanel();
+            setPhoneConnectionActive(false);
+            setPhonePairingVisible(false);
+            updateVoiceStatus(message);
+            appendAgentMessage('assistant', message, null, false);
+            throw new Error(message);
+        }
         openChatPanel();
-        updateVoiceStatus(effectivePhoneSessionId ? 'Reconectando audio del telefono...' : 'Conectando voz en tiempo real...');
+        updateVoiceStatus('Conectando voz en tiempo real...');
         runtime()?.speak(
-            effectivePhoneSessionId
-                ? 'Voy a esperar a que tu telefono se conecte para seguir con la tarea.'
-                : 'Te escucho. Habla con naturalidad y yo me encargo de la tarea.',
+            'Te escucho. Habla con naturalidad y yo me encargo de la tarea.',
             { mode: 'listening' }
         );
 
@@ -3629,19 +3597,19 @@
                 const state = peerConnection.connectionState;
                 voiceLog('openai_peer_connection_state', state);
                 if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                    stopVoiceConversation({ announce: false });
+                    stopWebRtcVoiceConversation({ announce: false });
                 }
             });
         } catch (error) {
             const message = error.message || 'No pude acceder al microfono o iniciar la voz en tiempo real.';
             voiceLog('openai_realtime_error', message);
             updateVoiceStatus(message);
-                    appendAgentMessage('assistant', message, null, false);
-            stopVoiceConversation({ announce: false });
+            appendAgentMessage('assistant', message, null, false);
+            stopWebRtcVoiceConversation({ announce: false });
         }
     }
 
-    function stopVoiceConversation(options = {}) {
+    function stopWebRtcVoiceConversation(options = {}) {
         voiceLog('stop_voice_conversation', {
             announce: options.announce !== false,
             active: voiceState.active,

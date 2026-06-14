@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_URL = 'https://graph-1-hap6.onrender.com';
+const DEFAULT_BACKEND_URL = 'https://miracle-zeta.vercel.app';
 const LOG_STORAGE_KEY = 'graphTrainerExtensionLogs';
 const LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowLogs';
 const VOICE_LOG_PANEL_STATE_KEY = 'graphTrainerPopupShowVoiceLogs';

@@ -37,11 +37,7 @@ function getPublicBaseUrl(req, explicitPort) {
     return process.env.PUBLIC_BASE_URL.replace(/\/+$/, '');
   }
 
-  if (process.env.RENDER_EXTERNAL_URL) {
-    return process.env.RENDER_EXTERNAL_URL.replace(/\/+$/, '');
-  }
-
-  if (process.env.RENDER || (host && !host.startsWith('localhost') && !host.startsWith('127.0.0.1'))) {
+  if (host && !host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
     return `${proto}://${host}`;
   }
 
