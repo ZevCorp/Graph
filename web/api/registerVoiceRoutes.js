@@ -202,7 +202,7 @@ function registerVoiceRoutes(app, deps = {}) {
     }
   });
 
-  app.get('/phone-mic/:id', (req, res) => {
+  app.get(['/phone-mic/:id', '/api/phone-mic/:id'], (req, res) => {
     const sessionId = `${req.params.id || ''}`;
     res.type('html').send(buildPhoneMicPage(sessionId));
   });
