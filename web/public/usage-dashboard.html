@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Uso IA | Graph</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffdf8;
+      --ink: #1b1a17;
+      --muted: #6d675d;
+      --line: #ddd3c1;
+      --accent: #b84d2d;
+      --accent-soft: #f5d7c7;
+      --ok: #1f7a53;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, #fff4df 0, transparent 30%),
+        linear-gradient(180deg, #f7f1e8 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 3vw, 3.5rem);
+    }
+    p { color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 28px 0;
+    }
+    .card, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 14px 40px rgba(54, 39, 23, 0.08);
+    }
+    .card { padding: 20px; }
+    .label {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .value {
+      font-size: 2rem;
+      margin-top: 8px;
+    }
+    .panel {
+      padding: 18px;
+      margin-top: 18px;
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+    }
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 18px;
+    }
+    input, button {
+      font: inherit;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      padding: 10px 14px;
+      background: #fff;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+    .pill {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.85rem;
+    }
+    .ok { color: var(--ok); }
+    pre {
+      margin: 0;
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Uso central de IA</h1>
+  <p>Tokens input/output de OpenAI, minutos de Deepgram y trazas del llenado automático desde la nota flotante.</p>
+
+  <div class="toolbar">
+    <label>Desde <input id="fromDate" type="date"></label>
+    <label>Hasta <input id="toDate" type="date"></label>
+    <button id="reloadBtn" type="button">Recargar</button>
+  </div>
+
+  <section class="grid" id="summaryCards"></section>
+
+  <section class="panel">
+    <h2>Por modelo / evento</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Fuente</th>
+          <th>Proveedor</th>
+          <th>Modelo</th>
+          <th>Evento</th>
+          <th>Input</th>
+          <th>Output</th>
+          <th>Minutos</th>
+          <th>Costo</th>
+        </tr>
+      </thead>
+      <tbody id="byModelBody"></tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>Eventos recientes</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Evento</th>
+          <th>Modelo</th>
+          <th>Input</th>
+          <th>Output</th>
+          <th>Minutos</th>
+          <th>Estado</th>
+          <th>Detalle</th>
+        </tr>
+      </thead>
+      <tbody id="recentEventsBody"></tbody>
+    </table>
+  </section>
+</main>
+<script src="supabase-client.js"></script>
+<script src="auth-gate.js"></script>
+<script>
+(function () {
+  function formatNumber(value, decimals) {
+    return Number(value || 0).toLocaleString('en-US', {
+      minimumFractionDigits: decimals || 0,
+      maximumFractionDigits: decimals || 0
+    });
+  }
+
+  function formatCurrency(value) {
+    return `$${formatNumber(value, 4)}`;
+  }
+
+  function buildQuery() {
+    const params = new URLSearchParams();
+    const from = document.getElementById('fromDate').value;
+    const to = document.getElementById('toDate').value;
+    if (from) params.set('from', `${from}T00:00:00.000Z`);
+    if (to) params.set('to', `${to}T23:59:59.999Z`);
+    return params.toString();
+  }
+
+  async function authenticatedFetch(url) {
+    if (window.MiracleAuth && typeof window.MiracleAuth.whenAuthenticated === 'function') {
+      try { await window.MiracleAuth.whenAuthenticated(); } catch (error) {}
+    }
+    const headers = {};
+    const token = window.MiracleAuth && typeof window.MiracleAuth.getAccessToken === 'function'
+      ? window.MiracleAuth.getAccessToken()
+      : '';
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return fetch(url, { headers });
+  }
+
+  function renderSummary(summary) {
+    const cards = [
+      ['Input tokens', formatNumber(summary.totals.inputTokens)],
+      ['Output tokens', formatNumber(summary.totals.outputTokens)],
+      ['Minutos Deepgram', formatNumber(summary.totals.deepgramMinutes, 2)],
+      ['Costo OpenAI conocido', formatCurrency(summary.totals.estimatedCostUsd)],
+      ['Eventos con precio', formatNumber(summary.totals.pricedEventCount)],
+      ['Eventos sin precio oficial', formatNumber(summary.totals.unpricedEventCount)]
+    ];
+    document.getElementById('summaryCards').innerHTML = cards.map(function (item) {
+      return `
+        <article class="card">
+          <div class="label">${item[0]}</div>
+          <div class="value">${item[1]}</div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  function renderByModel(summary) {
+    document.getElementById('byModelBody').innerHTML = summary.byModel.map(function (row) {
+      return `
+        <tr>
+          <td>${row.sourceRepo || '-'}</td>
+          <td>${row.provider || '-'}</td>
+          <td>${row.model || '-'}</td>
+          <td><span class="pill">${row.eventType || '-'}</span></td>
+          <td>${formatNumber(row.inputTokens)}</td>
+          <td>${formatNumber(row.outputTokens)}</td>
+          <td>${formatNumber(row.deepgramMinutes, 2)}</td>
+          <td>${formatCurrency(row.estimatedCostUsd)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function renderRecent(summary) {
+    document.getElementById('recentEventsBody').innerHTML = summary.recentEvents.map(function (row) {
+      const statusClass = row.status === 'applied' || row.status === 'ok' ? 'ok' : '';
+      return `
+        <tr>
+          <td>${row.occurredAt || '-'}</td>
+          <td>${row.eventType || '-'}</td>
+          <td>${row.model || '-'}</td>
+          <td>${formatNumber(row.inputTokens)}</td>
+          <td>${formatNumber(row.outputTokens)}</td>
+          <td>${formatNumber(row.deepgramMinutes, 2)}</td>
+          <td class="${statusClass}">${row.status || '-'}</td>
+          <td><pre>${JSON.stringify(row.metadata || {}, null, 2)}</pre></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function load() {
+    const query = buildQuery();
+    const response = await authenticatedFetch(`/api/usage/summary${query ? `?${query}` : ''}`);
+    const summary = await response.json();
+    renderSummary(summary);
+    renderByModel(summary);
+    renderRecent(summary);
+  }
+
+  document.getElementById('reloadBtn').addEventListener('click', function () {
+    load().catch(function (error) { console.error(error); });
+  });
+
+  load().catch(function (error) { console.error(error); });
+})();
+</script>
+</body>
+</html>

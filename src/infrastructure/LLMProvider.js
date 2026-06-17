@@ -61,15 +61,30 @@ class LLMProvider {
   }
 
   async chat(messages, options = {}) {
+    const result = await this.chatWithUsage(messages, options);
+    return result.content;
+  }
+
+  async chatWithUsage(messages, options = {}) {
     const data = await this.postChatCompletions({
       model: options.model || this.model,
       messages
     });
 
-    return data.choices?.[0]?.message?.content?.trim() || '';
+    return {
+      content: data.choices?.[0]?.message?.content?.trim() || '',
+      usage: data.usage || null,
+      model: data.model || options.model || this.model,
+      provider: this.provider || ''
+    };
   }
 
   async chatExpectingJson(messages, responseFormat = { type: 'json_object' }, options = {}) {
+    const result = await this.chatExpectingJsonWithUsage(messages, responseFormat, options);
+    return result.content;
+  }
+
+  async chatExpectingJsonWithUsage(messages, responseFormat = { type: 'json_object' }, options = {}) {
     try {
       const data = await this.postChatCompletions({
         model: options.model || this.model,
@@ -77,7 +92,12 @@ class LLMProvider {
         response_format: responseFormat
       });
 
-      return data.choices?.[0]?.message?.content?.trim() || '{}';
+      return {
+        content: data.choices?.[0]?.message?.content?.trim() || '{}',
+        usage: data.usage || null,
+        model: data.model || options.model || this.model,
+        provider: this.provider || ''
+      };
     } catch (error) {
       const message = `${error.message || ''}`;
       const formatUnsupported =
@@ -89,7 +109,7 @@ class LLMProvider {
         throw error;
       }
 
-      return this.chat(messages, options);
+      return this.chatWithUsage(messages, options);
     }
   }
 

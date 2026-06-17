@@ -1680,6 +1680,12 @@
             const requestNoteFieldMatches = typeof sessionDeps.requestNoteFieldMatches === 'function'
                 ? sessionDeps.requestNoteFieldMatches
                 : null;
+            const onMetric = typeof sessionDeps.onMetric === 'function'
+                ? sessionDeps.onMetric
+                : null;
+            const getSessionId = typeof sessionDeps.getSessionId === 'function'
+                ? sessionDeps.getSessionId
+                : () => '';
             if (!requestNoteFieldMatches) {
                 throw new Error('createDynamicFillSession requires requestNoteFieldMatches.');
             }
@@ -1828,6 +1834,20 @@
 
                 inflight = true;
                 let result = null;
+                const requestStartedAt = Date.now();
+                onMetric?.({
+                    eventType: 'dynamic_fill_match_request_started',
+                    provider: 'graph',
+                    apiFamily: 'internal',
+                    workflowId: plan.workflowId || '',
+                    sessionId: getSessionId(),
+                    feature: 'dynamic_fill',
+                    status: 'started',
+                    metadata: {
+                        pendingFieldCount: fields.length,
+                        noteLength: noteContent.length
+                    }
+                });
                 try {
                     result = await requestNoteFieldMatches(plan.workflowId, {
                         noteContent,
@@ -1836,9 +1856,41 @@
                             stepOrder,
                             value: lastAppliedValue.get(stepOrder) || ''
                         })),
-                        pageUrl: window.location.href
+                        pageUrl: window.location.href,
+                        voiceSessionId: getSessionId()
+                    });
+                    onMetric?.({
+                        eventType: 'dynamic_fill_match_request_completed',
+                        provider: 'graph',
+                        apiFamily: 'internal',
+                        workflowId: plan.workflowId || '',
+                        sessionId: getSessionId(),
+                        feature: 'dynamic_fill',
+                        status: 'ok',
+                        durationMs: Date.now() - requestStartedAt,
+                        metadata: {
+                            pendingFieldCount: fields.length,
+                            noteLength: noteContent.length,
+                            matchCount: Array.isArray(result?.matches) ? result.matches.length : 0,
+                            readyToSubmit: Boolean(result?.readyToSubmit)
+                        }
                     });
                 } catch (error) {
+                    onMetric?.({
+                        eventType: 'dynamic_fill_match_request_failed',
+                        provider: 'graph',
+                        apiFamily: 'internal',
+                        workflowId: plan.workflowId || '',
+                        sessionId: getSessionId(),
+                        feature: 'dynamic_fill',
+                        status: 'failed',
+                        durationMs: Date.now() - requestStartedAt,
+                        metadata: {
+                            pendingFieldCount: fields.length,
+                            noteLength: noteContent.length,
+                            errorMessage: error?.message || 'Unknown error'
+                        }
+                    });
                     emitExtensionLog('warn', 'Note field match request failed.', {
                         workflowId: plan.workflowId || '',
                         errorMessage: error?.message || 'Unknown error'
@@ -1885,6 +1937,21 @@
                                 evidence: match.evidence || '',
                                 actionType: step.actionType || ''
                             });
+                            onMetric?.({
+                                eventType: 'dynamic_fill_field_applied',
+                                provider: 'graph',
+                                apiFamily: 'internal',
+                                workflowId: plan.workflowId || '',
+                                sessionId: getSessionId(),
+                                stepOrder,
+                                feature: 'dynamic_fill',
+                                status: 'applied',
+                                metadata: {
+                                    actionType: step.actionType || '',
+                                    value: match.value,
+                                    evidence: match.evidence || ''
+                                }
+                            });
                             emitExtensionLog('info', 'Dynamic note fill applied step.', {
                                 workflowId: plan.workflowId || '',
                                 stepOrder,
@@ -1893,6 +1960,21 @@
                             });
                             await waitMs(interMatchDelayMs);
                         } else {
+                            onMetric?.({
+                                eventType: 'dynamic_fill_field_deferred',
+                                provider: 'graph',
+                                apiFamily: 'internal',
+                                workflowId: plan.workflowId || '',
+                                sessionId: getSessionId(),
+                                stepOrder,
+                                feature: 'dynamic_fill',
+                                status: outcome.reason || 'deferred',
+                                metadata: {
+                                    actionType: step.actionType || '',
+                                    value: match.value || '',
+                                    evidence: match.evidence || ''
+                                }
+                            });
                             emitExtensionLog('info', 'Dynamic note fill could not apply step yet.', {
                                 workflowId: plan.workflowId || '',
                                 stepOrder,
@@ -1910,6 +1992,19 @@
                 }
 
                 if (result?.readyToSubmit) {
+                    onMetric?.({
+                        eventType: 'dynamic_fill_ready_to_submit',
+                        provider: 'graph',
+                        apiFamily: 'internal',
+                        workflowId: plan.workflowId || '',
+                        sessionId: getSessionId(),
+                        feature: 'dynamic_fill',
+                        status: 'ready_to_submit',
+                        metadata: {
+                            reason: result.submitReason || '',
+                            fulfilledStepOrders: Array.from(fulfilledStepOrders)
+                        }
+                    });
                     sessionDeps.onReadyToSubmit?.({
                         reason: result.submitReason || '',
                         fulfilledStepOrders: Array.from(fulfilledStepOrders)

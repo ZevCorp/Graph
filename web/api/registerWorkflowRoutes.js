@@ -5,6 +5,7 @@ function registerWorkflowRoutes(app, deps = {}) {
   const catalogService = deps.catalogService;
   const workflowExecutor = deps.workflowExecutor;
   const noteFieldMatcher = deps.noteFieldMatcher;
+  const usageDashboardService = deps.usageDashboardService || null;
 
   if (!app || !catalogService || !workflowExecutor) {
     throw new Error('registerWorkflowRoutes requires app, catalogService, and workflowExecutor');
@@ -123,6 +124,7 @@ function registerWorkflowRoutes(app, deps = {}) {
   });
 
   app.post('/api/workflows/:id/note-field-matches', async (req, res) => {
+    const startedAt = Date.now();
     try {
       if (!noteFieldMatcher) {
         return res.status(503).json({ error: 'Note field matcher not configured' });
@@ -138,6 +140,49 @@ function registerWorkflowRoutes(app, deps = {}) {
         alreadyFulfilled: req.body?.alreadyFulfilled || [],
         pageUrl: req.body?.pageUrl || ''
       });
+      const durationMs = Date.now() - startedAt;
+      usageDashboardService?.recordEvent({
+        sourceRepo: 'graph',
+        eventType: 'dynamic_fill_note_field_match_request',
+        provider: 'graph',
+        apiFamily: 'internal',
+        workflowId,
+        sessionId: req.body?.voiceSessionId || '',
+        durationMs,
+        feature: 'dynamic_fill',
+        status: 'ok',
+        metadata: {
+          pageUrl: req.body?.pageUrl || '',
+          fieldCount: Array.isArray(req.body?.fields) ? req.body.fields.length : 0,
+          noteLength: `${req.body?.noteContent || ''}`.length,
+          matchCount: Array.isArray(result?.matches) ? result.matches.length : 0,
+          readyToSubmit: Boolean(result?.readyToSubmit)
+        }
+      });
+      if (result?.usage) {
+        usageDashboardService?.recordEvent({
+          sourceRepo: 'graph',
+          eventType: 'dynamic_fill_note_field_match_usage',
+          provider: result.usage.provider || 'openai',
+          apiFamily: result.usage.apiFamily || 'chat_completions',
+          model: result.usage.model || '',
+          inputTokens: Number(result.usage.inputTokens) || 0,
+          outputTokens: Number(result.usage.outputTokens) || 0,
+          workflowId,
+          sessionId: req.body?.voiceSessionId || '',
+          durationMs,
+          feature: 'dynamic_fill',
+          status: 'ok',
+          metadata: {
+            pageUrl: req.body?.pageUrl || '',
+            fieldCount: Array.isArray(req.body?.fields) ? req.body.fields.length : 0,
+            noteLength: `${req.body?.noteContent || ''}`.length,
+            matchCount: Array.isArray(result?.matches) ? result.matches.length : 0,
+            readyToSubmit: Boolean(result?.readyToSubmit),
+            totalTokens: Number(result.usage.totalTokens) || 0
+          }
+        });
+      }
       res.json(result);
     } catch (err) {
       console.error(`[Workflows] Note Field Match Error: ${err.message}`);

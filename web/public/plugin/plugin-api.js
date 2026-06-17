@@ -147,6 +147,13 @@
                     body: JSON.stringify(payload || {})
                 }, fetchImpl);
             },
+            recordUsageEvent(payload) {
+                return createJsonRequest(baseUrl, '/api/usage/events', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload || {})
+                }, fetchImpl);
+            },
             requestDiagnosisSuggestions(noteContent) {
                 return createJsonRequest(baseUrl, '/api/clinical/diagnosis-suggestions', {
                     method: 'POST',
