@@ -90,7 +90,8 @@
         diagnosisError: '',
         diagnosisBusy: false,
         diagnosisSourceContent: '',
-        diagnosisRequestId: 0
+        diagnosisRequestId: 0,
+        dictationStartedAt: 0
     };
     const EXECUTION_STORAGE_PREFIX = 'graph-browser-workflow-execution-v1';
     const PHONE_MIC_SESSION_STORAGE_KEY = 'graph-phone-mic-session-id';
@@ -502,6 +503,14 @@
             throw new Error('No hay cliente API configurado para este plugin.');
         }
         return client;
+    }
+
+    function recordUsageEvent(payload = {}) {
+        const client = apiClient();
+        if (!client || typeof client.recordUsageEvent !== 'function') {
+            return Promise.resolve(null);
+        }
+        return client.recordUsageEvent(payload).catch(() => null);
     }
 
     async function persistLearningContextNote(note) {
@@ -1672,6 +1681,23 @@
         miracleNoteState.finalSegmentCount += 1;
         syncMiracleNotePanel('Miracle esta organizando la nota...');
 
+        const segmentId = `graph_seg_${miracleNoteState.finalSegmentCount}`;
+        recordUsageEvent({
+            sourceRepo: 'graph',
+            eventType: 'miracle_segment_submitted',
+            provider: 'miracle',
+            apiFamily: 'voice_orchestration',
+            sessionId: miracleNoteState.voiceSessionId,
+            segmentId,
+            feature: 'dictation_note_fill',
+            status: 'submitted',
+            metadata: {
+                language: language || '',
+                transcriptLength: trimmedTranscript.length,
+                noteLength: `${miracleNoteState.noteContent || ''}`.length
+            }
+        });
+
         const response = await requireApiClient().sendMiracleOrchestratorEvent({
             voice_session_id: miracleNoteState.voiceSessionId,
             note_path: null,
@@ -1681,7 +1707,7 @@
             event_id: `graph_evt_${miracleNoteState.eventSequence}`,
             sequence: miracleNoteState.eventSequence,
             segment: {
-                segment_id: `graph_seg_${miracleNoteState.finalSegmentCount}`,
+                segment_id: segmentId,
                 kind: 'final',
                 transcript: trimmedTranscript,
                 language: language || null
@@ -1689,6 +1715,20 @@
         });
 
         updateMiracleNoteContent(response?.resolved_note_content || '');
+        recordUsageEvent({
+            sourceRepo: 'graph',
+            eventType: 'miracle_note_resolved',
+            provider: 'miracle',
+            apiFamily: 'voice_orchestration',
+            sessionId: miracleNoteState.voiceSessionId,
+            segmentId,
+            feature: 'dictation_note_fill',
+            status: 'resolved',
+            metadata: {
+                resolvedNoteLength: `${response?.resolved_note_content || ''}`.length,
+                noteLength: `${miracleNoteState.noteContent || ''}`.length
+            }
+        });
         syncMiracleNotePanel(miracleNoteState.noteContent ? 'Miracle organizo la nota.' : 'Segmento enviado a Miracle.');
         dispatchMiracleNoteToDynamicFill(miracleNoteState.noteContent);
     }
@@ -1779,6 +1819,16 @@
             miracleNoteState.committedTranscript = '';
             miracleNoteState.pendingDraft = '';
             miracleNoteState.finalSegmentCount = 0;
+            miracleNoteState.dictationStartedAt = Date.now();
+            recordUsageEvent({
+                sourceRepo: 'graph',
+                eventType: 'deepgram_stream_started',
+                provider: 'deepgram',
+                apiFamily: 'streaming_stt',
+                sessionId: miracleNoteState.voiceSessionId,
+                feature: 'dictation_note_fill',
+                status: 'started'
+            });
             await openMiracleSocket();
             await startMiracleMediaRecorder();
             miracleNoteState.active = true;
@@ -1792,6 +1842,9 @@
     async function stopMiracleNoteDictation() {
         miracleNoteState.busy = true;
         syncMiracleNotePanel('Cerrando dictado...');
+        const streamModel = miracleNoteState.streamSession?.model || '';
+        const dictationStartedAt = miracleNoteState.dictationStartedAt || 0;
+        const finalSegmentCount = miracleNoteState.finalSegmentCount || 0;
         try {
             if (miracleNoteState.mediaRecorder && miracleNoteState.mediaRecorder.state !== 'inactive') {
                 miracleNoteState.mediaRecorder.stop();
@@ -1811,6 +1864,26 @@
             miracleNoteState.streamSession = null;
             miracleNoteState.active = false;
             miracleNoteState.busy = false;
+            const durationMs = dictationStartedAt ? Math.max(0, Date.now() - dictationStartedAt) : 0;
+            if (durationMs > 0) {
+                recordUsageEvent({
+                    sourceRepo: 'graph',
+                    eventType: 'deepgram_stream_completed',
+                    provider: 'deepgram',
+                    apiFamily: 'streaming_stt',
+                    model: streamModel,
+                    deepgramMinutes: durationMs / 60000,
+                    sessionId: miracleNoteState.voiceSessionId,
+                    durationMs,
+                    feature: 'dictation_note_fill',
+                    status: 'completed',
+                    metadata: {
+                        segmentCount: finalSegmentCount,
+                        noteLength: `${miracleNoteState.noteContent || ''}`.length
+                    }
+                });
+            }
+            miracleNoteState.dictationStartedAt = 0;
             releaseMiracleMicrophone();
             stopMiracleDynamicFillSession();
             syncMiracleNotePanel(miracleNoteState.noteContent ? 'Dictado detenido.' : 'Lista para dictado con Miracle.');
@@ -1869,6 +1942,23 @@
             }
             const session = requireExecutionClient().createDynamicFillSession(plan, {
                 requestNoteFieldMatches: (workflowId, payload) => requireApiClient().requestNoteFieldMatches(workflowId, payload),
+                getSessionId: () => miracleNoteState.voiceSessionId || '',
+                onMetric: (detail) => {
+                    recordUsageEvent({
+                        sourceRepo: 'graph',
+                        provider: detail?.provider || 'graph',
+                        apiFamily: detail?.apiFamily || 'internal',
+                        model: detail?.model || '',
+                        eventType: detail?.eventType || 'dynamic_fill_event',
+                        sessionId: detail?.sessionId || miracleNoteState.voiceSessionId || '',
+                        workflowId: detail?.workflowId || workflow.id,
+                        stepOrder: detail?.stepOrder ?? null,
+                        durationMs: detail?.durationMs ?? null,
+                        feature: detail?.feature || 'dynamic_fill',
+                        status: detail?.status || '',
+                        metadata: detail?.metadata || {}
+                    });
+                },
                 onFieldFilled: (detail) => {
                     emitPluginEvent('note.field.filled', detail);
                 },

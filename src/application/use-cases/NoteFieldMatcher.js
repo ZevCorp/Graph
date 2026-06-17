@@ -10,7 +10,7 @@ class NoteFieldMatcher {
   }
 
   emptyResult() {
-    return { matches: [], readyToSubmit: false, submitReason: '' };
+    return { matches: [], readyToSubmit: false, submitReason: '', usage: null };
   }
 
   buildMessages(payload = {}) {
@@ -38,7 +38,7 @@ class NoteFieldMatcher {
     ];
   }
 
-  normalizeResult(parsed = {}) {
+  normalizeResult(parsed = {}, usage = null) {
     const matches = Array.isArray(parsed.matches) ? parsed.matches : [];
     return {
       matches: matches
@@ -50,7 +50,8 @@ class NoteFieldMatcher {
         }))
         .filter((m) => Number.isFinite(m.stepOrder) && m.value !== '' && m.confidence >= 0.75),
       readyToSubmit: Boolean(parsed.readyToSubmit),
-      submitReason: `${parsed.submitReason || ''}`.slice(0, 200)
+      submitReason: `${parsed.submitReason || ''}`.slice(0, 200),
+      usage
     };
   }
 
@@ -66,12 +67,20 @@ class NoteFieldMatcher {
     }
 
     try {
-      const content = await this.llmProvider.chatExpectingJson(
+      const response = await this.llmProvider.chatExpectingJsonWithUsage(
         this.buildMessages(payload),
         { type: 'json_object' }
       );
-      const parsed = this.llmProvider.parseJsonObject(content || '{}');
-      return this.normalizeResult(parsed);
+      const parsed = this.llmProvider.parseJsonObject(response.content || '{}');
+      const usage = response.usage ? {
+        provider: response.provider || this.llmProvider?.provider || '',
+        apiFamily: 'chat_completions',
+        model: response.model || this.llmProvider?.model || '',
+        inputTokens: Number(response.usage?.prompt_tokens) || 0,
+        outputTokens: Number(response.usage?.completion_tokens) || 0,
+        totalTokens: Number(response.usage?.total_tokens) || 0
+      } : null;
+      return this.normalizeResult(parsed, usage);
     } catch (error) {
       return {
         ...this.emptyResult(),

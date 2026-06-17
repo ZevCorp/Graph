@@ -9,6 +9,7 @@ const PlaywrightRunner = require('../src/infrastructure/PlaywrightRunner');
 const VoiceRealtimeGateway = require('../src/infrastructure/VoiceRealtimeGateway');
 const Neo4jWorkflowRepository = require('../src/infrastructure/repositories/Neo4jWorkflowRepository');
 const MarkdownCatalogWriter = require('../src/infrastructure/file-system/MarkdownCatalogWriter');
+const UsageLedgerStore = require('../src/infrastructure/file-system/UsageLedgerStore');
 
 const WorkflowCatalog = require('../src/application/use-cases/WorkflowCatalog');
 const WorkflowLearner = require('../src/application/use-cases/WorkflowLearner');
@@ -21,12 +22,14 @@ const LearningSessionService = require('../src/application/use-cases/LearningSes
 const ExecutionIntelligenceService = require('../src/application/use-cases/ExecutionIntelligenceService');
 const NoteFieldMatcher = require('../src/application/use-cases/NoteFieldMatcher');
 const ClinicalDiagnosisSuggestionService = require('../src/application/use-cases/ClinicalDiagnosisSuggestionService');
+const UsageDashboardService = require('../src/application/use-cases/UsageDashboardService');
 const registerLearningRoutes = require('./api/registerLearningRoutes');
 const registerWorkflowRoutes = require('./api/registerWorkflowRoutes');
 const registerContextRoutes = require('./api/registerContextRoutes');
 const registerExecutionIntelligenceRoutes = require('./api/registerExecutionIntelligenceRoutes');
 const registerVoiceRoutes = require('./api/registerVoiceRoutes');
 const registerClinicalRoutes = require('./api/registerClinicalRoutes');
+const registerUsageRoutes = require('./api/registerUsageRoutes');
 const rateLimit = require('express-rate-limit');
 const {
   requireAuth,
@@ -54,6 +57,8 @@ const llmProvider = new LLMProvider();
 const playwrightRunner = new PlaywrightRunner();
 const repository = new Neo4jWorkflowRepository(db);
 const catalogWriter = new MarkdownCatalogWriter();
+const usageLedgerStore = new UsageLedgerStore(path.join(process.cwd(), 'generated', 'usage', 'ai-usage-events.jsonl'));
+const usageDashboardService = new UsageDashboardService(usageLedgerStore);
 
 const catalogService = new WorkflowCatalog(repository, catalogWriter);
 const workflowLearner = new WorkflowLearner(repository, llmProvider, catalogWriter, catalogService);
@@ -220,7 +225,8 @@ app.use('/api/voice/phone-session/:id/events', async (req, res, next) => {
 });
 [
   '/api/voice',
-  '/api/clinical'
+  '/api/clinical',
+  '/api/usage'
 ].forEach((routePrefix) => {
   app.use(routePrefix, (req, res, next) => {
     if (req.phoneVoiceSession) {
@@ -314,7 +320,7 @@ app.get('/api/account/me', (req, res) => {
 });
 
 registerLearningRoutes(app, { learningSessionService });
-registerWorkflowRoutes(app, { catalogService, workflowExecutor, noteFieldMatcher });
+registerWorkflowRoutes(app, { catalogService, workflowExecutor, noteFieldMatcher, usageDashboardService });
 registerContextRoutes(app, {
   generatePitchArtifacts,
   conversationInsights,
@@ -329,6 +335,7 @@ registerVoiceRoutes(app, {
   phoneVoiceStore
 });
 registerClinicalRoutes(app, { diagnosisSuggestionService });
+registerUsageRoutes(app, { usageDashboardService });
 
 app.post('/api/agent/chat', costlyLimiter, async (req, res) => {
   try {
